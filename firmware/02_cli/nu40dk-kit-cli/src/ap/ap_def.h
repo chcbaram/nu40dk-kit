@@ -2,7 +2,10 @@
 #define AP_DEF_H_
 
 
+#include <zephyr/logging/log.h>
+
 #include "hw.h"
+
 
 
 #include "module.h"

@@ -1,5 +1,6 @@
 #include "ap.h"
 
+LOG_MODULE_REGISTER(ap, LOG_LEVEL_DBG);
 
 
 
