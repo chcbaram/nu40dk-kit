@@ -655,14 +655,40 @@ void cliI2s(cli_args_t *args)
   {
     uint16_t melody[] = {NOTE_C4, NOTE_G3, NOTE_G3, NOTE_A3, NOTE_G3, 0, NOTE_B3, NOTE_C4};
     int note_durations[] = { 4, 8, 8, 4, 4, 4, 4, 4 };
+    int16_t note_min = 10000;
+    int16_t note_max = 0;
+
+    for (int i=0; i<8; i++) 
+    {
+      if (melody[i] == 0)
+        continue;
+
+      if (melody[i] < note_min)
+        note_min = melody[i];
+      if (melody[i] > note_max)
+        note_max = melody[i];
+    }    
 
     for (int i=0; i<8; i++) 
     {
       int note_duration = 1000 / note_durations[i];
 
+      #if HW_I2S_LCD > 0
+      int16_t s_h;
+
+      s_h = cmap(melody[i], note_min, note_max, 2, 10);
+      // lcdClearBuffer(black);
+      lcdDrawFillRect((LCD_WIDTH/8) * i, LCD_HEIGHT - (LCD_HEIGHT/10) * s_h, LCD_WIDTH/8 - 2, (LCD_HEIGHT/10) * s_h, white);      
+      lcdRequestDraw();
+      #endif
+
       i2sPlayBeep(melody[i], 100, note_duration);
       delay(note_duration * 0.3);    
     }
+
+    #if HW_I2S_LCD > 0
+    lcdClear(black);
+    #endif    
     ret = true;
   }
 
