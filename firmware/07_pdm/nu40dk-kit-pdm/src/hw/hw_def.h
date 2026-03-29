@@ -84,11 +84,11 @@
 #define _HW_DEF_RTOS_THREAD_PRI_SD_MGR        5
 #define _HW_DEF_RTOS_THREAD_PRI_PDM           5
 
-#define _HW_DEF_RTOS_THREAD_MEM_CLI           (6*1024)
+#define _HW_DEF_RTOS_THREAD_MEM_CLI           (8*1024)
 #define _HW_DEF_RTOS_THREAD_MEM_UART          (2*1024)
 #define _HW_DEF_RTOS_THREAD_MEM_I2S           (2*1024)
 #define _HW_DEF_RTOS_THREAD_MEM_SD_MGR        (6*1024)
-#define _HW_DEF_RTOS_THREAD_MEM_PDM           (2*1024)
+#define _HW_DEF_RTOS_THREAD_MEM_PDM           (4*1024)
 
 
 typedef enum

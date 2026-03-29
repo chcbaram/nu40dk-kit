@@ -53,6 +53,7 @@ void sdMgrThread(void const *arg)
     sd_state = sdUpdate();
     if (sd_state == SDCARD_CONNECTED)
     {
+      fatfsReInit();
       logPrintf("\n[  ] SDCARD_CONNECTED\n");
     }
     if (sd_state == SDCARD_DISCONNECTED)

@@ -384,11 +384,12 @@ void cliCmd(cli_args_t *args)
     fp = fopen(filename, "wb");
     if (fp)
     {
-      fwrite(&header, sizeof(wavfile_header_t), 1, fp);                  
+      // fwrite(&header, sizeof(wavfile_header_t), 1, fp);                  
     }
     else
     {
-      cliPrintf("[E_] fopen()\n");                  
+      cliPrintf("[E_] fopen()\n");  
+      return;                
     }
 
 

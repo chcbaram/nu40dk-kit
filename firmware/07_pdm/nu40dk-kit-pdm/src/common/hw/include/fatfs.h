@@ -15,7 +15,7 @@
 
 
 bool fatfsInit(void);
-
+bool fatfsReInit(void);
 
 #endif
 

@@ -11,6 +11,7 @@
 
 
 static bool is_init = false;
+static bool is_cli  = false;
 
 static FATFS fat_fs;
 static const char *disk_mount_pt = DISK_MOUNT_PT;
@@ -39,6 +40,7 @@ bool fatfsInit(void)
   logPrintf("[%s] fatfsInit()\n", ret ? "OK":"NG");
 
 #if CLI_USE(HW_FATFS)
+  is_cli = true;
   cliAdd("fatfs", cliFatfs);
 #endif
 
@@ -61,6 +63,14 @@ bool fatfsReInit(void)
   }
 
   ret = is_init;
+
+#if CLI_USE(HW_FATFS)
+  if (ret)
+  {
+    is_cli = true;
+    cliAdd("fatfs", cliFatfs);
+  }
+#endif
 
   return ret;
 }

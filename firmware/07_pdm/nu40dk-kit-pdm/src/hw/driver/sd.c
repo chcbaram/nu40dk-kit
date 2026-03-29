@@ -163,7 +163,7 @@ sd_state_t sdUpdate(void)
       if (millis()-pre_time >= 100)
       {
         if (sdReInit())
-        {
+        {          
           sd_state  = SDCARD_CONNECTED;
           ret_state = SDCARD_CONNECTED;
         }
