@@ -1,0 +1,261 @@
+#include "ap_def.h"
+
+#include <zephyr/kernel.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/uuid.h>
+#include <zephyr/bluetooth/gatt.h>
+#include <bluetooth/scan.h>
+
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(ble_pad, LOG_LEVEL_INF);
+
+
+#define CHECK_ERR(f, msg) \
+    do { \
+        int _err = (f); \
+        if (_err) { \
+            logPrintf(msg " (err %d)", _err); \
+            break; \
+        } \
+    } while(0)
+
+
+
+static bool init(void);
+static bool blePadInit(void);
+static void blePadThread(void const *arg);
+
+static void blePadScanFilterMatch(struct bt_scan_device_info  *device_info,
+                              struct bt_scan_filter_match *filter_match,
+                              bool                         connectable);
+static void blePadConnected(struct bt_conn *conn, uint8_t err);
+static void blePadDisconnected(struct bt_conn *conn, uint8_t reason);
+
+
+MODULE_DEF(ble_pad) 
+{
+  .name = "ble_pad",
+  .priority = MODULE_PRI_LOW,
+  .init = init
+};
+
+
+
+// K_THREAD_DEFINE(xbox_thread,
+//                 _HW_DEF_RTOS_THREAD_MEM_CLI,
+//                 sdMgrThread, NULL, NULL, NULL,
+//                 _HW_DEF_RTOS_THREAD_PRI_CLI, 0, 0);
+static K_THREAD_STACK_DEFINE(thread_stack, _HW_DEF_RTOS_THREAD_MEM_BLEPAD);
+static struct k_thread thread_data;
+
+static struct bt_conn *ble_pad_conn; // 현재 연결된 기기 정보를 담는 포인터
+
+
+BT_SCAN_CB_INIT(blePadScanCb,
+                blePadScanFilterMatch, // filter_match
+                NULL,                  // filter_no_match
+                NULL,                  // connecting_error
+                NULL);                 // connecting
+
+BT_CONN_CB_DEFINE(blePadConnCallbacks) = {
+  .connected    = blePadConnected,
+  .disconnected = blePadDisconnected,
+};
+
+
+bool init(void)
+{
+  bool ret;
+
+  k_tid_t tid = k_thread_create(&thread_data, thread_stack,
+                                  K_THREAD_STACK_SIZEOF(thread_stack),
+                                  (k_thread_entry_t)blePadThread,
+                                  NULL, NULL, NULL,
+                                  _HW_DEF_RTOS_THREAD_PRI_BLEPAD, 0, K_NO_WAIT);
+
+  ret = tid != NULL ? true:false;                                  
+  logPrintf("[%s] blePadInit()\n", ret ? "OK":"E_");
+
+  return ret;
+}
+
+static bool blePadParseNameCb(struct bt_data *data, void *user_data)
+{
+  char *name = user_data;
+
+  switch (data->type)
+  {
+    case BT_DATA_NAME_COMPLETE:
+    case BT_DATA_NAME_SHORTENED:
+      // 찾은 이름을 user_data(name 변수)에 복사
+      int len = MIN(data->data_len, 31); // 31바이트 제한
+      memcpy(name, data->data, len);
+      name[len] = '\0';
+      return false;                      // 이름을 찾았으므로 순회 중단
+    default:
+      return true;                       // 계속 탐색
+  }
+}
+
+static void blePadScanFilterMatch(struct bt_scan_device_info  *device_info,
+                              struct bt_scan_filter_match *filter_match,
+                              bool                         connectable)
+{
+  char addr[BT_ADDR_LE_STR_LEN];
+  char name[32] = "No Name"; // 이름을 담을 버퍼
+  bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
+
+
+  bt_data_parse(device_info->adv_data, blePadParseNameCb, name);
+
+  // LOG_INF(">>> Xbox Controller Detected via HID UUID! <<<");
+  // LOG_INF("Addr: %s, RSSI: %d", addr, device_info->recv_info->rssi);
+
+  // if (device_info->recv_info->rssi > -50)
+  // {
+  //   LOG_INF(">>> Device Detected <<<");
+  //   LOG_INF("Addr: %s", addr);
+  //   LOG_INF("Name: %s", name); // 여기서 "Xbox Wireless Controller" 확인 가능
+  //   LOG_INF("RSSI: %d", device_info->recv_info->rssi);
+
+  //   // 여기서 이름에 "Xbox"가 포함되어 있는지 체크하는 로직을 넣을 수 있습니다.
+  //   if (strstr(name, "Xbox") != NULL)
+  //   {
+  //     LOG_INF("Confirmed: This is an Xbox Controller.");
+  //   }
+  // }
+
+// Xbox 컨트롤러이고 신호 강도가 적절할 때
+  if (strstr(name, "Xbox") != NULL && device_info->recv_info->rssi > -50)
+  {
+    logPrintf("[..] Attempting to connect: %s (%s)\n", name, addr);
+
+    bt_scan_stop();
+
+    // 스캔을 중지하고 연결 시도 (Scan 모듈의 자동 연결 기능을 쓸 수도 있음)
+    int err = bt_conn_le_create(device_info->recv_info->addr,
+                                BT_CONN_LE_CREATE_CONN,
+                                BT_LE_CONN_PARAM_DEFAULT,
+                                &ble_pad_conn);
+    if (err)
+    {
+      logPrintf("[E_] Connection attempt failed (err %d)\n", err);
+      bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
+      ble_pad_conn = NULL;      
+    }
+    else
+    {
+      bt_scan_stop(); // 연결 시도 중에는 스캔 중지
+    }
+  }
+}
+
+
+
+static bool bldPadScanInit(void)
+{
+  bool ret = false;
+
+  struct bt_scan_init_param scan_init_obj = {
+    .connect_if_match = false,
+  };
+
+  bt_scan_init(&scan_init_obj);
+  bt_scan_cb_register(&blePadScanCb);
+
+  do
+  {
+    CHECK_ERR(bt_scan_filter_add(BT_SCAN_FILTER_TYPE_UUID, BT_UUID_HIDS),
+              "[E_] UUID filter add failed");
+
+    CHECK_ERR(bt_scan_filter_enable(BT_SCAN_UUID_FILTER, false),
+              "[E_] UUID filter enable failed");
+
+    CHECK_ERR(bt_scan_filter_add(BT_SCAN_FILTER_TYPE_NAME, "Xbox Wireless Controller"),
+              "[E_] Name filter add failed");
+
+    CHECK_ERR(bt_scan_filter_enable(BT_SCAN_NAME_FILTER, false),
+              "[E_] Name filter enable failed");
+
+    ret = true;
+  } while (0);
+
+  return ret;
+}
+
+
+
+// 연결 관련 이벤트 콜백
+static void blePadConnected(struct bt_conn *conn, uint8_t err)
+{
+  if (err)
+  {
+    logPrintf("[E_] Connection failed (err %u)\n", err);
+    return;
+  }
+  logPrintf("[OK] Connected to Xbox Controller!\n");
+  ble_pad_conn = bt_conn_ref(conn); // 연결 참조 카운트 증가
+}
+
+static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
+{
+  logPrintf("[--] Disconnected (reason %u)\n", reason);
+  if (ble_pad_conn)
+  {
+    bt_conn_unref(ble_pad_conn); // 참조 해제
+    ble_pad_conn = NULL;
+  }
+}
+
+bool blePadInit(void)
+{
+  bool ret = false;  
+  int err;
+
+  logPrintf("[  ] blePadInit()\n");
+
+  do 
+  {
+    // 1. 블루투스 활성화
+    err = bt_enable(NULL);
+    if (err)
+    {
+      logPrintf("[E_] Bluetooth init failed (err %d)", err);
+      break;
+    }
+
+    ret = bldPadScanInit();
+    if (ret)
+    {
+      err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
+      if (err)
+      {
+        logPrintf("[E_] Scanning failed to start (err %d)", err);
+        ret = false;
+      }
+    }
+  } while(0);
+
+  logPrintf("[%s] blePadInit()\n", ret ? "OK":"E_");
+  return ret;
+}
+
+void blePadThread(void const *arg)
+{
+  bool init_ret = true;
+
+
+  moduleIsReady();
+
+  logPrintf("[%s] Thread Started : BLE_PAD\n", init_ret ? "OK":"E_" );
+
+  blePadInit();
+
+  while(1)
+  {
+    delay(10);
+  }
+}
