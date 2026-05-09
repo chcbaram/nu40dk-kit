@@ -590,12 +590,12 @@ bool blePadInit(void)
 		return false;
 	}
 
-  bt_unpair(BT_ID_DEFAULT, BT_ADDR_LE_ANY); 
-  logPrintf("All bonding information cleared!\n");
+  // bt_unpair(BT_ID_DEFAULT, BT_ADDR_LE_ANY); 
+  // logPrintf("All bonding information cleared!\n");
 
-    if (IS_ENABLED(CONFIG_SETTINGS)) {
-        settings_save(); 
-    }
+    // if (IS_ENABLED(CONFIG_SETTINGS)) {
+    //     settings_save(); 
+    // }
 
 	logPrintf("Bluetooth initialized\n");
 

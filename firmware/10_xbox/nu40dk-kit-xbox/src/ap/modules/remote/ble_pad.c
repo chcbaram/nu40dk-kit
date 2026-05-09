@@ -47,7 +47,8 @@ static uint8_t blePadDiscoverCb(struct bt_conn                 *conn,
                                 const struct bt_gatt_attr      *attr,
                                 struct bt_gatt_discover_params *params);
 static void    blePadEnableHid(struct bt_conn *conn, uint16_t handle);
-
+static void    blePadPairingComplete(struct bt_conn *conn, bool bonded);
+static void    blePadPairingFailed(struct bt_conn *conn, enum bt_security_err reason);
 
 MODULE_DEF(ble_pad) 
 {
@@ -71,6 +72,8 @@ static struct bt_gatt_subscribe_params subscribe_params[MAX_REPORT_SUBS];
 static uint8_t                         subscribe_count = 0;
 static struct k_work                   ble_pad_subscribe_work;
 static uint16_t                        handle_2a4c = 0;
+static struct k_timer                  xbox_keepalive_timer;
+
 
 BT_SCAN_CB_INIT(ble_pad_scan_cb,
                 blePadScanFilterMatch, // filter_match
@@ -89,7 +92,10 @@ static struct bt_conn_auth_cb ble_pad_auth_cb_display = {
   .cancel          = blePadAuthCancel,
 };
 
-
+static struct bt_conn_auth_info_cb ble_pad_auth_info_cb = {
+  .pairing_complete = blePadPairingComplete,
+  .pairing_failed   = blePadPairingFailed,
+};
 
 
 bool init(void)
@@ -168,6 +174,8 @@ static void blePadScanFilterMatch(struct bt_scan_device_info  *device_info,
   bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
   bt_data_parse(device_info->adv_data, blePadParseNameCb, name);
 
+
+  logPrintf("[  ] Device: %s (%s) rssi %d\n", name, addr, device_info->recv_info->rssi);
 
   if (strstr(name, "Xbox") != NULL && device_info->recv_info->rssi > -50)
   {
@@ -292,7 +300,6 @@ static void blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enu
       // discover_params.type         = BT_GATT_DISCOVER_PRIMARY;
       discover_params.type         = BT_GATT_DISCOVER_CHARACTERISTIC;
 
-      delay(500);
       int ret = bt_gatt_discover(conn, &discover_params);
       if (ret)
       {
@@ -428,7 +435,7 @@ static void blePadSubscribeWorker(struct k_work *work)
   if (!ble_pad_conn) return;
 
   logPrintf("[WORK] Starting subscriptions for %u reports...\n", subscribe_count);
-
+ 
   for (int i = 0; i < subscribe_count; i++)
   {
     // 이미 DiscoverCb에서 세팅된 subscribe_params[i]를 사용하여 구독 시도
@@ -447,13 +454,14 @@ static void blePadSubscribeWorker(struct k_work *work)
   // 모든 리포트 구독 후 Xbox 컨트롤러를 깨우기 위해 2A4C에 신호 전송
   if (handle_2a4c != 0)
   {
-    delay(5000);
-    blePadEnableHid(ble_pad_conn, handle_2a4c);
+    blePadEnableHid(ble_pad_conn, handle_2a4c);    
   }
   else
   {
     logPrintf("[W_] HID Control Point (2A4C) not found. Skip enabling.\n");
   }
+
+  k_timer_start(&xbox_keepalive_timer, K_MSEC(500), K_MSEC(500)); 
 }
 
 static void blePadEnableHid(struct bt_conn *conn, uint16_t handle)
@@ -485,10 +493,14 @@ static void blePadPairingFailed(struct bt_conn *conn, enum bt_security_err reaso
   logPrintf("[BT] Security Error: %d (Auth Failed)\n", reason);
 }
 
-static struct bt_conn_auth_info_cb ble_pad_auth_info_cb = {
-  .pairing_complete = blePadPairingComplete,
-  .pairing_failed   = blePadPairingFailed,
-};
+void xbox_keepalive_expiry_fn(struct k_timer *timer_id)
+{
+  if (ble_pad_conn && handle_2a4c != 0)
+  {
+    uint8_t keepalive_cmd = 0x01;
+    bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &keepalive_cmd, 1, false);
+  }
+}
 
 bool blePadInit(void)
 {
@@ -496,6 +508,8 @@ bool blePadInit(void)
   int err;
 
   logPrintf("[  ] blePadInit()\n");
+
+  k_timer_init(&xbox_keepalive_timer, xbox_keepalive_expiry_fn, NULL);
 
   do 
   {
@@ -506,7 +520,13 @@ bool blePadInit(void)
       break;
     }
 
-    // settings_load();
+    bt_unpair(BT_ID_DEFAULT, BT_ADDR_LE_ANY);
+    logPrintf("All bonding information cleared!\n");
+
+    if (IS_ENABLED(CONFIG_SETTINGS))
+    {
+      settings_load();
+    }
 
     bt_conn_auth_cb_register(&ble_pad_auth_cb_display);
     bt_conn_auth_info_cb_register(&ble_pad_auth_info_cb);
