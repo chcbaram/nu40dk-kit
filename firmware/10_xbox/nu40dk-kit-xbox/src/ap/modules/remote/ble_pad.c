@@ -35,6 +35,7 @@ static void blePadPairingComplete(struct bt_conn *conn, bool bonded);
 static void blePadPairingFailed(struct bt_conn *conn, enum bt_security_err reason);
 
 static void blePadDiscoverDelayWorker(struct k_work *work);
+static void blePadActivationWorker(struct k_work *work); // 💡 새로 추가된 활성화 전용 워커
 
 MODULE_DEF(ble_pad) 
 {
@@ -48,15 +49,15 @@ static struct k_thread thread_data;
 static struct bt_conn *ble_pad_conn;
 
 static struct k_work_delayable ble_pad_discover_delay_work;
-static struct bt_gatt_discover_params discover_params;
+static struct k_work_delayable ble_pad_activation_work; // 💡 비동기 패킷 송신용 워커
 
-// 동적 멀티 구독 관리를 위한 풀(Pool) 구조체
+static struct bt_gatt_discover_params discover_params;
 static struct bt_gatt_subscribe_params sub_params_pool[MAX_SUBS];
 static uint8_t allocated_subs = 0;
 
-static uint16_t handle_2a4c = 0;         // HID Control Point 핸들
-static uint16_t xbox_report_ccc_handle = 0; // 인풋 리포트용 최상위 CCCD 핸들
-static bool is_subscribed = false;       // 중복 구독 방지 플래그
+static uint16_t handle_2a4c = 0;         
+static uint16_t xbox_report_val_handle = 0; 
+static bool is_subscribed = false;       
 
 BT_SCAN_CB_INIT(ble_pad_scan_cb, blePadScanFilterMatch, NULL, NULL, NULL);
 
@@ -134,8 +135,6 @@ static void blePadConnected(struct bt_conn *conn, uint8_t err)
   ble_pad_conn = bt_conn_ref(conn);
   is_subscribed = false; 
 
-  // 💡 [교정 1] 연결 직후에는 무리하게 파라미터를 먼저 바꾸지 않고, 
-  // 패드가 가장 중요하게 생각하는 암호화 링크(Security L2) 구축만 먼저 요청합니다.
   int sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
   if (sec_err) {
     logPrintf("[E_] Security Request Failed (err %d)\n", sec_err);
@@ -146,6 +145,7 @@ static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
 {
   logPrintf("[--] Disconnected! Reason code: %u\n", reason);
   is_subscribed = false;
+  k_work_cancel_delayable(&ble_pad_activation_work);
   if (ble_pad_conn) {
     bt_conn_unref(ble_pad_conn);
     ble_pad_conn = NULL;
@@ -161,18 +161,15 @@ static void blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enu
     logPrintf("[OK] Security Encrypted! Level: %u\n", level);
     
     if (level >= BT_SECURITY_L2 && !is_subscribed) {
-      // 💡 [교정 2] 암호화가 완벽히 성공한 이 타이밍에 통신 속도를 최적화(Interval 단축)합니다.
       struct bt_le_conn_param param = {
-        .interval_min = 9,   // 11.25 ms
-        .interval_max = 12,  // 15 ms
+        .interval_min = 9,   
+        .interval_max = 12,  
         .latency      = 0,
-        .timeout      = 500, // 5 sec
+        .timeout      = 500, 
       };
       bt_conn_le_param_update(conn, &param);
       logPrintf("[OK] Connection Parameters Optimized.\n");
 
-      // 💡 [교정 3] 링크가 안전하게 암호화되었으므로 딜레이를 500ms나 줄 필요가 없습니다.
-      // 50ms~100ms 내로 짧게 주어 즉시 디스커버리를 들이받습니다.
       logPrintf("[RECONN] Triggering Instant GATT Discovery...\n");
       k_work_reschedule(&ble_pad_discover_delay_work, K_MSEC(50));
     }
@@ -188,7 +185,7 @@ static void blePadPairingComplete(struct bt_conn *conn, bool bonded)
   logPrintf("[BT] Pairing/Bonding Process Completed! Bonded status: %s\n", bonded ? "TRUE" : "FALSE");
   if (bonded && !is_subscribed) {
     logPrintf("[★SUCCESS★] Fresh Bonded Lock-On. Triggering GATT Discovery...\n");
-    k_work_reschedule(&ble_pad_discover_delay_work, K_MSEC(500));
+    k_work_reschedule(&ble_pad_discover_delay_work, K_MSEC(50));
   }
 }
 
@@ -197,7 +194,6 @@ static void blePadPairingFailed(struct bt_conn *conn, enum bt_security_err reaso
   logPrintf("[E_] Pairing Protocol Failed. Reason Code: %d\n", reason);
 }
 
-// 실시간 상태 데이터 수신 알림 콜백
 static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_params *params, const void *data, uint16_t length)
 {
   if (!data || length == 0) {
@@ -205,8 +201,6 @@ static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_par
   }
 
   uint8_t *raw = (uint8_t *)data;
-
-  // 메인 인풋 데이터(기본 16바이트 또는 그 이상) 유효 패킷만 필터링하여 출력
   if (params->value_handle >= 30 || length > 2) {
     logPrintf("[PAD_NOTIFY] L:%d -> %02X %02X %02X %02X %02X %02X %02X %02X\n", 
               length, raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7]);
@@ -215,29 +209,32 @@ static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_par
   return BT_GATT_ITER_CONTINUE;
 }
 
-// 고속 동적 디스크립터 탐색 및 즉각 활성화 시퀀스
+// 💡 전형적인 "수집 데이터 클린 인터페이스" 형태의 Discover 콜백
 static uint8_t blePadDiscoverCb(struct bt_conn *conn, const struct bt_gatt_attr *attr, struct bt_gatt_discover_params *params)
 {
   if (!attr) {
     logPrintf("[OK] GATT Discovery Sequence Finished.\n");
+    
+    // 모든 핸들 수집 및 구독이 완료된 시점에만 전용 비동기 활성화 워커 가동 (10ms 뒤 분리 실행)
+    if (xbox_report_val_handle != 0) {
+      k_work_reschedule(&ble_pad_activation_work, K_MSEC(10));
+    }
     return BT_GATT_ITER_STOP;
   }
 
   if (attr->uuid->type == BT_UUID_TYPE_16) {
     uint16_t uuid16 = BT_UUID_16(attr->uuid)->val;
 
-    // A. HID 제어 포인트 핸들 보관
     if (uuid16 == 0x2A4C) {
       handle_2a4c = attr->handle;
     }
-    // B. CCCD 속성 발견 즉시 파이프라인 구독 진행
     else if (uuid16 == BT_UUID_GATT_CCC_VAL) {
       if (allocated_subs < MAX_SUBS) {
         uint16_t ccc_h = attr->handle;
         uint16_t val_h = ccc_h - 1;
 
-        if (ccc_h > xbox_report_ccc_handle) {
-          xbox_report_ccc_handle = ccc_h;
+        if (ccc_h >= 31) {
+          xbox_report_val_handle = val_h; // 메인 인풋 밸류 핸들 캡처
         }
 
         struct bt_gatt_subscribe_params *sparams = &sub_params_pool[allocated_subs];
@@ -253,30 +250,6 @@ static uint8_t blePadDiscoverCb(struct bt_conn *conn, const struct bt_gatt_attr 
           logPrintf("[SUB] Subscribed to Handle (Val:%d, CCC:%d)\n", val_h, ccc_h);
           allocated_subs++;
           is_subscribed = true;
-
-          // 💡 [초고속 락온 콤보] 메인 인풋 핸들(31번 영역) 발견 즉시 노크 및 웨이크업 패킷 투하
-          if (ccc_h >= 31) {
-            
-            // 1. HID Control Point(2A4C) 제대로 깨우기
-            if (handle_2a4c != 0) {
-              uint8_t cmd_suspend = 0x00;
-              uint8_t cmd_exit    = 0x01;
-              bt_gatt_write_without_response(conn, handle_2a4c, &cmd_suspend, 1, false);
-              k_msleep(5);
-              bt_gatt_write_without_response(conn, handle_2a4c, &cmd_exit, 1, false);
-            }
-
-            // 2. Xbox 패드 공식 활성화(Windows/오픈소스 규격) 콤보 패킷 투하
-            // 단순 0x00이 아니라, 패드가 '인풋 스트리밍'을 즉시 개시하도록 지시하는 명령어 레지스터 세팅입니다.
-            uint8_t xbox_active_cmd[2] = {0x01, 0x00}; 
-            bt_gatt_write_without_response(conn, val_h, xbox_active_cmd, sizeof(xbox_active_cmd), false);
-            
-            // 3. 만약 30번 핸들이 HID Report Reference 등 제어 레지스터라면 추가 노크 (보험용)
-            uint8_t xbox_report_start = 0x03;
-            bt_gatt_write_without_response(conn, val_h, &xbox_report_start, 1, false);
-
-            logPrintf("[⚡REAL_LOCK] Official Activation Combo Sent! LED Should Fix Instantly.\n");
-          }
         }
       }
     }
@@ -285,12 +258,43 @@ static uint8_t blePadDiscoverCb(struct bt_conn *conn, const struct bt_gatt_attr 
   return BT_GATT_ITER_CONTINUE;
 }
 
+// 💡 [핵심 해결책] 전용 시스템 워커 스레드 컨텍스트에서 안전하게 패킷 순차 송신
+static void blePadActivationWorker(struct k_work *work)
+{
+  if (!ble_pad_conn) return;
+
+  logPrintf("[SYSTEM] Safe Context Activation Sequence Start...\n");
+
+  // 1. HID Control Point 웨이크업 콤보 (명확한 시간차 전송)
+  if (handle_2a4c != 0) {
+    uint8_t cmd_suspend = 0x00;
+    uint8_t cmd_exit    = 0x01;
+    bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_suspend, 1, false);
+    k_msleep(20); // 워커 컨텍스트이므로 안전하게 sleep 가능
+    bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_exit, 1, false);
+    k_msleep(20);
+  }
+
+  // 2. 메인 스트리밍 활성화 플래그 주입 ({0x01, 0x00})
+  if (xbox_report_val_handle != 0) {
+    uint8_t xbox_active_cmd[2] = {0x01, 0x00}; 
+    bt_gatt_write_without_response(ble_pad_conn, xbox_report_val_handle, xbox_active_cmd, sizeof(xbox_active_cmd), false);
+    k_msleep(20);
+    
+    // 3. 인풋 스트리밍 모드 개시 강제 트리거 ({0x03})
+    uint8_t xbox_report_start = 0x03;
+    bt_gatt_write_without_response(ble_pad_conn, xbox_report_val_handle, &xbox_report_start, 1, false);
+
+    logPrintf("[⚡REAL_LOCK] Activation Combo Successfully Delivered! LED Fixed.\n");
+  }
+}
+
 static void blePadDiscoverDelayWorker(struct k_work *work)
 {
   if (!ble_pad_conn || is_subscribed) return;
 
   handle_2a4c = 0;
-  xbox_report_ccc_handle = 0;
+  xbox_report_val_handle = 0;
   allocated_subs = 0; 
 
   memset(&discover_params, 0, sizeof(struct bt_gatt_discover_params));
@@ -298,7 +302,7 @@ static void blePadDiscoverDelayWorker(struct k_work *work)
   discover_params.func         = blePadDiscoverCb;
   discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
   discover_params.end_handle   = BT_ATT_LAST_ATTRIBUTE_HANDLE;
-  discover_params.type         = BT_GATT_DISCOVER_DESCRIPTOR; // 디스크립터 정밀 서칭
+  discover_params.type         = BT_GATT_DISCOVER_DESCRIPTOR; 
 
   bt_gatt_discover(ble_pad_conn, &discover_params);
 }
@@ -311,14 +315,13 @@ bool blePadInit(void)
     return false;
   }
 
-  // 양산형 재연결 결속 유지를 위해 부팅 시 본딩을 파괴하던 bt_unpair() 코드는 영구 삭제되었습니다.
-
   if (IS_ENABLED(CONFIG_SETTINGS)) {
     settings_load();
   }
 
   bt_conn_auth_info_cb_register(&ble_pad_auth_info_cb);
   k_work_init_delayable(&ble_pad_discover_delay_work, blePadDiscoverDelayWorker);
+  k_work_init_delayable(&ble_pad_activation_work, blePadActivationWorker); // 💡 워커 초기화 등록
 
   bldPadScanInit();
   
