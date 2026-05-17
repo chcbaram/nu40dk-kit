@@ -73,6 +73,7 @@ static uint8_t                         subscribe_count = 0;
 static struct k_work                   ble_pad_subscribe_work;
 static uint16_t                        handle_2a4c = 0;
 static struct k_timer                  xbox_keepalive_timer;
+static struct k_work_delayable         ble_pad_discover_delay_work; // 💡 추가
 
 
 BT_SCAN_CB_INIT(ble_pad_scan_cb,
@@ -271,6 +272,28 @@ static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
   }
 }
 
+static void blePadDiscoverDelayWorker(struct k_work *work)
+{
+  if (!ble_pad_conn) return;
+
+  logPrintf("[WORK] Security stabilized. Starting safe GATT Discovery...\n");
+
+  subscribe_count = 0;
+  memset(&discover_params, 0, sizeof(discover_params));
+
+  discover_params.uuid         = NULL;
+  discover_params.func         = blePadDiscoverCb;
+  discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
+  discover_params.end_handle   = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+  discover_params.type         = BT_GATT_DISCOVER_PRIMARY;
+
+  int ret = bt_gatt_discover(ble_pad_conn, &discover_params);
+  if (ret)
+  {
+    logPrintf("[E_] Safe GATT Discovery failed (err %d)\n", ret);
+  }
+}
+
 // 보안 상태가 변경되었을 때 호출되는 콜백
 static void blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enum bt_security_err err)
 {
@@ -286,32 +309,14 @@ static void blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enu
     if (level >= BT_SECURITY_L2)
     {
       logPrintf("[OK] Starting GATT Discovery...\n");
-
-      // HIDS(0x1812) 서비스 탐색 시작
-      // discover_params.uuid         = BT_UUID_HIDS;
-      // discover_params.func         = blePadDiscoverCb;
-      // discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
-      // discover_params.end_handle   = BT_ATT_LAST_ATTRIBUTE_HANDLE;
-      // discover_params.type         = BT_GATT_DISCOVER_PRIMARY;
-
-      // discover_params.uuid         = BT_UUID_HIDS_REPORT;
+      if (IS_ENABLED(CONFIG_SETTINGS))
+      {
+        settings_save();
+        logPrintf("[BT] Security settings saved to Flash.\n");
+      }
 
       subscribe_count = 0;
-
-      memset(&discover_params, 0, sizeof(discover_params));
-
-      discover_params.uuid         = 0;
-      discover_params.func         = blePadDiscoverCb;
-      discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
-      discover_params.end_handle   = BT_ATT_LAST_ATTRIBUTE_HANDLE;
-      discover_params.type         = BT_GATT_DISCOVER_PRIMARY;
-      // discover_params.type         = BT_GATT_DISCOVER_CHARACTERISTIC;
-
-      int ret = bt_gatt_discover(conn, &discover_params);
-      if (ret)
-      {
-        logPrintf("[E_] Discovery failed (err %d)\n", ret);
-      }
+      k_work_reschedule(&ble_pad_discover_delay_work, K_MSEC(300));
     }
   }
 }
@@ -418,6 +423,14 @@ static uint8_t blePadDiscoverCb(struct bt_conn                 *conn,
   return BT_GATT_ITER_CONTINUE; // 끊김 없이 다음 특성을 계속 탐색
 }
 
+static uint8_t blePadDummyReadCb(struct bt_conn *conn, uint8_t err,
+                                 struct bt_gatt_read_params *params,
+                                 const void *data, uint16_t length)
+{
+  // 데이터 검증 없이 그냥 통과 처리하여 세션 유지용 신호로만 사용
+  return BT_GATT_ITER_STOP;
+}
+
 static void blePadSubscribeWorker(struct k_work *work)
 {
   if (!ble_pad_conn) return;
@@ -459,15 +472,30 @@ static void blePadSubscribeWorker(struct k_work *work)
     logPrintf("[..] Sent Suspend(00) to HID Control Point\n");
 
     // B. 커맨드가 유입될 시간을 주기 위해 커널 딜레이 (OS 스케줄러 양보)
-    k_msleep(20);
+    k_msleep(30);
 
     // C. 그 다음 Exit Suspend(0x01)를 전송하여 상태 머신을 강제로 활성화
     bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_exit, 1, false);
     logPrintf("[OK] Sent Exit Suspend(01) to HID Control Point\n");
+
+    k_msleep(100);
   }
   else
   {
     logPrintf("[W_] HID Control Point (2A4C) not found. Skip enabling.\n");
+  }
+
+  // 💡 [추가] Xbox 패드 기기 인증용 킵얼라이브 더미 리드 트리거
+  static struct bt_gatt_read_params read_params;
+  read_params.handle_count  = 1;
+  read_params.single.handle = 17; // UUID 180A의 Value Handle 위치
+  read_params.single.offset = 0;
+  read_params.func          = blePadDummyReadCb;
+
+  int read_err = bt_gatt_read(ble_pad_conn, &read_params);
+  if (read_err)
+  {
+    logPrintf("[E_] Dummy Read failed (err %d)\n", read_err);
   }
 
   k_timer_start(&xbox_keepalive_timer, K_MSEC(500), K_MSEC(500)); 
@@ -509,6 +537,29 @@ static void blePadEnableHid(struct bt_conn *conn, uint16_t handle)
 static void blePadPairingComplete(struct bt_conn *conn, bool bonded)
 {
   logPrintf("[BT] Pairing %s\n", bonded ? "Success (Bonded)" : "Failed");
+
+  if (bonded)
+  {
+    // 💡 페어링이 완벽히 검증된 "가장 안전한 이 시점"에 GATT 탐색을 시작합니다!
+    subscribe_count = 0;
+    memset(&discover_params, 0, sizeof(discover_params));
+
+    discover_params.uuid         = NULL; // 전수 조사
+    discover_params.func         = blePadDiscoverCb;
+    discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
+    discover_params.end_handle   = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+    discover_params.type         = BT_GATT_DISCOVER_PRIMARY;
+
+    int ret = bt_gatt_discover(conn, &discover_params);
+    if (ret)
+    {
+      logPrintf("[E_] Discovery post-bonding failed (err %d)\n", ret);
+    }
+    else
+    {
+      logPrintf("[OK] Safe GATT Discovery started after successful bonding!\n");
+    }
+  }
 }
 
 static void blePadPairingFailed(struct bt_conn *conn, enum bt_security_err reason)
@@ -569,6 +620,7 @@ bool blePadInit(void)
   } while(0);
 
   k_work_init(&ble_pad_subscribe_work, blePadSubscribeWorker);
+  k_work_init_delayable(&ble_pad_discover_delay_work, blePadDiscoverDelayWorker);
 
   logPrintf("[%s] blePadInit()\n", ret ? "OK":"E_");
   return ret;
