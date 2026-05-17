@@ -346,66 +346,78 @@ static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_par
     return BT_GATT_ITER_CONTINUE;
   }
 
-  // 💡 데이터가 너무 짧은 패킷(메타데이터 등)은 파싱에서 제외하고
-  // 실제 입력 데이터가 들어오는 유효 handle 및 길이(보통 15~16바이트 이상) 조건 체크
+  // 실제 입력 데이터가 들어오는 유효 handle 및 길이 조건 체크
   if (params->value_handle >= 30 && length >= 14)
   {
-    uint8_t *raw = (uint8_t *)data;
+    // 💡 [초당 10회 제한 필터] 
+    static uint32_t last_print_time = 0;
+    uint32_t current_time = k_uptime_get_32(); // Zephyr 커널 밀리초 시스템 업타임
 
-    // 💡 구조체 포인터로 간단하게 캐스팅하여 데이터를 파싱합니다.
+    // 현재 시간과 마지막 출력 시간의 차이가 100ms 미만이면 데이터 파싱만 하고 출력을 건너뜁니다.
+    if (current_time - last_print_time < 100)
+    {
+      return BT_GATT_ITER_CONTINUE;
+    }
+    last_print_time = current_time; // 출력 시점 갱신
+
+    uint8_t *raw = (uint8_t *)data;
     struct xbox_hid_report *joy = (struct xbox_hid_report *)raw;
 
-    // D-Pad 문자열 변환
-    const char *dpad_str = "RELEASE";
+    // D-Pad 문자열 변환 (우측 잔상 방지를 위해 고정 10칸 정렬)
+    const char *dpad_str = "RELEASE   ";
     switch (joy->dpad)
     {
-      case 1:
-        dpad_str = "UP";
-        break;
-      case 2:
-        dpad_str = "UP-RIGHT";
-        break;
-      case 3:
-        dpad_str = "RIGHT";
-        break;
-      case 4:
-        dpad_str = "DOWN-RIGHT";
-        break;
-      case 5:
-        dpad_str = "DOWN";
-        break;
-      case 6:
-        dpad_str = "DOWN-LEFT";
-        break;
-      case 7:
-        dpad_str = "LEFT";
-        break;
-      case 8:
-        dpad_str = "UP-LEFT";
-        break;
+      case 1: dpad_str = "UP        "; break;
+      case 2: dpad_str = "UP-RIGHT  "; break;
+      case 3: dpad_str = "RIGHT     "; break;
+      case 4: dpad_str = "DOWN-RIGHT"; break;
+      case 5: dpad_str = "DOWN      "; break;
+      case 6: dpad_str = "DOWN-LEFT "; break;
+      case 7: dpad_str = "LEFT      "; break;
+      case 8: dpad_str = "UP-LEFT   "; break;
     }
 
-    // 💡 [실시간 파싱 데이터 출력]
-    // 1라인: 좌/우 아날로그 스틱값 및 트리거 깊이 수치
-    logPrintf("[XBOX_STICK] LX:%5d, LY:%5d | RX:%5d, RY:%5d | LT:%4d, RT:%4d\n",
+    // -------------------------------------------------------------------------
+    // 💡 깔끔한 고속 VT100 대시보드 제어 (화면 깜빡임 원천 차단)
+    // -------------------------------------------------------------------------
+    
+    // \x1b[H  : 화면을 지우지 않고 커서만 무조건 좌측 최상단(Home)으로 올립니다.
+    // \x1b[2K : 커서가 있는 해당 라인 하나만 지워 잔상을 없앱니다.
+    
+    logPrintf("\x1b[H"); 
+    logPrintf("=====================================================================\n");
+    logPrintf("                 XBOX BLE CONTROLLER REALTIME STATUS                 \n");
+    logPrintf("=====================================================================\n");
+
+    // [STICK] 라인 출력 전 이전 잔상 삭제 후 출력
+    logPrintf("\x1b[2K[STICK] LX:%5d, LY:%5d | RX:%5d, RY:%5d | LT:%4d, RT:%4d\n",
               joy->left_stick_x, joy->left_stick_y,
               joy->right_stick_x, joy->right_stick_y,
               joy->left_trigger, joy->right_trigger);
 
-    // 2라인: 현재 누르고 있는 버튼들 상태 가시화
-    logPrintf("[XBOX_BTN] D-PAD:%s | %s %s %s %s | %s %s | %s %s | %s %s %s\n",
-              dpad_str,
-              joy->btn_a ? "A" : ".",
-              joy->btn_b ? "B" : ".",
-              joy->btn_x ? "X" : ".",
-              joy->btn_y ? "Y" : ".",
-              joy->btn_lb ? "LB" : "..",
-              joy->btn_rb ? "RB" : "..",
-              joy->btn_ls ? "LS" : "..",
-              joy->btn_rs ? "RS" : "..",
-              joy->btn_view ? "VIEW" : "....",
-              joy->btn_menu ? "MENU" : "....",
-              joy->btn_xbox ? "XBOX" : "....");
+    // [BTNS] 라인 출력 전 이전 잔상 삭제 후 출력
+    logPrintf("\x1b[2K[BTNS ] D-PAD: %s | ", dpad_str);
+    
+    // 버튼 ON(녹색 \x1b[32m), OFF(어두운 회색 \x1b[90m) 시인성 코딩
+    logPrintf("%sA\x1b[0m %sB\x1b[0m %sX\x1b[0m %sY\x1b[0m | ",
+              joy->btn_a ? "\x1b[32m" : "\x1b[90m",
+              joy->btn_b ? "\x1b[32m" : "\x1b[90m",
+              joy->btn_x ? "\x1b[32m" : "\x1b[90m",
+              joy->btn_y ? "\x1b[32m" : "\x1b[90m");
+
+    logPrintf("%sLB\x1b[0m %sRB\x1b[0m | %sLS\x1b[0m %sRS\x1b[0m | ",
+              joy->btn_lb ? "\x1b[32m" : "\x1b[90m", joy->btn_rb ? "\x1b[32m" : "\x1b[90m",
+              joy->btn_ls ? "\x1b[32m" : "\x1b[90m", joy->btn_rs ? "\x1b[32m" : "\x1b[90m");
+
+    logPrintf("%sVIEW\x1b[0m %sMENU\x1b[0m %sXBOX\x1b[0m\n",
+              joy->btn_view ? "\x1b[32m" : "\x1b[90m",
+              joy->btn_menu ? "\x1b[32m" : "\x1b[90m",
+              joy->btn_xbox ? "\x1b[32m" : "\x1b[90m");
+
+    logPrintf("=====================================================================\n");
+    // 하단부에 빈 공간을 채워 혹시 모를 터미널 스크롤 꼬임 방지
+    logPrintf("\x1b[2K[INFO ] Refresh Rate: 10 Hz (Filtered)\n");
+    logPrintf("=====================================================================\n");
   }
 
   return BT_GATT_ITER_CONTINUE;
