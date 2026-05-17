@@ -1,0 +1,737 @@
+#include "ap_def.h"
+
+#include <zephyr/kernel.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/uuid.h>
+#include <zephyr/bluetooth/gatt.h>
+#include <bluetooth/scan.h>
+#include <zephyr/settings/settings.h>
+
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(ble_pad, LOG_LEVEL_INF);
+
+
+#define CHECK_ERR(f, msg) \
+    do { \
+        int _err = (f); \
+        if (_err) { \
+            logPrintf(msg " (err %d)", _err); \
+            break; \
+        } \
+    } while(0)
+
+#define MAX_REPORT_SUBS 8
+
+
+
+static bool init(void);
+static bool blePadInit(void);
+static void blePadThread(void const *arg);
+
+
+static void    blePadScanFilterMatch(struct bt_scan_device_info  *device_info,
+                                     struct bt_scan_filter_match *filter_match,
+                                     bool                         connectable);
+static void    blePadConnected(struct bt_conn *conn, uint8_t err);
+static void    blePadDisconnected(struct bt_conn *conn, uint8_t reason);
+static void    blePadAuthPasskeyDisplay(struct bt_conn *conn, unsigned int passkey);
+static void    blePadAuthCancel(struct bt_conn *conn);
+static void    blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enum bt_security_err err);
+static uint8_t blePadNotifyCb(struct bt_conn                  *conn,
+                              struct bt_gatt_subscribe_params *params,
+                              const void *data, uint16_t length);
+static uint8_t blePadDiscoverCb(struct bt_conn                 *conn,
+                                const struct bt_gatt_attr      *attr,
+                                struct bt_gatt_discover_params *params);
+static void    blePadEnableHid(struct bt_conn *conn, uint16_t handle);
+static void    blePadPairingComplete(struct bt_conn *conn, bool bonded);
+static void    blePadPairingFailed(struct bt_conn *conn, enum bt_security_err reason);
+
+
+MODULE_DEF(ble_pad) 
+{
+  .name = "ble_pad",
+  .priority = MODULE_PRI_LOW,
+  .init = init
+};
+
+
+
+// K_THREAD_DEFINE(xbox_thread,
+//                 _HW_DEF_RTOS_THREAD_MEM_CLI,
+//                 sdMgrThread, NULL, NULL, NULL,
+//                 _HW_DEF_RTOS_THREAD_PRI_CLI, 0, 0);
+static K_THREAD_STACK_DEFINE(thread_stack, _HW_DEF_RTOS_THREAD_MEM_BLEPAD);
+static struct k_thread thread_data;
+
+static struct bt_conn                 *ble_pad_conn; // 현재 연결된 기기 정보를 담는 포인터
+static struct bt_gatt_discover_params  discover_params;
+static struct bt_gatt_subscribe_params subscribe_params[MAX_REPORT_SUBS];
+static uint8_t                         subscribe_count = 0;
+static struct k_work                   ble_pad_subscribe_work;
+static uint16_t                        handle_2a4c = 0;
+static struct k_timer                  xbox_keepalive_timer;
+static struct k_work_delayable         ble_pad_discover_delay_work;
+
+struct xbox_report_t
+{
+  uint16_t value_handle;
+  uint16_t ccc_handle;
+};
+
+static struct xbox_report_t           xbox_reports[MAX_REPORT_SUBS];
+static uint8_t                        desc_discover_idx = 0; // 💡 현재 몇 번째 CCCD를 찾고 있는지 기억하는 인덱스
+static struct bt_gatt_discover_params desc_discover_params;  // 💡 하나로 돌려쓰기 위해 배열에서 단일 변수로 변경
+static struct bt_gatt_read_params     continuous_read_params;
+
+BT_SCAN_CB_INIT(ble_pad_scan_cb,
+                blePadScanFilterMatch, // filter_match
+                NULL,                  // filter_no_match
+                NULL,                  // connecting_error
+                NULL);                 // connecting
+
+BT_CONN_CB_DEFINE(ble_pad_conn_callbacks) = {
+  .connected        = blePadConnected,
+  .disconnected     = blePadDisconnected,
+  .security_changed = blePadSecurityChanged,
+};
+
+static struct bt_conn_auth_cb ble_pad_auth_cb_display = {
+  .passkey_display = blePadAuthPasskeyDisplay,
+  .cancel          = blePadAuthCancel,
+};
+
+static struct bt_conn_auth_info_cb ble_pad_auth_info_cb = {
+  .pairing_complete = blePadPairingComplete,
+  .pairing_failed   = blePadPairingFailed,
+};
+
+
+bool init(void)
+{
+  bool ret;
+
+  k_tid_t tid = k_thread_create(&thread_data, thread_stack,
+                                  K_THREAD_STACK_SIZEOF(thread_stack),
+                                  (k_thread_entry_t)blePadThread,
+                                  NULL, NULL, NULL,
+                                  _HW_DEF_RTOS_THREAD_PRI_BLEPAD, 0, K_NO_WAIT);
+
+  ret = tid != NULL ? true:false;                                  
+  logPrintf("[%s] blePadInit()\n", ret ? "OK":"E_");
+
+  return ret;
+}
+
+static bool bldPadScanInit(void)
+{
+  bool ret = false;
+
+  struct bt_scan_init_param scan_init_obj = {
+    .connect_if_match = false,
+  };
+
+  bt_scan_init(&scan_init_obj);
+  bt_scan_cb_register(&ble_pad_scan_cb);
+
+  do
+  {
+    CHECK_ERR(bt_scan_filter_add(BT_SCAN_FILTER_TYPE_UUID, BT_UUID_HIDS),
+              "[E_] UUID filter add failed");
+
+    CHECK_ERR(bt_scan_filter_enable(BT_SCAN_UUID_FILTER, false),
+              "[E_] UUID filter enable failed");
+
+    CHECK_ERR(bt_scan_filter_add(BT_SCAN_FILTER_TYPE_NAME, "Xbox Wireless Controller"),
+              "[E_] Name filter add failed");
+
+    CHECK_ERR(bt_scan_filter_enable(BT_SCAN_NAME_FILTER, false),
+              "[E_] Name filter enable failed");
+
+    ret = true;
+  } while (0);
+
+  return ret;
+}
+
+static bool blePadParseNameCb(struct bt_data *data, void *user_data)
+{
+  char *name = user_data;
+
+  switch (data->type)
+  {
+    case BT_DATA_NAME_COMPLETE:
+    case BT_DATA_NAME_SHORTENED:
+      // 찾은 이름을 user_data(name 변수)에 복사
+      int len = MIN(data->data_len, 31); // 31바이트 제한
+      memcpy(name, data->data, len);
+      name[len] = '\0';
+      return false;                      // 이름을 찾았으므로 순회 중단
+    default:
+      return true;                       // 계속 탐색
+  }
+}
+
+static void blePadScanFilterMatch(struct bt_scan_device_info  *device_info,
+                              struct bt_scan_filter_match *filter_match,
+                              bool                         connectable)
+{
+  char addr[BT_ADDR_LE_STR_LEN];
+  char name[32] = "No Name"; // 이름을 담을 버퍼
+
+
+  bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
+  bt_data_parse(device_info->adv_data, blePadParseNameCb, name);
+
+
+  logPrintf("[  ] Device: %s (%s) rssi %d\n", name, addr, device_info->recv_info->rssi);
+
+  if (strstr(name, "Xbox") != NULL && device_info->recv_info->rssi > -50)
+  {
+    logPrintf("[..] Attempting to connect: %s (%s)\n", name, addr);
+
+    int err;
+
+    err = bt_scan_stop();
+    if (err && err != -EALREADY)
+    {
+      logPrintf("[E_] Scan stop failed (err %d)\n", err);
+      return;
+    }
+
+    // 스캔을 중지하고 연결 시도 (Scan 모듈의 자동 연결 기능을 쓸 수도 있음)
+    err = bt_conn_le_create(device_info->recv_info->addr,
+                                BT_CONN_LE_CREATE_CONN,
+                                BT_LE_CONN_PARAM_DEFAULT,
+                                &ble_pad_conn);
+    if (err)
+    {
+      logPrintf("[E_] Connection attempt failed (err %d)\n", err);
+      ble_pad_conn = NULL;      
+
+      bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);      
+    }
+    else
+    {
+      logPrintf("[OK] Connection request sent\n");
+    }
+  }
+}
+
+static void blePadMtuExchangeCb(struct bt_conn *conn, uint8_t err,
+                            struct bt_gatt_exchange_params *params)
+{
+  if (err)
+  {
+    logPrintf("[  ] MTU exchange failed (err %u)\n", err);
+  }
+  else
+  {
+    logPrintf("[  ] MTU exchange successful\n");
+
+    // 💡 MTU가 안전하게 셋업된 후 보안 승격을 요청합니다.
+    // int sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
+    // if (sec_err)
+    // {
+    //   logPrintf("[E_] Failed to set security (err %d)\n", sec_err);
+    // }
+  }
+}
+
+// 연결 관련 이벤트 콜백
+static void blePadConnected(struct bt_conn *conn, uint8_t err)
+{
+  if (err)
+  {
+    logPrintf("[E_] Connection failed (err %u)\n", err);
+    return;
+  }
+
+  logPrintf("[OK] Connected to Xbox Controller!\n");
+  ble_pad_conn = bt_conn_ref(conn); 
+
+  static struct bt_gatt_exchange_params mtu_params;
+  mtu_params.func = blePadMtuExchangeCb; 
+  bt_gatt_exchange_mtu(conn, &mtu_params);
+
+  struct bt_le_conn_param *param = BT_LE_CONN_PARAM(6, 12, 0, 400);
+  bt_conn_le_param_update(conn, param);
+
+  // 💡 [원복] Xbox 패드를 위해 보안 승격 요청을 다시 강제로 수행합니다!
+  int sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
+  if (sec_err)
+  {
+    logPrintf("[E_] Failed to set security (err %d)\n", sec_err);
+  }
+  else
+  {
+    logPrintf("[..] Security upgrade requested\n");
+  }
+}
+
+static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
+{
+  logPrintf("[--] Disconnected (reason %u)\n", reason);
+  if (ble_pad_conn)
+  {
+    bt_conn_unref(ble_pad_conn); // 참조 해제
+    ble_pad_conn = NULL;
+  }
+}
+
+static void blePadDiscoverDelayWorker(struct k_work *work)
+{
+  if (!ble_pad_conn) return;
+
+  logPrintf("[WORK] Security stabilized. Starting safe GATT Discovery...\n");
+
+  subscribe_count = 0;
+  memset(&discover_params, 0, sizeof(discover_params));
+
+  discover_params.uuid         = NULL;
+  discover_params.func         = blePadDiscoverCb;
+  discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
+  discover_params.end_handle   = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+  discover_params.type         = BT_GATT_DISCOVER_PRIMARY;
+
+  // 💡 [수정] 비동기 함수이므로 호출 후 아래에서 기다리면 안 됩니다. 리턴값 확인만 하고 빠져나갑니다.
+  int ret = bt_gatt_discover(ble_pad_conn, &discover_params);
+  if (ret)
+  {
+    logPrintf("[E_] Safe GATT Discovery failed (err %d)\n", ret);
+  }
+}
+
+// 보안 상태가 변경되었을 때 호출되는 콜백
+static void blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enum bt_security_err err)
+{
+  if (err)
+  {
+    logPrintf("[E_] Security failed: level %u, err %d\n", level, err);
+  }
+  else
+  {
+    logPrintf("[OK] Security changed: level %u\n", level);
+
+    // Xbox 컨트롤러는 보통 Level 2(Encryption) 또는 Level 3(MITM) 이상이어야 합니다.
+    if (level >= BT_SECURITY_L2)
+    {
+      logPrintf("[OK] Starting GATT Discovery...\n");
+      if (IS_ENABLED(CONFIG_SETTINGS))
+      {
+        settings_save();
+        logPrintf("[BT] Security settings saved to Flash.\n");
+      }
+
+      subscribe_count = 0;
+      k_work_reschedule(&ble_pad_discover_delay_work, K_MSEC(300));
+    }
+  }
+}
+
+static void blePadAuthPasskeyDisplay(struct bt_conn *conn, unsigned int passkey)
+{
+  logPrintf("[..] Passkey for %p: %06u\n", conn, passkey);
+}
+
+static void blePadAuthCancel(struct bt_conn *conn)
+{
+  logPrintf("[E_] Pairing cancelled\n");
+}
+
+// 버튼 데이터를 받았을 때 호출될 콜백 (가장 중요한 함수)
+static uint8_t blePadNotifyCb(struct bt_conn                  *conn,
+                              struct bt_gatt_subscribe_params *params,
+                              const void *data, uint16_t length)
+{
+  if (!data)
+  {
+    // params->value_handle가 0이 되는 것을 방지하기 위해 로그만 찍고 리턴 확인
+    logPrintf("[..] Unsubscribed (Handle: %u)\n", params->value_handle);
+    return BT_GATT_ITER_STOP;
+  }
+
+  // 여기서 Xbox 컨트롤러의 버튼 데이터가 헥사값으로 찍힙니다!
+  logPrintf("[DATA] %u Received length: %u bytes\n", params->value_handle, length);
+  // 간단하게 첫 4바이트만 출력해보기
+  uint8_t *raw = (uint8_t *)data;
+  logPrintf("Data: %02X %02X %02X %02X\n", raw[0], raw[1], raw[2], raw[3]);
+
+  ledToggle(1);
+
+  return BT_GATT_ITER_CONTINUE;
+}
+
+// A. 디스크립터 탐색 콜백 (연쇄 반응 유도)
+static uint8_t blePadDescDiscoverCb(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+                                    struct bt_gatt_discover_params *params)
+{
+  if (!attr)
+  {
+    // 💡 [수정] 탐색이 허무하게 끝났다면(CCCD 없음), 인덱스를 넘겨주고 다음 단계 진행해야 무한루프 안 돔!
+    logPrintf("[W_] CCCD not found for Report [%d], moving next...\n", desc_discover_idx);
+    desc_discover_idx++;
+    startNextCccdDiscovery(conn);
+    return BT_GATT_ITER_STOP;
+  }
+
+  uint16_t uuid16 = (attr->uuid->type == BT_UUID_TYPE_16) ? BT_UUID_16(attr->uuid)->val : 0;
+
+  if (uuid16 == 0x2902)
+  {
+    // 진짜 CCCD 핸들 획득!
+    xbox_reports[desc_discover_idx].ccc_handle = attr->handle;
+    logPrintf("[OK] Found Real CCCD for Report [%d] -> Handle: %u\n", desc_discover_idx, attr->handle);
+
+    // 💡 [수정] 성공했으니 인덱스를 증가시키고 다음 리포트 조사 유도
+    desc_discover_idx++;
+    startNextCccdDiscovery(conn);
+    return BT_GATT_ITER_STOP;
+  }
+
+  return BT_GATT_ITER_CONTINUE;
+}
+
+// B. 연쇄 탐색을 관리하는 핵심 제어 함수
+static void startNextCccdDiscovery(struct bt_conn *conn)
+{
+  // 만약 모든 Report의 CCCD를 다 조사했다면? 안전하게 구독 워커 실행!
+  if (desc_discover_idx >= subscribe_count)
+  {
+    logPrintf("[OK] All CCCD Handles checked. Submitting subscription worker...\n");
+    k_work_submit(&ble_pad_subscribe_work);
+    return;
+  }
+
+  uint16_t s_handle = xbox_reports[desc_discover_idx].value_handle + 1;
+  uint16_t e_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+
+  // 💡 [핵심 교정] 다음 리포트 특성이 존재한다면, end_handle을 다음 특성 핸들 직전으로 제한합니다.
+  // 예: 내 Value가 38이고 다음 Value가 40이면, 내 CCCD 탐색 범위는 39 ~ 39로 제한!
+  if (desc_discover_idx + 1 < subscribe_count)
+  {
+    // 다음 특성의 'Value Handle'은 보통 'Characteristic Declaration Handle + 1' 이므로,
+    // 안전하게 다음 Value Handle에서 1이나 2를 뺀 값까지만 조사하도록 경계를 지정합니다.
+    e_handle = xbox_reports[desc_discover_idx + 1].value_handle - 1;
+  }
+  else
+  {
+    // 마지막 리포트인 경우, 다음 서비스 선언 영역을 침범하지 않도록 내 주변(+3 내외)만 좁게 탐색합니다.
+    // 무식하게 0xFFFF까지 열어두면 Xbox 패드가 응답을 거부하는 주된 원인이 됩니다.
+    e_handle = s_handle + 2;
+  }
+
+  // 아직 조사할 리포트가 남았다면 탐색 파라미터 빌드
+  memset(&desc_discover_params, 0, sizeof(struct bt_gatt_discover_params));
+  desc_discover_params.uuid         = BT_UUID_GATT_CCC; // 0x2902
+  desc_discover_params.func         = blePadDescDiscoverCb;
+  desc_discover_params.start_handle = s_handle;
+  desc_discover_params.end_handle   = e_handle;         // 👈 좁혀진 정밀 범위 주입
+  desc_discover_params.type         = BT_GATT_DISCOVER_DESCRIPTOR;
+
+  logPrintf("[..] Searching CCCD for Report [%d] in range (%u ~ %u)...\n", desc_discover_idx, s_handle, e_handle);
+
+  int err = bt_gatt_discover(conn, &desc_discover_params);
+  if (err)
+  {
+    logPrintf("[E_] CCCD Discovery chain failed at idx %d (err %d)\n", desc_discover_idx, err);
+    desc_discover_idx++;
+    startNextCccdDiscovery(conn);
+  }
+}
+
+static uint8_t blePadDiscoverCb(struct bt_conn                 *conn,
+                                const struct bt_gatt_attr      *attr,
+                                struct bt_gatt_discover_params *params)
+{
+  // 💡 [수정] 스택 내부에서 순회가 완벽히 종료(`!attr`)된 "이 타이밍"이 진짜 특성 완료 시점입니다.
+  // 시스템 스레드 완료 컨텍스트에서 CCCD 체인을 트리거합니다.
+  if (!attr)
+  {
+    logPrintf("[OK] GATT Characteristic Discovery completed. Found %u reports.\n", subscribe_count);
+    if (subscribe_count > 0)
+    {
+      logPrintf("[WORK] Triggering sequential CCCD discovery chain...\n");
+      desc_discover_idx = 0;
+      startNextCccdDiscovery(conn);
+    }
+    else
+    {
+      logPrintf("[W_] No reports found to discover CCCD.\n");
+    }
+    return BT_GATT_ITER_STOP;
+  }
+
+  // Primary Service 진입점 처리
+  if (params->type == BT_GATT_DISCOVER_PRIMARY)
+  {
+    params->uuid         = NULL;
+    params->start_handle = attr->handle + 1;
+    params->type         = BT_GATT_DISCOVER_CHARACTERISTIC;
+    return BT_GATT_ITER_CONTINUE;
+  }
+
+  // 특성 발견 및 핸들 백업
+  if (params->type == BT_GATT_DISCOVER_CHARACTERISTIC)
+  {
+    struct bt_gatt_chrc *chrc   = (struct bt_gatt_chrc *)attr->user_data;
+    uint16_t             uuid16 = (chrc->uuid->type == BT_UUID_TYPE_16) ? BT_UUID_16(chrc->uuid)->val : 0;
+
+    if (uuid16 == 0x2A4C)
+    {
+      handle_2a4c = chrc->value_handle;
+      logPrintf("[OK] Cached HID Control Point Handle: %u\n", handle_2a4c);
+    }
+
+    if (chrc->uuid->type == BT_UUID_TYPE_128)
+    {
+      if (subscribe_count < MAX_REPORT_SUBS)
+      {
+        xbox_reports[subscribe_count].value_handle = chrc->value_handle;
+        xbox_reports[subscribe_count].ccc_handle   = 0;
+
+        logPrintf("[..] Registered Potential Report [%d] -> Value Handle: %u\n", subscribe_count, chrc->value_handle);
+        subscribe_count++;
+      }
+    }
+  }
+
+  return BT_GATT_ITER_CONTINUE;
+}
+
+
+static uint8_t blePadDebugReadCb(struct bt_conn *conn, uint8_t err,
+                                 struct bt_gatt_read_params *params,
+                                 const void *data, uint16_t length)
+{
+  if (err) {
+    logPrintf("[E_] Direct Read failed (err %d)\n", err);
+    return BT_GATT_ITER_STOP;
+  }
+
+  if (data && length > 0) {
+    logPrintf("[DATA-READ] Handle %u Read Success! Length: %u bytes\n", params->single.handle, length);
+    uint8_t *raw = (uint8_t *)data;
+    // 패드 버튼 상태나 조이스틱 축 데이터가 찍히는지 확인
+    logPrintf("Raw: %02X %02X %02X %02X\n", raw[0], raw[1], raw[2], raw[3]);
+  } else {
+    logPrintf("[  ] Handle %u Read Empty\n", params->single.handle);
+  }
+
+  return BT_GATT_ITER_STOP;
+}
+
+static void blePadSubscribeWorker(struct k_work *work)
+{
+  if (!ble_pad_conn) return;
+
+  logPrintf("[WORK] GATT Chain completed. Activating HID Control Point...\n");
+
+  if (handle_2a4c != 0)
+  {
+    uint8_t cmd_suspend = 0x00;
+    uint8_t cmd_exit    = 0x01;
+
+    bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_suspend, 1, false);
+    k_msleep(50);
+    bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_exit, 1, false);
+    logPrintf("[OK] Xbox HID Subsystem Woken Up.\n");
+    k_msleep(100);
+  }
+
+  // 💡 보안 승격과 본딩이 완전히 정착되어 패드 LED가 Solid On(고정)이 될 수 있도록
+  // 고속 폴링 타이머 가동만 딱 3초간 기다렸다가 시작합니다.
+  logPrintf("[START] Waiting 3 seconds for Bonding stabilization, then launching loop...\n");
+  k_timer_init(&xbox_keepalive_timer, xbox_polling_timer_fn, NULL);
+  k_timer_start(&xbox_keepalive_timer, K_MSEC(3000), K_MSEC(30)); // 👈 처음 대기는 3000ms, 이후 30ms 고속 폴링
+}
+
+static void blePadEnableHid(struct bt_conn *conn, uint16_t handle)
+{
+  if (!conn || handle == 0) return;
+
+  // 0x00: Suspend 해제 (Exit Suspend)
+  // Xbox 컨트롤러에 따라 0x00 혹은 0x01이 필요할 수 있습니다.
+  uint8_t enable_data = 0x00;
+
+  int err = bt_gatt_write_without_response(conn, handle, &enable_data, sizeof(enable_data), false);
+  if (err)
+  {
+    logPrintf("[E_] Failed to send HID Enable (err %d)\n", err);
+  }
+  else
+  {
+    logPrintf("[OK] Sent Enable(%02X) to HID Control Point (Handle %u)\n", enable_data, handle);
+  }
+
+  enable_data = 0x01;
+
+  delay(10);
+  err = bt_gatt_write_without_response(conn, handle, &enable_data, sizeof(enable_data), false);
+  if (err)
+  {
+    logPrintf("[E_] Failed to send HID Enable (err %d)\n", err);
+  }
+  else
+  {
+    logPrintf("[OK] Sent Enable(%02X) to HID Control Point (Handle %u)\n", enable_data, handle);
+  }
+
+}
+
+static void blePadPairingComplete(struct bt_conn *conn, bool bonded)
+{
+  logPrintf("[BT] Pairing %s\n", bonded ? "Success (Bonded)" : "Failed");
+
+  if (bonded)
+  {
+    // 💡 페어링이 완벽히 검증된 "가장 안전한 이 시점"에 GATT 탐색을 시작합니다!
+    subscribe_count = 0;
+    memset(&discover_params, 0, sizeof(discover_params));
+
+    discover_params.uuid         = NULL; // 전수 조사
+    discover_params.func         = blePadDiscoverCb;
+    discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
+    discover_params.end_handle   = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+    discover_params.type         = BT_GATT_DISCOVER_PRIMARY;
+
+    int ret = bt_gatt_discover(conn, &discover_params);
+    if (ret)
+    {
+      logPrintf("[E_] Discovery post-bonding failed (err %d)\n", ret);
+    }
+    else
+    {
+      logPrintf("[OK] Safe GATT Discovery started after successful bonding!\n");
+    }
+  }
+}
+
+static void blePadPairingFailed(struct bt_conn *conn, enum bt_security_err reason)
+{
+  logPrintf("[BT] Security Error: %d (Auth Failed)\n", reason);
+}
+
+// 💡 패드가 데이터를 보내왔을 때 실시간으로 버튼 값을 해석하는 심장부
+static uint8_t blePadInputParseCb(struct bt_conn *conn, uint8_t err,
+                                  struct bt_gatt_read_params *params,
+                                  const void *data, uint16_t length)
+{
+  if (err || !data || length == 0)
+  {
+    return BT_GATT_ITER_STOP;
+  }
+
+  uint8_t *raw = (uint8_t *)data;
+
+  // 💡 [여기서 디버깅!] 패드의 버튼을 누르거나 조이스틱을 조작하면서 로그를 관찰하세요!
+  // 22바이트 전체를 한눈에 볼 수 있도록 시각화 출력합니다.
+  logPrintf("[PAD DATA] L:%d -> %02X %02X %02X %02X %02X %02X %02X %02X\n",
+            length, raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7]);
+
+  // 보드 위의 LED를 토글하여 데이터가 주기적으로 잘 들어오는지 육안으로 확인합니다.
+  ledToggle(1);
+
+  return BT_GATT_ITER_STOP;
+}
+
+// 💡 500ms Keep-alive 타이머 대신, 고속(예: 20ms~50ms) 주기로 패드 데이터를 긁어오는 타이머로 전환
+void xbox_polling_timer_fn(struct k_timer *timer_id)
+{
+  if (!ble_pad_conn) return;
+
+  // 1번 리포트(Handle 38)에 실시간 폴링 요청
+  memset(&continuous_read_params, 0, sizeof(struct bt_gatt_read_params));
+  continuous_read_params.handle_count  = 1;
+  continuous_read_params.single.handle = 38; // 👈 검증된 메인 데이터 핸들 정조준
+  continuous_read_params.single.offset = 0;
+  continuous_read_params.func          = blePadInputParseCb;
+
+  int err = bt_gatt_read(ble_pad_conn, &continuous_read_params);
+
+  // 💡 세션 유지를 위한 HID Control Point 킵얼라이브 신호도 함께 쏴줍니다.
+  if (!err && handle_2a4c != 0)
+  {
+    uint8_t keepalive_cmd = 0x01;
+    bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &keepalive_cmd, 1, false);
+  }
+}
+
+void xbox_keepalive_expiry_fn(struct k_timer *timer_id)
+{
+  if (ble_pad_conn && handle_2a4c != 0)
+  {
+    uint8_t keepalive_cmd = 0x01;
+    bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &keepalive_cmd, 1, false);
+  }
+}
+
+bool blePadInit(void)
+{
+  bool ret = false;  
+  int err;
+
+  logPrintf("[  ] blePadInit()\n");
+
+  k_timer_init(&xbox_keepalive_timer, xbox_keepalive_expiry_fn, NULL);
+
+  do 
+  {
+    err = bt_enable(NULL);
+    if (err)
+    {
+      logPrintf("[E_] Bluetooth init failed (err %d)\n", err);
+      break;
+    }
+
+    // bt_unpair(BT_ID_DEFAULT, BT_ADDR_LE_ANY);
+    // logPrintf("All bonding information cleared!\n");
+
+    if (IS_ENABLED(CONFIG_SETTINGS))
+    {
+      settings_load();
+    }
+
+    bt_conn_auth_cb_register(&ble_pad_auth_cb_display);
+    bt_conn_auth_info_cb_register(&ble_pad_auth_info_cb);
+
+    delay(100);
+
+    ret = bldPadScanInit();
+    if (ret)
+    {
+      err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
+      if (err)
+      {
+        logPrintf("[E_] Scanning failed to start (err %d)\n", err);
+        ret = false;
+      }
+    }
+  } while(0);
+
+  k_work_init(&ble_pad_subscribe_work, blePadSubscribeWorker);
+  k_work_init_delayable(&ble_pad_discover_delay_work, blePadDiscoverDelayWorker);
+
+  logPrintf("[%s] blePadInit()\n", ret ? "OK":"E_");
+  return ret;
+}
+
+void blePadThread(void const *arg)
+{
+  bool init_ret = true;
+
+
+  moduleIsReady();
+
+  logPrintf("[%s] Thread Started : BLE_PAD\n", init_ret ? "OK":"E_" );
+
+  blePadInit();
+
+  while(1)
+  {
+    delay(10);
+  }
+}
