@@ -44,11 +44,14 @@ static struct bt_gatt_discover_params  discover_params;
 static struct bt_gatt_subscribe_params sub_params_pool[MAX_SUBS];
 static uint8_t                         allocated_subs = 0;
 
-static uint16_t     handle_2a4c            = 0;
-static uint16_t     xbox_report_val_handle = 0;
-static bool         is_subscribed          = false;
-static bt_addr_le_t bonded_pad_addr;
-static bool         has_bonded_pad = false;
+static uint16_t        handle_2a4c            = 0;
+static uint16_t        xbox_report_val_handle = 0;
+static bool            is_subscribed          = false;
+static bt_addr_le_t    bonded_pad_addr;
+static bool            has_bonded_pad = false;
+static struct bt_conn *ble_pad_conn;
+static volatile bool   is_connecting_or_connected = false;
+
 
 static struct bt_le_scan_cb ble_pad_scan_callbacks = {
   .recv = blePadScanRecvCb,
@@ -101,38 +104,34 @@ static void blePadScanRecvCb(const struct bt_le_scan_recv_info *info, struct net
   char addr_str[BT_ADDR_LE_STR_LEN];
   char name[32] = "No Name";
 
-  if (ble_pad_conn != NULL) {
+  // 💡 [안전장치 1] 이미 연결 시도 중이거나 연결된 상태라면 스캔 데이터는 무조건 버립니다.
+  if (is_connecting_or_connected || ble_pad_conn != NULL)
+  {
+    return;
+  }
+
+  // 💡 [안전장치 2] Zephyr 내부에 이 주소로 된 객체가 조금이라ve도 남아있다면 즉시 차단
+  struct bt_conn *already_conn = bt_conn_lookup_addr_le(BT_ID_DEFAULT, info->addr);
+  if (already_conn)
+  {
+    bt_conn_unref(already_conn); // 찌꺼기 참조 해제
     return;
   }
 
   bool is_target = false;
 
+  // 1. 본딩된 패드 자동 연결 판단
   if (has_bonded_pad)
   {
-    struct bt_conn *check_conn = bt_conn_lookup_addr_le(BT_ID_DEFAULT, info->addr);
-    if (check_conn)
-    {
-      struct bt_conn_info conn_info;
-      if (bt_conn_get_info(check_conn, &conn_info) == 0)
-      {
-        if (conn_info.state != BT_CONN_STATE_DISCONNECTED)
-        {
-          is_target = true;
-          bt_addr_le_to_str(info->addr, addr_str, sizeof(addr_str));
-          logPrintf("[SYS] Auto-Reconnect: Resolved RPA Identity Address [%s]\n", addr_str);
-        }
-      }
-      bt_conn_unref(check_conn); 
-    }
-    
-    if (!is_target && bt_addr_le_eq(info->addr, &bonded_pad_addr))
+    if (bt_addr_le_eq(info->addr, &bonded_pad_addr))
     {
       bt_addr_le_to_str(info->addr, addr_str, sizeof(addr_str));
       logPrintf("[SYS] Auto-Reconnect: Physical Address Match [%s]\n", addr_str);
       is_target = true;
     }
   }
-  
+
+  // 2. 페어링 모드 등 이름 기반 판단
   if (!is_target)
   {
     struct net_buf_simple ad_copy;
@@ -147,35 +146,34 @@ static void blePadScanRecvCb(const struct bt_le_scan_recv_info *info, struct net
     }
   }
 
+  // 최종 연결 진입
   if (is_target && info->rssi > -75)
   {
-    logPrintf("[..] Stopping scan and connecting to target...\n");
+    // 중복 진입 방지를 위해 플래시 속도로 스캔 중지 및 플래그 락(Lock)
     bt_le_scan_stop();
+    is_connecting_or_connected = true; 
+    logPrintf("[..] Stopping scan and connecting to target...\n");
 
-    // 💡 [속도 튜닝] 생성 시점부터 Xbox 최적 규격(15ms) 파라미터를 다이렉트로 강제 요청
     static struct bt_le_conn_param init_fast_param = {
-      .interval_min = 12,  // 15ms
-      .interval_max = 12,  // 15ms
+      .interval_min = 12,
+      .interval_max = 12,
       .latency      = 0,
-      .timeout      = 200, // 2000ms
+      .timeout      = 200,
     };
 
-    // BT_LE_CONN_PARAM_DEFAULT 대신 init_fast_param 주입
     int err = bt_conn_le_create(info->addr, BT_CONN_LE_CREATE_CONN, &init_fast_param, &ble_pad_conn);
     if (err)
     {
       logPrintf("[E_] Conn failed (err %d)\n", err);
       
-      if (err == -EINVAL)
-      {
-        struct bt_conn *bad_conn = bt_conn_lookup_addr_le(BT_ID_DEFAULT, info->addr);
-        if (bad_conn) {
-          bt_conn_unref(bad_conn);
-          bt_conn_unref(bad_conn); 
-        }
+      // 완전히 실패한 것이므로 락 해제 및 초기화
+      is_connecting_or_connected = false;
+      if (ble_pad_conn) {
+        bt_conn_unref(ble_pad_conn);
+        ble_pad_conn = NULL;
       }
       
-      ble_pad_conn = NULL;
+      k_msleep(200); // 이전 상태가 정리될 충분한 시간 부여
       bt_le_scan_start(&ble_pad_scan_param, NULL);
     }
   }
@@ -185,17 +183,28 @@ static void blePadConnected(struct bt_conn *conn, uint8_t err)
 {
   if (err)
   {
-    logPrintf("[E_] Connection failed (err %u)\n", err);
-    // 💡 연결 생성 실패 시 스캔 재시작 전 안전 공백 제공
-    k_msleep(100);
+    logPrintf("[E_] Connection establishment failed (err %u)\n", err);
+
+    // 💡 연결 생성에 실패했으므로 안전하게 락을 풀고 구조체를 정리합니다.
+    is_connecting_or_connected = false;
+    if (ble_pad_conn)
+    {
+      bt_conn_unref(ble_pad_conn);
+      ble_pad_conn = NULL;
+    }
+
+    // 완전히 해제될 시간을 충분히 벌어준 뒤 스캔 재시작 (-22 에러 원천 차단)
+    k_msleep(300);
     bt_le_scan_start(&ble_pad_scan_param, NULL);
     return;
   }
-  logPrintf("[OK] Connected! Initiating Security Link...\n");
-  ble_pad_conn  = bt_conn_ref(conn);
-  is_subscribed = false;
 
-  // 💡 기존의 후속 파라미터 업데이트 요청 코드는 제거 (생성 시점에 이미 고속 주입됨)
+  logPrintf("[OK] Connected! Initiating Security Link...\n");
+
+  // 이미 생성 시점에 레퍼런스가 증가하므로 중복 reference 방지를 위해
+  // 기존의 ble_pad_conn = bt_conn_ref(conn); 대신 상태 확인 후 할당 유지
+  is_connecting_or_connected = true;
+  is_subscribed              = false;
 
   int sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
   if (sec_err)
@@ -207,9 +216,12 @@ static void blePadConnected(struct bt_conn *conn, uint8_t err)
 static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
 {
   logPrintf("[--] Disconnected! Reason code: %u\n", reason);
-  is_subscribed = false;
+
+  // 💡 완전히 연결이 끊어졌으므로 모든 락을 해제합니다.
+  is_connecting_or_connected = false;
+  is_subscribed              = false;
   k_work_cancel_delayable(&ble_pad_activation_work);
-  
+
   if (ble_pad_conn)
   {
     bt_conn_unref(ble_pad_conn);
@@ -219,12 +231,16 @@ static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
   has_bonded_pad = false;
   bt_foreach_bond(BT_ID_DEFAULT, blePadCountBondedCb, NULL);
 
-  delay(200);
+  // 💡 delay(200) 대신 시스템을 정지시키지 않는 k_msleep 사용 필수
+  k_msleep(300);
 
   int err = bt_le_scan_start(&ble_pad_scan_param, NULL);
-  if (err && err != -EALREADY) {
+  if (err && err != -EALREADY)
+  {
     logPrintf("[WARN] Scan start failed (err %d), retrying...\n", err);
-  } else {
+  }
+  else
+  {
     logPrintf("[SCAN] Scanning restarted. Waiting for Xbox Controller power-on...\n");
   }
 }
