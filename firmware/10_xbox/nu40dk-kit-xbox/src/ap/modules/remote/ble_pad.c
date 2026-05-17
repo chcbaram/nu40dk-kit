@@ -76,6 +76,9 @@ static struct bt_conn_auth_info_cb ble_pad_auth_info_cb = {
   .pairing_failed   = blePadPairingFailed,
 };
 
+
+
+
 bool init(void)
 {
   k_tid_t tid = k_thread_create(&thread_data, thread_stack,
@@ -88,7 +91,17 @@ bool init(void)
 
 static bool bldPadScanInit(void)
 {
-  struct bt_scan_init_param scan_init_obj = {.connect_if_match = false};
+  static const struct bt_le_scan_param custom_scan_param = {
+    .type     = BT_LE_SCAN_TYPE_ACTIVE,
+    .options  = BT_LE_SCAN_OPT_NONE,       // 필터 간섭을 최소화하기 위해 비워둠
+    .interval = BT_GAP_SCAN_FAST_INTERVAL, // 고속 스캔 간격 (60ms)
+    .window   = BT_GAP_SCAN_FAST_WINDOW,   // 고속 스캔 윈도우 (30ms)
+  };
+
+  struct bt_scan_init_param scan_init_obj = {
+    .connect_if_match = false,
+    .scan_param       = &custom_scan_param,
+  };
   bt_scan_init(&scan_init_obj);
   bt_scan_cb_register(&ble_pad_scan_cb);
 
@@ -386,7 +399,7 @@ bool blePadInit(void)
     return false;
   }
 
-if (IS_ENABLED(CONFIG_SETTINGS))
+  if (IS_ENABLED(CONFIG_SETTINGS))
   {
     logPrintf("[SYS] Loading saved Bluetooth settings & identity...\n");
     settings_load();
