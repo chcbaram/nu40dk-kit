@@ -418,6 +418,28 @@ static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_par
     // 하단부에 빈 공간을 채워 혹시 모를 터미널 스크롤 꼬임 방지
     logPrintf("\x1b[2K[INFO ] Refresh Rate: 10 Hz (Filtered)\n");
     logPrintf("=====================================================================\n");
+
+    uint32_t color[5] = {0, };
+
+    if (joy->btn_a)
+      color[0] = WS2812_COLOR(255, 0, 0);
+    if (joy->btn_b)
+      color[1] = WS2812_COLOR(255, 0, 0);
+    if (joy->btn_y)
+      color[2] = WS2812_COLOR(255, 0, 0);
+    if (joy->btn_b)
+      color[3] = WS2812_COLOR(255, 0, 0);
+
+    uint8_t led_pos = 0;
+
+    led_pos = cmap(joy->left_stick_x, 0, 0xFFFF, 0, 3);
+    color[led_pos] = WS2812_COLOR(0, 255, 0);
+
+    for (int i=0; i<4; i++)
+    {
+      ws2812SetColor(i, color[i]);      
+    }
+    ws2812Refresh();
   }
 
   return BT_GATT_ITER_CONTINUE;
