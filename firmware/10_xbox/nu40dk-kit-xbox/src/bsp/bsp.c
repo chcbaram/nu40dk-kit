@@ -16,7 +16,7 @@ bool bspInit(void)
     nrf_power_task_trigger(NRF_POWER, NRF_POWER_TASK_CONSTLAT);
   }
   #endif 
-
+    
   return ret;
 }
 

@@ -219,6 +219,13 @@ static void blePadMtuExchangeCb(struct bt_conn *conn, uint8_t err,
   else
   {
     logPrintf("[  ] MTU exchange successful\n");
+
+    // 💡 MTU가 안전하게 셋업된 후 보안 승격을 요청합니다.
+    int sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
+    if (sec_err)
+    {
+      logPrintf("[E_] Failed to set security (err %d)\n", sec_err);
+    }
   }
 }
 
@@ -243,15 +250,15 @@ static void blePadConnected(struct bt_conn *conn, uint8_t err)
   struct bt_le_conn_param *param = BT_LE_CONN_PARAM(6, 12, 0, 400);
   bt_conn_le_param_update(conn, param);
 
-  int sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
-  if (sec_err)
-  {
-    logPrintf("[E_] Failed to set security (err %d)\n", sec_err);
-  }
-  else
-  {
-    logPrintf("[..] Security upgrade requested\n");
-  }
+  // int sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
+  // if (sec_err)
+  // {
+  //   logPrintf("[E_] Failed to set security (err %d)\n", sec_err);
+  // }
+  // else
+  // {
+  //   logPrintf("[..] Security upgrade requested\n");
+  // }
 }
 
 static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
@@ -297,8 +304,8 @@ static void blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enu
       discover_params.func         = blePadDiscoverCb;
       discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
       discover_params.end_handle   = BT_ATT_LAST_ATTRIBUTE_HANDLE;
-      // discover_params.type         = BT_GATT_DISCOVER_PRIMARY;
-      discover_params.type         = BT_GATT_DISCOVER_CHARACTERISTIC;
+      discover_params.type         = BT_GATT_DISCOVER_PRIMARY;
+      // discover_params.type         = BT_GATT_DISCOVER_CHARACTERISTIC;
 
       int ret = bt_gatt_discover(conn, &discover_params);
       if (ret)
@@ -346,88 +353,69 @@ static uint8_t blePadDiscoverCb(struct bt_conn                 *conn,
                                 const struct bt_gatt_attr      *attr,
                                 struct bt_gatt_discover_params *params)
 {
+  // 1. HID 서비스 내의 모든 특성/속성 탐색이 완료되었을 때
   if (!attr)
   {
-    logPrintf("[..] Discovery finished. Total subscribed: %u\n", subscribe_count);
+    logPrintf("[OK] GATT Discovery completed. Found %u potential reports.\n", subscribe_count);
 
     if (subscribe_count > 0)
     {
+      // 탐색이 완전히 끝난 안전한 시점에 워커를 실행하여 구독 진행
       k_work_submit(&ble_pad_subscribe_work);
     }
     return BT_GATT_ITER_STOP;
   }
 
-  logPrintf("[..] Found attribute handle: %u\n", attr->handle);
-
+  // 2. Primary Service를 발견했을 때 -> 하위 특성 전체 탐색 시작
   if (params->type == BT_GATT_DISCOVER_PRIMARY)
   {
-    logPrintf("[OK] Found HID Service. Exploring Characteristics...\n");
-
-    params->uuid         = NULL; 
+    logPrintf("[OK] Found Primary Service. Starting flat characteristic discovery...\n");
+    params->uuid         = NULL; // 모든 특성을 다 확인하기 위해 NULL 설정
     params->start_handle = attr->handle + 1;
     params->type         = BT_GATT_DISCOVER_CHARACTERISTIC;
 
-    bt_gatt_discover(conn, params);
-    return BT_GATT_ITER_STOP;    // 현재 서비스 탐색 루프는 중단
+    // 이 호출은 루프의 시작점 역할을 하므로 안전합니다.
+    return BT_GATT_ITER_CONTINUE; 
   }
 
+  // 3. Characteristic들을 발견하면서 필터링 수행
   if (params->type == BT_GATT_DISCOVER_CHARACTERISTIC)
   {
     struct bt_gatt_chrc *chrc   = (struct bt_gatt_chrc *)attr->user_data;
     uint16_t             uuid16 = (chrc->uuid->type == BT_UUID_TYPE_16) ? BT_UUID_16(chrc->uuid)->val : 0;
 
-    // UUID를 로그로 찍어서 실제 기기가 어떤 UUID들을 보내는지 확인해봅니다.
-    // 만약 cmp 에러가 나면 이 로그를 통해 실제 UUID를 알 수 있습니다.
-    logPrintf("[..] Characteristic found. Handle: %u, UUID: %04X\n",
-              chrc->value_handle,
-              (chrc->uuid->type == BT_UUID_TYPE_16) ? BT_UUID_16(chrc->uuid)->val : 0);
+    logPrintf("[..] Chrc Handle: %u, Value Handle: %u, UUID: %04X\n", attr->handle, chrc->value_handle, uuid16);
 
-    // 2A4C (HID Control Point) 핸들 저장 로직 추가
+    // HID Control Point 핸들 저장
     if (uuid16 == 0x2A4C)
     {
       handle_2a4c = chrc->value_handle;
-      logPrintf("[OK] Found HID Control Point: %u\n", handle_2a4c);
+      logPrintf("[OK] Cached HID Control Point Handle: %u\n", handle_2a4c);
     }
 
-    // 2A4D (Report) 확인 로직
-    // if (bt_uuid_cmp(chrc->uuid, BT_UUID_HIDS_REPORT) == 0)
+    // Report 특성(2A4D)이면서 Notify 권한이 있는 경우 저장
+    // if (uuid16 == 0x2A4D || chrc->uuid->type == BT_UUID_TYPE_128)
+    if (chrc->uuid->type == BT_UUID_TYPE_128)
     {
       if (subscribe_count < MAX_REPORT_SUBS)
-      {        
-        if (chrc->properties & BT_GATT_CHRC_NOTIFY)
-        {
-          logPrintf("[OK] Found Navigable Report. Handle: %u\n", chrc->value_handle);
-
-          memset(&subscribe_params[subscribe_count], 0, sizeof(struct bt_gatt_subscribe_params));
-
-          subscribe_params[subscribe_count].notify       = blePadNotifyCb;
-          subscribe_params[subscribe_count].value        = BT_GATT_CHRC_NOTIFY;
-          subscribe_params[subscribe_count].value_handle = chrc->value_handle;
-
-          /* [주의] CCC 핸들을 찾는 더 정확한 방법은 Descriptor 탐색이지만,
-             일반적인 HID 장치는 value_handle + 1이 CCCD인 경우가 많으므로
-             일단 유지하되, 전체 탐색을 위해 STOP을 지웁니다. */
-          subscribe_params[subscribe_count].ccc_handle = chrc->value_handle + 1;
-
-          logPrintf("[..] Report saved (Index: %d, Handle: %u)\n", subscribe_count, chrc->value_handle);
-          subscribe_count++;
-        }
-        else
-        {
-          logPrintf("[..] Report found but Notify not supported. Skipping handle %u\n", chrc->value_handle);
-        }
-      }
-      else
       {
-        logPrintf("[W_] Max subscriptions reached\n");
-      }
+        memset(&subscribe_params[subscribe_count], 0, sizeof(struct bt_gatt_subscribe_params));
+        subscribe_params[subscribe_count].notify       = blePadNotifyCb;
+        subscribe_params[subscribe_count].value        = BT_GATT_CHRC_NOTIFY;
+        subscribe_params[subscribe_count].value_handle = chrc->value_handle;
+        
+        // 💡 [핵심] Xbox 컨트롤러는 구조상 구조적 편차가 적어 value_handle + 1이 CCCD인 경우가 지배적입니다.
+        // 스택 충돌을 방지하기 위해 정적 오프셋 방식을 취하되, 탐색 완료 후 워커에서 안전하게 구독합니다.
+        subscribe_params[subscribe_count].ccc_handle   = chrc->value_handle + 1;
 
-      // [중요] CONTINUE를 리턴하여 다음 2A4D 특성도 찾습니다.
-      return BT_GATT_ITER_CONTINUE;
+        logPrintf("[OK] Registered Report [%d] -> Value: %u, Est_CCCD: %u\n", 
+                  subscribe_count, chrc->value_handle, subscribe_params[subscribe_count].ccc_handle);
+        subscribe_count++;
+      }
     }
   }
 
-  return BT_GATT_ITER_CONTINUE; // 다음 속성 계속 탐색
+  return BT_GATT_ITER_CONTINUE; // 끊김 없이 다음 특성을 계속 탐색
 }
 
 static void blePadSubscribeWorker(struct k_work *work)
@@ -452,9 +440,30 @@ static void blePadSubscribeWorker(struct k_work *work)
   }
 
   // 모든 리포트 구독 후 Xbox 컨트롤러를 깨우기 위해 2A4C에 신호 전송
+  // if (handle_2a4c != 0)
+  // {
+  //   blePadEnableHid(ble_pad_conn, handle_2a4c);    
+  // }
+  // else
+  // {
+  //   logPrintf("[W_] HID Control Point (2A4C) not found. Skip enabling.\n");
+  // }
+
   if (handle_2a4c != 0)
   {
-    blePadEnableHid(ble_pad_conn, handle_2a4c);    
+    uint8_t cmd_suspend = 0x00;
+    uint8_t cmd_exit    = 0x01;
+
+    // A. 먼저 Suspend(0x00)를 명시적으로 전달
+    bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_suspend, 1, false);
+    logPrintf("[..] Sent Suspend(00) to HID Control Point\n");
+
+    // B. 커맨드가 유입될 시간을 주기 위해 커널 딜레이 (OS 스케줄러 양보)
+    k_msleep(20);
+
+    // C. 그 다음 Exit Suspend(0x01)를 전송하여 상태 머신을 강제로 활성화
+    bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_exit, 1, false);
+    logPrintf("[OK] Sent Exit Suspend(01) to HID Control Point\n");
   }
   else
   {
@@ -470,7 +479,7 @@ static void blePadEnableHid(struct bt_conn *conn, uint16_t handle)
 
   // 0x00: Suspend 해제 (Exit Suspend)
   // Xbox 컨트롤러에 따라 0x00 혹은 0x01이 필요할 수 있습니다.
-  uint8_t enable_data = 0x01;
+  uint8_t enable_data = 0x00;
 
   int err = bt_gatt_write_without_response(conn, handle, &enable_data, sizeof(enable_data), false);
   if (err)
@@ -481,6 +490,20 @@ static void blePadEnableHid(struct bt_conn *conn, uint16_t handle)
   {
     logPrintf("[OK] Sent Enable(%02X) to HID Control Point (Handle %u)\n", enable_data, handle);
   }
+
+  enable_data = 0x01;
+
+  delay(10);
+  err = bt_gatt_write_without_response(conn, handle, &enable_data, sizeof(enable_data), false);
+  if (err)
+  {
+    logPrintf("[E_] Failed to send HID Enable (err %d)\n", err);
+  }
+  else
+  {
+    logPrintf("[OK] Sent Enable(%02X) to HID Control Point (Handle %u)\n", enable_data, handle);
+  }
+
 }
 
 static void blePadPairingComplete(struct bt_conn *conn, bool bonded)
@@ -520,8 +543,8 @@ bool blePadInit(void)
       break;
     }
 
-    bt_unpair(BT_ID_DEFAULT, BT_ADDR_LE_ANY);
-    logPrintf("All bonding information cleared!\n");
+    // bt_unpair(BT_ID_DEFAULT, BT_ADDR_LE_ANY);
+    // logPrintf("All bonding information cleared!\n");
 
     if (IS_ENABLED(CONFIG_SETTINGS))
     {
