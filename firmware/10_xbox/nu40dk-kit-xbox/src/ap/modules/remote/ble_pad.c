@@ -1,6 +1,5 @@
 #include "ap_def.h"
 
-#include <bluetooth/scan.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
@@ -12,24 +11,13 @@
 
 LOG_MODULE_REGISTER(ble_pad, LOG_LEVEL_INF);
 
-#define CHECK_ERR(f, msg)                 \
-  do                                      \
-  {                                       \
-    int _err = (f);                       \
-    if (_err)                             \
-    {                                     \
-      logPrintf(msg " (err %d)\n", _err); \
-      break;                              \
-    }                                     \
-  } while (0)
-
 #define MAX_SUBS 3
 
 static bool init(void);
 static bool blePadInit(void);
 static void blePadThread(void const *arg);
 
-static void blePadScanFilterMatch(struct bt_scan_device_info *device_info, struct bt_scan_filter_match *filter_match, bool connectable);
+static void blePadScanRecvCb(const struct bt_le_scan_recv_info *info, struct net_buf_simple *ad);
 static void blePadConnected(struct bt_conn *conn, uint8_t err);
 static void blePadDisconnected(struct bt_conn *conn, uint8_t reason);
 static void blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enum bt_security_err err);
@@ -62,8 +50,9 @@ static bool         is_subscribed          = false;
 static bt_addr_le_t bonded_pad_addr;
 static bool         has_bonded_pad = false;
 
-
-BT_SCAN_CB_INIT(ble_pad_scan_cb, blePadScanFilterMatch, NULL, NULL, NULL);
+static struct bt_le_scan_cb ble_pad_scan_callbacks = {
+  .recv = blePadScanRecvCb,
+};
 
 BT_CONN_CB_DEFINE(ble_pad_conn_callbacks) = {
   .connected        = blePadConnected,
@@ -72,12 +61,17 @@ BT_CONN_CB_DEFINE(ble_pad_conn_callbacks) = {
 };
 
 static struct bt_conn_auth_info_cb ble_pad_auth_info_cb = {
-  .pairing_complete = blePadPairingComplete,
+  .pairing_complete = blePadPairingComplete, // 하단 정의와 일치하도록 수정
   .pairing_failed   = blePadPairingFailed,
 };
 
-
-
+// 💡 [개방 튜닝] interval과 window를 동일하게 맞추어 라디오를 100% 상시 스캔 모드로 전환 (패킷 누락 방지)
+static const struct bt_le_scan_param ble_pad_scan_param = {
+  .type     = BT_LE_SCAN_TYPE_ACTIVE,
+  .options  = BT_LE_SCAN_OPT_NONE,          
+  .interval = BT_GAP_SCAN_FAST_INTERVAL, // 60ms
+  .window   = BT_GAP_SCAN_FAST_INTERVAL, // 💡 30ms -> 60ms로 확장 (100% 무손실 캐치)
+};
 
 bool init(void)
 {
@@ -87,27 +81,6 @@ bool init(void)
                                 NULL, NULL, NULL,
                                 _HW_DEF_RTOS_THREAD_PRI_BLEPAD, 0, K_NO_WAIT);
   return tid != NULL;
-}
-
-static bool bldPadScanInit(void)
-{
-  static const struct bt_le_scan_param custom_scan_param = {
-    .type     = BT_LE_SCAN_TYPE_ACTIVE,
-    .options  = BT_LE_SCAN_OPT_NONE,       // 필터 간섭을 최소화하기 위해 비워둠
-    .interval = BT_GAP_SCAN_FAST_INTERVAL, // 고속 스캔 간격 (60ms)
-    .window   = BT_GAP_SCAN_FAST_WINDOW,   // 고속 스캔 윈도우 (30ms)
-  };
-
-  struct bt_scan_init_param scan_init_obj = {
-    .connect_if_match = false,
-    .scan_param       = &custom_scan_param,
-  };
-  bt_scan_init(&scan_init_obj);
-  bt_scan_cb_register(&ble_pad_scan_cb);
-
-  CHECK_ERR(bt_scan_filter_add(BT_SCAN_FILTER_TYPE_NAME, "Xbox Wireless Controller"), "Name filter add failed");
-  CHECK_ERR(bt_scan_filter_enable(BT_SCAN_NAME_FILTER, false), "Name filter enable failed");
-  return true;
 }
 
 static bool blePadParseNameCb(struct bt_data *data, void *user_data)
@@ -123,7 +96,7 @@ static bool blePadParseNameCb(struct bt_data *data, void *user_data)
   return true;
 }
 
-static void blePadScanFilterMatch(struct bt_scan_device_info *device_info, struct bt_scan_filter_match *filter_match, bool connectable)
+static void blePadScanRecvCb(const struct bt_le_scan_recv_info *info, struct net_buf_simple *ad)
 {
   char addr_str[BT_ADDR_LE_STR_LEN];
   char name[32] = "No Name";
@@ -132,40 +105,78 @@ static void blePadScanFilterMatch(struct bt_scan_device_info *device_info, struc
     return;
   }
 
-  bt_addr_le_to_str(device_info->recv_info->addr, addr_str, sizeof(addr_str));
-  bt_data_parse(device_info->adv_data, blePadParseNameCb, name);
-
   bool is_target = false;
 
-  // 1. 이미 페어링된 이력이 있는 경우 -> 맥 주소가 일치하는지 다이렉트 검사 (이름 없어도 통과)
   if (has_bonded_pad)
   {
-    if (bt_addr_le_eq(device_info->recv_info->addr, &bonded_pad_addr))
+    struct bt_conn *check_conn = bt_conn_lookup_addr_le(BT_ID_DEFAULT, info->addr);
+    if (check_conn)
     {
-      logPrintf("[SYS] Auto-Reconnect: Recognized Bonded Pad Address [%s]\n", addr_str);
+      struct bt_conn_info conn_info;
+      if (bt_conn_get_info(check_conn, &conn_info) == 0)
+      {
+        if (conn_info.state != BT_CONN_STATE_DISCONNECTED)
+        {
+          is_target = true;
+          bt_addr_le_to_str(info->addr, addr_str, sizeof(addr_str));
+          logPrintf("[SYS] Auto-Reconnect: Resolved RPA Identity Address [%s]\n", addr_str);
+        }
+      }
+      bt_conn_unref(check_conn); 
+    }
+    
+    if (!is_target && bt_addr_le_eq(info->addr, &bonded_pad_addr))
+    {
+      bt_addr_le_to_str(info->addr, addr_str, sizeof(addr_str));
+      logPrintf("[SYS] Auto-Reconnect: Physical Address Match [%s]\n", addr_str);
       is_target = true;
     }
   }
   
-  // 2. 페어링 이력이 없거나 새로운 연결인 경우 -> 이름으로 검사
-  if (!is_target && strstr(name, "Xbox") != NULL)
+  if (!is_target)
   {
-    logPrintf("[SYS] Fresh Pairing: Found Named Controller [%s]\n", name);
-    is_target = true;
+    struct net_buf_simple ad_copy;
+    net_buf_simple_clone(ad, &ad_copy);
+    bt_data_parse(&ad_copy, blePadParseNameCb, name);
+
+    if (strstr(name, "Xbox") != NULL)
+    {
+      bt_addr_le_to_str(info->addr, addr_str, sizeof(addr_str));
+      logPrintf("[SYS] Target Found by Name: [%s] (%s)\n", name, addr_str);
+      is_target = true;
+    }
   }
 
-  // 대상 기기 락온 및 연결 시작
-  if (is_target && device_info->recv_info->rssi > -75)
+  if (is_target && info->rssi > -75)
   {
     logPrintf("[..] Stopping scan and connecting to target...\n");
-    bt_scan_stop();
+    bt_le_scan_stop();
 
-    int err = bt_conn_le_create(device_info->recv_info->addr, BT_CONN_LE_CREATE_CONN, BT_LE_CONN_PARAM_DEFAULT, &ble_pad_conn);
+    // 💡 [속도 튜닝] 생성 시점부터 Xbox 최적 규격(15ms) 파라미터를 다이렉트로 강제 요청
+    static struct bt_le_conn_param init_fast_param = {
+      .interval_min = 12,  // 15ms
+      .interval_max = 12,  // 15ms
+      .latency      = 0,
+      .timeout      = 200, // 2000ms
+    };
+
+    // BT_LE_CONN_PARAM_DEFAULT 대신 init_fast_param 주입
+    int err = bt_conn_le_create(info->addr, BT_CONN_LE_CREATE_CONN, &init_fast_param, &ble_pad_conn);
     if (err)
     {
       logPrintf("[E_] Conn failed (err %d)\n", err);
+      
+      if (err == -EINVAL)
+      {
+        struct bt_conn *bad_conn = bt_conn_lookup_addr_le(BT_ID_DEFAULT, info->addr);
+        if (bad_conn) {
+          bt_conn_unref(bad_conn);
+          bt_conn_unref(bad_conn); 
+        }
+      }
+      
       ble_pad_conn = NULL;
-      bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
+      bt_le_scan_start(&ble_pad_scan_param, NULL);
     }
   }
 }
@@ -177,9 +188,11 @@ static void blePadConnected(struct bt_conn *conn, uint8_t err)
     logPrintf("[E_] Connection failed (err %u)\n", err);
     return;
   }
-  logPrintf("[OK] Connected! Initiating Security Encryption First...\n");
+  logPrintf("[OK] Connected! Initiating Security Link...\n");
   ble_pad_conn  = bt_conn_ref(conn);
   is_subscribed = false;
+
+  // 💡 기존의 후속 파라미터 업데이트 요청 코드는 제거 (생성 시점에 이미 고속 주입됨)
 
   int sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
   if (sec_err)
@@ -200,14 +213,12 @@ static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
     ble_pad_conn = NULL;
   }
 
-  // 연결 해제 시 본딩 테이블 상태 재점검 후 유연하게 통합 스캔 재시작
   has_bonded_pad = false;
   bt_foreach_bond(BT_ID_DEFAULT, blePadCountBondedCb, NULL);
 
-  int err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
+  int err = bt_le_scan_start(&ble_pad_scan_param, NULL);
   if (err && err != -EALREADY) {
     logPrintf("[WARN] Scan start failed (err %d), retrying...\n", err);
-    // 필요 시 스캔 재시도 워커를 구동할 수 있습니다.
   } else {
     logPrintf("[SCAN] Scanning restarted. Waiting for Xbox Controller power-on...\n");
   }
@@ -226,7 +237,7 @@ static void blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enu
     if (level >= BT_SECURITY_L2)
     {
       logPrintf("[RECONN] Triggering Instant GATT Discovery...\n");
-      k_work_reschedule(&ble_pad_discover_delay_work, K_MSEC(100));
+      k_work_reschedule(&ble_pad_discover_delay_work, K_MSEC(10));
     }
 
     if (IS_ENABLED(CONFIG_SETTINGS))
@@ -240,7 +251,6 @@ static void blePadPairingComplete(struct bt_conn *conn, bool bonded)
 {
   logPrintf("[BT] Pairing/Bonding Process Completed! Bonded status: %s\n", bonded ? "TRUE" : "FALSE");
 
-  // 💡 [교정] 최초 페어링 성공 시, 리셋 없이 바로 전원 제어가 연동되도록 즉시 전역 주소 매핑 업데이트
   if (bonded)
   {
     has_bonded_pad = false;
@@ -276,7 +286,6 @@ static uint8_t blePadDiscoverCb(struct bt_conn *conn, const struct bt_gatt_attr 
   {
     logPrintf("[OK] GATT Discovery Sequence Finished.\n");
 
-    // 💡 [교정] 복잡한 재연결 CCCD 상황에 대응하기 위해, 핵심 HID 핸들 획득 유무만을 기준으로 안전하게 활성화 지연 실행
     if (xbox_report_val_handle != 0)
     {
       k_work_reschedule(&ble_pad_activation_work, K_MSEC(10));
@@ -331,37 +340,28 @@ static void blePadActivationWorker(struct k_work *work)
   if (!ble_pad_conn) return;
 
   logPrintf("[SYSTEM] Safe Context Activation Sequence Start...\n");
+  k_msleep(50);
 
-  // 1. HID Control Point 웨이크업 콤보 (명확한 시간차 전송)
   if (handle_2a4c != 0)
   {
     uint8_t cmd_suspend = 0x00;
     uint8_t cmd_exit    = 0x01;
     bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_suspend, 1, false);
-    k_msleep(20);
+    k_msleep(50);
     bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_exit, 1, false);
-    k_msleep(20);
+    k_msleep(50);
   }
 
-  // 2. 메인 스트리밍 활성화 플래그 주입 ({0x01, 0x00})
   if (xbox_report_val_handle != 0)
   {
     uint8_t xbox_active_cmd[2] = {0x01, 0x00};
     bt_gatt_write_without_response(ble_pad_conn, xbox_report_val_handle, xbox_active_cmd, sizeof(xbox_active_cmd), false);
-    k_msleep(20);
+    k_msleep(50);
 
-    // 3. 인풋 스트리밍 모드 개시 강제 트리거 ({0x03})
     uint8_t xbox_report_start = 0x03;
     bt_gatt_write_without_response(ble_pad_conn, xbox_report_val_handle, &xbox_report_start, 1, false);
 
     logPrintf("[⚡REAL_LOCK] Activation Combo Successfully Delivered! LED Fixed.\n");
-
-    /*
-     * 💡 [최종 조치]
-     * 15초 뒤 발생하는 0x3a (Busy) 경고의 원흉이었던 bt_conn_le_param_update 코드를 완전히 삭제합니다.
-     * 기기 간 기본 셋업 속도만으로도 로봇/임베디드 제어 패킷 수신에는 딜레이가 전혀 발생하지 않으며,
-     * 패드 내부 상태 머신과의 충돌을 원천 차단하여 가장 완벽하고 정적인 연결 상태를 유지합니다.
-     */
   }
 }
 
@@ -385,7 +385,6 @@ static void blePadDiscoverDelayWorker(struct k_work *work)
 
 static void blePadCountBondedCb(const struct bt_bond_info *info, void *user_data)
 {
-  // 이미 페어링된 기기가 있다면 그 주소를 전역 변수에 복사
   bt_addr_le_copy(&bonded_pad_addr, &info->addr);
   has_bonded_pad = true;
 }
@@ -406,17 +405,15 @@ bool blePadInit(void)
   }
 
   bt_conn_auth_info_cb_register(&ble_pad_auth_info_cb);
+  bt_le_scan_cb_register(&ble_pad_scan_callbacks);
+
   k_work_init_delayable(&ble_pad_discover_delay_work, blePadDiscoverDelayWorker);
   k_work_init_delayable(&ble_pad_activation_work, blePadActivationWorker); 
-
 
   has_bonded_pad = false;
   bt_foreach_bond(BT_ID_DEFAULT, blePadCountBondedCb, NULL);
 
-
-  bldPadScanInit();
-
-  err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
+  err = bt_le_scan_start(&ble_pad_scan_param, NULL);
   if (!err)
   {
     logPrintf("[SYS] Scanning Started. Waiting for Pad...\n");
