@@ -186,6 +186,9 @@ static void blePadConnected(struct bt_conn *conn, uint8_t err)
   if (err)
   {
     logPrintf("[E_] Connection failed (err %u)\n", err);
+    // 💡 연결 생성 실패 시 스캔 재시작 전 안전 공백 제공
+    k_msleep(100);
+    bt_le_scan_start(&ble_pad_scan_param, NULL);
     return;
   }
   logPrintf("[OK] Connected! Initiating Security Link...\n");
@@ -216,6 +219,8 @@ static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
   has_bonded_pad = false;
   bt_foreach_bond(BT_ID_DEFAULT, blePadCountBondedCb, NULL);
 
+  delay(200);
+
   int err = bt_le_scan_start(&ble_pad_scan_param, NULL);
   if (err && err != -EALREADY) {
     logPrintf("[WARN] Scan start failed (err %d), retrying...\n", err);
@@ -228,7 +233,23 @@ static void blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enu
 {
   if (err)
   {
-    logPrintf("[E_] Security Level Change Failed (err %d)\n", err);
+    logPrintf("[E_] Security Level Change Failed (err %d) -> Evicting Bad Bond...\n", err);
+
+    // 💡 [핵심] 암호화 실패(err 9 등) 시, 저장된 본딩 정보가 깨진 것이므로 과감히 지웁니다.
+    if (ble_pad_conn)
+    {
+      // 현재 연결된 타겟의 주소를 가져와 본딩 해제
+      struct bt_conn_info info;
+      if (bt_conn_get_info(ble_pad_conn, &info) == 0)
+      {
+        // 본딩 데이터 완전히 플래시에서 삭제
+        bt_unpair(BT_ID_DEFAULT, info.le.dst);
+        logPrintf("[SYS] Flushed corrupted bond data for this device. Please re-pair.\n");
+      }
+
+      // 고장 난 연결은 끊어버리고 재시작 유도
+      bt_conn_disconnect(ble_pad_conn, BT_HCI_ERR_AUTH_FAIL);
+    }
   }
   else
   {
@@ -280,15 +301,57 @@ static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_par
   return BT_GATT_ITER_CONTINUE;
 }
 
-static uint8_t blePadDiscoverCb(struct bt_conn *conn, const struct bt_gatt_attr *attr, struct bt_gatt_discover_params *params)
+// 💡 전방 선언 (2단계 디스크립터 탐색을 위함)
+static uint8_t blePadDiscoverDescriptorCb(struct bt_conn *conn, const struct bt_gatt_attr *attr, struct bt_gatt_discover_params *params);
+
+// 💡 [수정] 1단계: 특성(Characteristic) 탐색 콜백
+static uint8_t blePadDiscoverCharacteristicCb(struct bt_conn *conn, const struct bt_gatt_attr *attr, struct bt_gatt_discover_params *params)
 {
   if (!attr)
   {
-    logPrintf("[OK] GATT Discovery Sequence Finished.\n");
+    logPrintf("[SYS] Phase 1: Characteristic Discovery Finished. Starting Phase 2: Descriptor Scan...\n");
+
+    // 2단계: CCCD 디스크립터 스캔 시작
+    memset(&discover_params, 0, sizeof(struct bt_gatt_discover_params));
+    discover_params.uuid         = NULL;
+    discover_params.func         = blePadDiscoverDescriptorCb; // 디스크립터 전용 콜백으로 체인 연결
+    discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
+    discover_params.end_handle   = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+    discover_params.type         = BT_GATT_DISCOVER_DESCRIPTOR; // 디스크립터 모드 전환
+
+    int err = bt_gatt_discover(conn, &discover_params);
+    if (err) {
+      logPrintf("[E_] Phase 2 Discovery failed (err %d)\n", err);
+    }
+    return BT_GATT_ITER_STOP;
+  }
+
+  // 특성(Characteristic) 값 구조체 파싱
+  const struct bt_gatt_chrc *chrc = (const struct bt_gatt_chrc *)attr->user_data;
+  if (chrc && chrc->uuid->type == BT_UUID_TYPE_16)
+  {
+    uint16_t uuid16 = BT_UUID_16(chrc->uuid)->val;
+    if (uuid16 == 0x2A4C)
+    {
+      // 💡 chrc->value_handle이 0x2A4C 특성에 무선 데이터를 직접 쏠 수 있는 정확한 Value Handle 하드웨어 주소입니다.
+      handle_2a4c = chrc->value_handle;
+      logPrintf("[OK] Found Real 0x2A4C Handle via Characteristic Scan: %d\n", handle_2a4c);
+    }
+  }
+
+  return BT_GATT_ITER_CONTINUE;
+}
+
+// 💡 [수정] 2단계: 디스크립터(Descriptor) 탐색 콜백
+static uint8_t blePadDiscoverDescriptorCb(struct bt_conn *conn, const struct bt_gatt_attr *attr, struct bt_gatt_discover_params *params)
+{
+  if (!attr)
+  {
+    logPrintf("[OK] All GATT Discovery Sequences Finished.\n");
 
     if (xbox_report_val_handle != 0)
     {
-      k_work_reschedule(&ble_pad_activation_work, K_MSEC(10));
+      k_work_reschedule(&ble_pad_activation_work, K_MSEC(1000));
     }
     return BT_GATT_ITER_STOP;
   }
@@ -297,11 +360,7 @@ static uint8_t blePadDiscoverCb(struct bt_conn *conn, const struct bt_gatt_attr 
   {
     uint16_t uuid16 = BT_UUID_16(attr->uuid)->val;
 
-    if (uuid16 == 0x2A4C)
-    {
-      handle_2a4c = attr->handle;
-    }
-    else if (uuid16 == BT_UUID_GATT_CCC_VAL)
+    if (uuid16 == BT_UUID_GATT_CCC_VAL)
     {
       if (allocated_subs < MAX_SUBS)
       {
@@ -344,6 +403,8 @@ static void blePadActivationWorker(struct k_work *work)
 
   if (handle_2a4c != 0)
   {
+    logPrintf("[  ] Writing to genuine handle_2a4c: %d\n", handle_2a4c);
+    
     uint8_t cmd_suspend = 0x00;
     uint8_t cmd_exit    = 0x01;
     bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_suspend, 1, false);
@@ -373,12 +434,13 @@ static void blePadDiscoverDelayWorker(struct k_work *work)
   xbox_report_val_handle = 0;
   allocated_subs         = 0;
 
+  // 💡 [수정] 최초 구동 시 특성(Characteristic) 탐색 모드로 시작합니다.
   memset(&discover_params, 0, sizeof(struct bt_gatt_discover_params));
   discover_params.uuid         = NULL;
-  discover_params.func         = blePadDiscoverCb;
+  discover_params.func         = blePadDiscoverCharacteristicCb; // 특성 전용 콜백 설정
   discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
   discover_params.end_handle   = BT_ATT_LAST_ATTRIBUTE_HANDLE;
-  discover_params.type         = BT_GATT_DISCOVER_DESCRIPTOR;
+  discover_params.type         = BT_GATT_DISCOVER_CHARACTERISTIC; // 💡 특성 스캔 명시
 
   bt_gatt_discover(ble_pad_conn, &discover_params);
 }
@@ -412,6 +474,8 @@ bool blePadInit(void)
 
   has_bonded_pad = false;
   bt_foreach_bond(BT_ID_DEFAULT, blePadCountBondedCb, NULL);
+
+  delay(100);
 
   err = bt_le_scan_start(&ble_pad_scan_param, NULL);
   if (!err)
