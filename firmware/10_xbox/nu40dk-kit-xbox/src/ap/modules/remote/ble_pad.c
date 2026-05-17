@@ -13,6 +13,45 @@ LOG_MODULE_REGISTER(ble_pad, LOG_LEVEL_INF);
 
 #define MAX_SUBS 3
 
+
+
+struct xbox_hid_report
+{
+  // 0~5번 바이트: 아날로그 스틱 (각 16비트 축이지만, BLE 특성상 10비트~16비트 범위로 패킹됨)
+  uint16_t left_stick_x;  // 왼쪽 스틱 X축 (0 ~ 65535, 정중앙 약 32768)
+  uint16_t left_stick_y;  // 왼쪽 스틱 Y축 (0 ~ 65535)
+  uint16_t right_stick_x; // 오른쪽 스틱 X축 (0 ~ 65535)
+  uint16_t right_stick_y; // 오른쪽 스틱 Y축 (0 ~ 65535)
+
+  // 8~11번 바이트: 아날로그 트리거 (10비트 범위인 0 ~ 1023)
+  uint16_t left_trigger;  // LT 트리거
+  uint16_t right_trigger; // RT 트리거
+
+  // 12번 바이트: D-Pad (방향키는 비트가 아니라 1~8 사이의 각도 수치(Hat switch)로 들어옵니다)
+  // 1:북, 2:북동, 3:동, 4:남동, 5:남, 6:남서, 7:서, 8:북서, 0:누르지 않음
+  uint8_t dpad     : 4;
+  uint8_t dummy1   : 4; // 사용하지 않는 비트 정렬용
+
+  // 13~14번 바이트: 주요 버튼들 (비트 단위 매핑)
+  uint8_t btn_a    : 1;
+  uint8_t btn_b    : 1;
+  uint8_t dummy2   : 1; // 패딩 비트
+  uint8_t btn_x    : 1;
+  uint8_t btn_y    : 1;
+  uint8_t dummy3   : 1;
+  uint8_t btn_lb   : 1;
+  uint8_t btn_rb   : 1;
+
+  uint8_t dummy4   : 2;
+  uint8_t btn_view : 1; // 공유/백 버튼 (창 두개 모양)
+  uint8_t btn_menu : 1; // 메뉴/스타트 버튼 (석 삼자 모양)
+  uint8_t btn_xbox : 1; // 가운데 가이드/홈 버튼
+  uint8_t btn_ls   : 1; // 왼쪽 스틱 클릭
+  uint8_t btn_rs   : 1; // 오른쪽 스틱 클릭
+  uint8_t dummy5   : 1;
+} __attribute__((packed));
+
+
 static bool init(void);
 static bool blePadInit(void);
 static void blePadThread(void const *arg);
@@ -307,11 +346,66 @@ static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_par
     return BT_GATT_ITER_CONTINUE;
   }
 
-  uint8_t *raw = (uint8_t *)data;
-  if (params->value_handle >= 30 || length > 2)
+  // 💡 데이터가 너무 짧은 패킷(메타데이터 등)은 파싱에서 제외하고
+  // 실제 입력 데이터가 들어오는 유효 handle 및 길이(보통 15~16바이트 이상) 조건 체크
+  if (params->value_handle >= 30 && length >= 14)
   {
-    logPrintf("[PAD_NOTIFY] L:%d -> %02X %02X %02X %02X %02X %02X %02X %02X\n",
-              length, raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7]);
+    uint8_t *raw = (uint8_t *)data;
+
+    // 💡 구조체 포인터로 간단하게 캐스팅하여 데이터를 파싱합니다.
+    struct xbox_hid_report *joy = (struct xbox_hid_report *)raw;
+
+    // D-Pad 문자열 변환
+    const char *dpad_str = "RELEASE";
+    switch (joy->dpad)
+    {
+      case 1:
+        dpad_str = "UP";
+        break;
+      case 2:
+        dpad_str = "UP-RIGHT";
+        break;
+      case 3:
+        dpad_str = "RIGHT";
+        break;
+      case 4:
+        dpad_str = "DOWN-RIGHT";
+        break;
+      case 5:
+        dpad_str = "DOWN";
+        break;
+      case 6:
+        dpad_str = "DOWN-LEFT";
+        break;
+      case 7:
+        dpad_str = "LEFT";
+        break;
+      case 8:
+        dpad_str = "UP-LEFT";
+        break;
+    }
+
+    // 💡 [실시간 파싱 데이터 출력]
+    // 1라인: 좌/우 아날로그 스틱값 및 트리거 깊이 수치
+    logPrintf("[XBOX_STICK] LX:%5d, LY:%5d | RX:%5d, RY:%5d | LT:%4d, RT:%4d\n",
+              joy->left_stick_x, joy->left_stick_y,
+              joy->right_stick_x, joy->right_stick_y,
+              joy->left_trigger, joy->right_trigger);
+
+    // 2라인: 현재 누르고 있는 버튼들 상태 가시화
+    logPrintf("[XBOX_BTN] D-PAD:%s | %s %s %s %s | %s %s | %s %s | %s %s %s\n",
+              dpad_str,
+              joy->btn_a ? "A" : ".",
+              joy->btn_b ? "B" : ".",
+              joy->btn_x ? "X" : ".",
+              joy->btn_y ? "Y" : ".",
+              joy->btn_lb ? "LB" : "..",
+              joy->btn_rb ? "RB" : "..",
+              joy->btn_ls ? "LS" : "..",
+              joy->btn_rs ? "RS" : "..",
+              joy->btn_view ? "VIEW" : "....",
+              joy->btn_menu ? "MENU" : "....",
+              joy->btn_xbox ? "XBOX" : "....");
   }
 
   return BT_GATT_ITER_CONTINUE;
@@ -367,7 +461,7 @@ static uint8_t blePadDiscoverDescriptorCb(struct bt_conn *conn, const struct bt_
 
     if (xbox_report_val_handle != 0)
     {
-      k_work_reschedule(&ble_pad_activation_work, K_MSEC(1000));
+      k_work_reschedule(&ble_pad_activation_work, K_MSEC(100));
     }
     return BT_GATT_ITER_STOP;
   }
