@@ -69,6 +69,7 @@ static volatile bool   is_connecting_or_connected = false;
 static bool            is_connected               = false;
 static bool            is_init                    = false;
 static uint16_t        rx_cnt                     = 0;
+static struct k_timer  keepalive_timer;
 
 static xbox_hid_report_t xbox_report;
 
@@ -459,6 +460,8 @@ static uint8_t blePadReportMapReadCb(struct bt_conn *conn, uint8_t err,
 
     is_connected = true;
     logPrintf("[  ] is_connected : true\n");
+
+    // k_timer_start(&keepalive_timer, K_MSEC(1000), K_MSEC(5000)); 
   }
   return BT_GATT_ITER_STOP;
 }
@@ -536,6 +539,15 @@ static void blePadCountBondedCb(const struct bt_bond_info *info, void *user_data
   has_bonded_pad = true;
 }
 
+void blePadKeepAliveExpiryFn(struct k_timer *timer_id)
+{
+  if (ble_pad_conn && handle_2a4c != 0)
+  {
+    uint8_t keepalive_cmd = 0x01;
+    bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &keepalive_cmd, 1, false);
+  }
+}
+
 bool bldPadIsConnected(void)
 {
   return is_connected;
@@ -566,6 +578,8 @@ bool blePadInit(void)
     logPrintf("[E_] BT Enable Failed (err %d)\n", err);
     return false;
   }
+
+  k_timer_init(&keepalive_timer, blePadKeepAliveExpiryFn, NULL);
 
   if (IS_ENABLED(CONFIG_SETTINGS))
   {
