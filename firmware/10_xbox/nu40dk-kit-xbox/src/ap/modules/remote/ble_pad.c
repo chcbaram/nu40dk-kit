@@ -11,7 +11,7 @@
 
 LOG_MODULE_REGISTER(ble_pad, LOG_LEVEL_INF);
 
-#define MAX_SUBS 3
+#define MAX_SUBS 6
 
 
 
@@ -81,9 +81,11 @@ static struct k_work_delayable ble_pad_activation_work;
 
 static struct bt_gatt_discover_params  discover_params;
 static struct bt_gatt_subscribe_params sub_params_pool[MAX_SUBS];
+static struct bt_gatt_read_params      rm_read_params;
 static uint8_t                         allocated_subs = 0;
 
 static uint16_t        handle_2a4c            = 0;
+static uint16_t        handle_2a4b            = 0;
 static uint16_t        xbox_report_val_handle = 0;
 static bool            is_subscribed          = false;
 static bt_addr_le_t    bonded_pad_addr;
@@ -212,7 +214,7 @@ static void blePadScanRecvCb(const struct bt_le_scan_recv_info *info, struct net
         ble_pad_conn = NULL;
       }
       
-      k_msleep(200); // 이전 상태가 정리될 충분한 시간 부여
+      delay(200); // 이전 상태가 정리될 충분한 시간 부여
       bt_le_scan_start(&ble_pad_scan_param, NULL);
     }
   }
@@ -233,7 +235,7 @@ static void blePadConnected(struct bt_conn *conn, uint8_t err)
     }
 
     // 완전히 해제될 시간을 충분히 벌어준 뒤 스캔 재시작 (-22 에러 원천 차단)
-    k_msleep(300);
+    delay(300);
     bt_le_scan_start(&ble_pad_scan_param, NULL);
     return;
   }
@@ -270,8 +272,8 @@ static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
   has_bonded_pad = false;
   bt_foreach_bond(BT_ID_DEFAULT, blePadCountBondedCb, NULL);
 
-  // 💡 delay(200) 대신 시스템을 정지시키지 않는 k_msleep 사용 필수
-  k_msleep(300);
+  // 💡 delay(200) 대신 시스템을 정지시키지 않는 delay 사용 필수
+  delay(300);
 
   int err = bt_le_scan_start(&ble_pad_scan_param, NULL);
   if (err && err != -EALREADY)
@@ -475,12 +477,20 @@ static uint8_t blePadDiscoverCharacteristicCb(struct bt_conn *conn, const struct
   if (chrc && chrc->uuid->type == BT_UUID_TYPE_16)
   {
     uint16_t uuid16 = BT_UUID_16(chrc->uuid)->val;
+
+    // 1. HID Control Point (0x2A4C) 탐색
     if (uuid16 == 0x2A4C)
-    {
-      // 💡 chrc->value_handle이 0x2A4C 특성에 무선 데이터를 직접 쏠 수 있는 정확한 Value Handle 하드웨어 주소입니다.
+    {      
       handle_2a4c = chrc->value_handle;
       logPrintf("[OK] Found Real 0x2A4C Handle via Characteristic Scan: %d\n", handle_2a4c);
     }
+
+    // 2. HID Report Map (0x2A4B) 탐색
+    if (uuid16 == 0x2A4B)
+    {
+      handle_2a4b = chrc->value_handle;
+      logPrintf("[OK] Found Real 0x2A4B Handle via Characteristic Scan: %d\n", handle_2a4b);
+    }    
   }
 
   return BT_GATT_ITER_CONTINUE;
@@ -538,12 +548,43 @@ static uint8_t blePadDiscoverDescriptorCb(struct bt_conn *conn, const struct bt_
   return BT_GATT_ITER_CONTINUE;
 }
 
+static uint8_t blePadReportMapReadCb(struct bt_conn *conn, uint8_t err,
+                                     struct bt_gatt_read_params *params,
+                                     const void *data, uint16_t length)
+{
+  if (err)
+  {
+    logPrintf("[ERR] Report Map Read Failed: %d\n", err);
+  }
+  else
+  {
+    logPrintf("[OK] Report Map Read Done (Len: %d). Xbox Pad Handshake Complete!\n", length);
+  }
+  return BT_GATT_ITER_STOP;
+}
+
 static void blePadActivationWorker(struct k_work *work)
 {
   if (!ble_pad_conn) return;
 
   logPrintf("[SYSTEM] Safe Context Activation Sequence Start...\n");
-  k_msleep(50);
+  delay(50);
+
+
+  if (handle_2a4b != 0)
+  {
+    rm_read_params.func          = blePadReportMapReadCb;
+    rm_read_params.handle_count  = 1;
+    rm_read_params.single.handle = handle_2a4b;
+    rm_read_params.single.offset = 0;
+
+    int read_err = bt_gatt_read(ble_pad_conn, &rm_read_params);
+    if (read_err)
+    {
+      logPrintf("[ERR] Failed to start Report Map read: %d\n", read_err);
+    }
+    delay(100); // Read 요청이 스택에 들어갈 시간을 조금 줌
+  }
 
   if (handle_2a4c != 0)
   {
@@ -552,16 +593,16 @@ static void blePadActivationWorker(struct k_work *work)
     uint8_t cmd_suspend = 0x00;
     uint8_t cmd_exit    = 0x01;
     bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_suspend, 1, false);
-    k_msleep(50);
+    delay(50);
     bt_gatt_write_without_response(ble_pad_conn, handle_2a4c, &cmd_exit, 1, false);
-    k_msleep(50);
+    delay(50);
   }
 
   if (xbox_report_val_handle != 0)
   {
     uint8_t xbox_active_cmd[2] = {0x01, 0x00};
     bt_gatt_write_without_response(ble_pad_conn, xbox_report_val_handle, xbox_active_cmd, sizeof(xbox_active_cmd), false);
-    k_msleep(50);
+    delay(50);
 
     uint8_t xbox_report_start = 0x03;
     bt_gatt_write_without_response(ble_pad_conn, xbox_report_val_handle, &xbox_report_start, 1, false);
@@ -636,6 +677,6 @@ void blePadThread(void const *arg)
   blePadInit();
   while (1)
   {
-    k_msleep(1000);
+    delay(1000);
   }
 }
