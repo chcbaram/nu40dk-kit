@@ -1,4 +1,4 @@
-#include "ap_def.h"
+#include "ble_pad.h"
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
@@ -9,47 +9,17 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
 
+
 LOG_MODULE_REGISTER(ble_pad, LOG_LEVEL_INF);
+
+
+#define lock()      k_mutex_lock(&mutex_lock, K_FOREVER);
+#define unLock()    k_mutex_unlock(&mutex_lock);
+
 
 #define MAX_SUBS 6
 
 
-
-struct xbox_hid_report
-{
-  // 0~5번 바이트: 아날로그 스틱 (각 16비트 축이지만, BLE 특성상 10비트~16비트 범위로 패킹됨)
-  uint16_t left_stick_x;  // 왼쪽 스틱 X축 (0 ~ 65535, 정중앙 약 32768)
-  uint16_t left_stick_y;  // 왼쪽 스틱 Y축 (0 ~ 65535)
-  uint16_t right_stick_x; // 오른쪽 스틱 X축 (0 ~ 65535)
-  uint16_t right_stick_y; // 오른쪽 스틱 Y축 (0 ~ 65535)
-
-  // 8~11번 바이트: 아날로그 트리거 (10비트 범위인 0 ~ 1023)
-  uint16_t left_trigger;  // LT 트리거
-  uint16_t right_trigger; // RT 트리거
-
-  // 12번 바이트: D-Pad (방향키는 비트가 아니라 1~8 사이의 각도 수치(Hat switch)로 들어옵니다)
-  // 1:북, 2:북동, 3:동, 4:남동, 5:남, 6:남서, 7:서, 8:북서, 0:누르지 않음
-  uint8_t dpad     : 4;
-  uint8_t dummy1   : 4; // 사용하지 않는 비트 정렬용
-
-  // 13~14번 바이트: 주요 버튼들 (비트 단위 매핑)
-  uint8_t btn_a    : 1;
-  uint8_t btn_b    : 1;
-  uint8_t dummy2   : 1; // 패딩 비트
-  uint8_t btn_x    : 1;
-  uint8_t btn_y    : 1;
-  uint8_t dummy3   : 1;
-  uint8_t btn_lb   : 1;
-  uint8_t btn_rb   : 1;
-
-  uint8_t dummy4   : 2;
-  uint8_t btn_view : 1; // 공유/백 버튼 (창 두개 모양)
-  uint8_t btn_menu : 1; // 메뉴/스타트 버튼 (석 삼자 모양)
-  uint8_t btn_xbox : 1; // 가운데 가이드/홈 버튼
-  uint8_t btn_ls   : 1; // 왼쪽 스틱 클릭
-  uint8_t btn_rs   : 1; // 오른쪽 스틱 클릭
-  uint8_t dummy5   : 1;
-} __attribute__((packed));
 
 
 static bool init(void);
@@ -66,6 +36,10 @@ static void blePadPairingFailed(struct bt_conn *conn, enum bt_security_err reaso
 static void blePadDiscoverDelayWorker(struct k_work *work);
 static void blePadActivationWorker(struct k_work *work); 
 static void blePadCountBondedCb(const struct bt_bond_info *info, void *user_data);
+
+#ifdef _USE_HW_CLI
+static void cliCmd(cli_args_t *args);
+#endif
 
 MODULE_DEF(ble_pad){
   .name     = "ble_pad",
@@ -92,6 +66,13 @@ static bt_addr_le_t    bonded_pad_addr;
 static bool            has_bonded_pad = false;
 static struct bt_conn *ble_pad_conn;
 static volatile bool   is_connecting_or_connected = false;
+static bool            is_connected               = false;
+static bool            is_init                    = false;
+static uint16_t        rx_cnt                     = 0;
+
+static xbox_hid_report_t xbox_report;
+
+static K_MUTEX_DEFINE(mutex_lock);
 
 
 static struct bt_le_scan_cb ble_pad_scan_callbacks = {
@@ -245,7 +226,7 @@ static void blePadConnected(struct bt_conn *conn, uint8_t err)
   // 이미 생성 시점에 레퍼런스가 증가하므로 중복 reference 방지를 위해
   // 기존의 ble_pad_conn = bt_conn_ref(conn); 대신 상태 확인 후 할당 유지
   is_connecting_or_connected = true;
-  is_subscribed              = false;
+  is_subscribed              = false;  
 
   int sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
   if (sec_err)
@@ -259,9 +240,12 @@ static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
   logPrintf("[--] Disconnected! Reason code: %u\n", reason);
 
   // 💡 완전히 연결이 끊어졌으므로 모든 락을 해제합니다.
+  is_connected               = false;
   is_connecting_or_connected = false;
   is_subscribed              = false;
   k_work_cancel_delayable(&ble_pad_activation_work);
+
+  logPrintf("[  ] is_connected : false\n");
 
   if (ble_pad_conn)
   {
@@ -351,97 +335,10 @@ static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_par
   // 실제 입력 데이터가 들어오는 유효 handle 및 길이 조건 체크
   if (params->value_handle >= 30 && length >= 14)
   {
-    // 💡 [초당 10회 제한 필터] 
-    static uint32_t last_print_time = 0;
-    uint32_t current_time = k_uptime_get_32(); // Zephyr 커널 밀리초 시스템 업타임
-
-    // 현재 시간과 마지막 출력 시간의 차이가 100ms 미만이면 데이터 파싱만 하고 출력을 건너뜁니다.
-    if (current_time - last_print_time < 100)
-    {
-      return BT_GATT_ITER_CONTINUE;
-    }
-    last_print_time = current_time; // 출력 시점 갱신
-
-    uint8_t *raw = (uint8_t *)data;
-    struct xbox_hid_report *joy = (struct xbox_hid_report *)raw;
-
-    // D-Pad 문자열 변환 (우측 잔상 방지를 위해 고정 10칸 정렬)
-    const char *dpad_str = "RELEASE   ";
-    switch (joy->dpad)
-    {
-      case 1: dpad_str = "UP        "; break;
-      case 2: dpad_str = "UP-RIGHT  "; break;
-      case 3: dpad_str = "RIGHT     "; break;
-      case 4: dpad_str = "DOWN-RIGHT"; break;
-      case 5: dpad_str = "DOWN      "; break;
-      case 6: dpad_str = "DOWN-LEFT "; break;
-      case 7: dpad_str = "LEFT      "; break;
-      case 8: dpad_str = "UP-LEFT   "; break;
-    }
-
-    // -------------------------------------------------------------------------
-    // 💡 깔끔한 고속 VT100 대시보드 제어 (화면 깜빡임 원천 차단)
-    // -------------------------------------------------------------------------
-    
-    // \x1b[H  : 화면을 지우지 않고 커서만 무조건 좌측 최상단(Home)으로 올립니다.
-    // \x1b[2K : 커서가 있는 해당 라인 하나만 지워 잔상을 없앱니다.
-    
-    logPrintf("\x1b[H"); 
-    logPrintf("=====================================================================\n");
-    logPrintf("                 XBOX BLE CONTROLLER REALTIME STATUS                 \n");
-    logPrintf("=====================================================================\n");
-
-    // [STICK] 라인 출력 전 이전 잔상 삭제 후 출력
-    logPrintf("\x1b[2K[STICK] LX:%5d, LY:%5d | RX:%5d, RY:%5d | LT:%4d, RT:%4d\n",
-              joy->left_stick_x, joy->left_stick_y,
-              joy->right_stick_x, joy->right_stick_y,
-              joy->left_trigger, joy->right_trigger);
-
-    // [BTNS] 라인 출력 전 이전 잔상 삭제 후 출력
-    logPrintf("\x1b[2K[BTNS ] D-PAD: %s | ", dpad_str);
-    
-    // 버튼 ON(녹색 \x1b[32m), OFF(어두운 회색 \x1b[90m) 시인성 코딩
-    logPrintf("%sA\x1b[0m %sB\x1b[0m %sX\x1b[0m %sY\x1b[0m | ",
-              joy->btn_a ? "\x1b[32m" : "\x1b[90m",
-              joy->btn_b ? "\x1b[32m" : "\x1b[90m",
-              joy->btn_x ? "\x1b[32m" : "\x1b[90m",
-              joy->btn_y ? "\x1b[32m" : "\x1b[90m");
-
-    logPrintf("%sLB\x1b[0m %sRB\x1b[0m | %sLS\x1b[0m %sRS\x1b[0m | ",
-              joy->btn_lb ? "\x1b[32m" : "\x1b[90m", joy->btn_rb ? "\x1b[32m" : "\x1b[90m",
-              joy->btn_ls ? "\x1b[32m" : "\x1b[90m", joy->btn_rs ? "\x1b[32m" : "\x1b[90m");
-
-    logPrintf("%sVIEW\x1b[0m %sMENU\x1b[0m %sXBOX\x1b[0m\n",
-              joy->btn_view ? "\x1b[32m" : "\x1b[90m",
-              joy->btn_menu ? "\x1b[32m" : "\x1b[90m",
-              joy->btn_xbox ? "\x1b[32m" : "\x1b[90m");
-
-    logPrintf("=====================================================================\n");
-    // 하단부에 빈 공간을 채워 혹시 모를 터미널 스크롤 꼬임 방지
-    logPrintf("\x1b[2K[INFO ] Refresh Rate: 10 Hz (Filtered)\n");
-    logPrintf("=====================================================================\n");
-
-    uint32_t color[5] = {0, };
-
-    if (joy->btn_a)
-      color[0] = WS2812_COLOR(255, 0, 0);
-    if (joy->btn_b)
-      color[1] = WS2812_COLOR(255, 0, 0);
-    if (joy->btn_y)
-      color[2] = WS2812_COLOR(255, 0, 0);
-    if (joy->btn_b)
-      color[3] = WS2812_COLOR(255, 0, 0);
-
-    uint8_t led_pos = 0;
-
-    led_pos = cmap(joy->left_stick_x, 0, 0xFFFF, 0, 3);
-    color[led_pos] = WS2812_COLOR(0, 255, 0);
-
-    for (int i=0; i<4; i++)
-    {
-      ws2812SetColor(i, color[i]);      
-    }
-    ws2812Refresh();
+    lock();
+    memcpy(&xbox_report, data, sizeof(xbox_hid_report_t));
+    unLock();
+    rx_cnt++;
   }
 
   return BT_GATT_ITER_CONTINUE;
@@ -559,6 +456,9 @@ static uint8_t blePadReportMapReadCb(struct bt_conn *conn, uint8_t err,
   else
   {
     logPrintf("[OK] Report Map Read Done (Len: %d). Xbox Pad Handshake Complete!\n", length);
+
+    is_connected = true;
+    logPrintf("[  ] is_connected : true\n");
   }
   return BT_GATT_ITER_STOP;
 }
@@ -607,7 +507,7 @@ static void blePadActivationWorker(struct k_work *work)
     uint8_t xbox_report_start = 0x03;
     bt_gatt_write_without_response(ble_pad_conn, xbox_report_val_handle, &xbox_report_start, 1, false);
 
-    logPrintf("[⚡REAL_LOCK] Activation Combo Successfully Delivered! LED Fixed.\n");
+    logPrintf("[⚡REAL_LOCK] Activation Combo Successfully Delivered! LED Fixed.\n");        
   }
 }
 
@@ -636,8 +536,30 @@ static void blePadCountBondedCb(const struct bt_bond_info *info, void *user_data
   has_bonded_pad = true;
 }
 
+bool bldPadIsConnected(void)
+{
+  return is_connected;
+}
+
+bool bldPadGetInfo(xbox_hid_report_t *p_report)
+{
+  lock();
+  if (is_connected)
+    memcpy(p_report, &xbox_report, sizeof(xbox_report));
+  else
+    memset(p_report, 0, sizeof(xbox_report));
+  unLock();
+
+  return is_connected;
+}
+
 bool blePadInit(void)
 {
+
+  lock();
+  memset(&xbox_report, 0, sizeof(xbox_report));
+  unLock();
+
   int err = bt_enable(NULL);
   if (err)
   {
@@ -668,15 +590,137 @@ bool blePadInit(void)
     logPrintf("[SYS] Scanning Started. Waiting for Pad...\n");
   }
 
-  return err == 0;
+#if CLI_USE(HW_SD)
+  cliAdd("blepad", cliCmd);
+#endif
+
+  is_init = (err == 0);
+
+  return is_init;
 }
 
 void blePadThread(void const *arg)
 {
   moduleIsReady();
+
   blePadInit();
+
   while (1)
   {
-    delay(1000);
+    delay(10);
   }
 }
+
+#ifdef _USE_HW_CLI
+
+static uint16_t bldPadReportLog(xbox_hid_report_t *joy)
+{
+  // D-Pad 문자열 변환 (우측 잔상 방지를 위해 고정 10칸 정렬)
+  const char *dpad_str = "RELEASE   ";
+  switch (joy->dpad)
+  {
+    case 1:
+      dpad_str = "UP        ";
+      break;
+    case 2:
+      dpad_str = "UP-RIGHT  ";
+      break;
+    case 3:
+      dpad_str = "RIGHT     ";
+      break;
+    case 4:
+      dpad_str = "DOWN-RIGHT";
+      break;
+    case 5:
+      dpad_str = "DOWN      ";
+      break;
+    case 6:
+      dpad_str = "DOWN-LEFT ";
+      break;
+    case 7:
+      dpad_str = "LEFT      ";
+      break;
+    case 8:
+      dpad_str = "UP-LEFT   ";
+      break;
+  }
+
+
+    cliPrintf("=====================================================================\n");
+    cliPrintf("                 XBOX BLE CONTROLLER REALTIME STATUS                 \n");
+    cliPrintf("=====================================================================\n");
+
+    cliPrintf("[STICK] LX:%5d, LY:%5d \n",
+              joy->left_stick_x, joy->left_stick_y);
+
+    cliPrintf("[STICK] RX:%5d, RY:%5d \n",
+              joy->right_stick_x, joy->right_stick_y);
+              
+    cliPrintf("[STICK] LT:%5d, RT:%5d\n",
+              joy->left_trigger, joy->right_trigger);
+
+    cliPrintf("[D-PAD] %s   \n", dpad_str);
+
+    cliPrintf("[BTNS ] %4s %4s %4s %4s \n",
+              joy->btn_a ? "A" : "_",
+              joy->btn_b ? "B" : "_",
+              joy->btn_x ? "X" : "_",
+              joy->btn_y ? "Y" : "_");
+
+    cliPrintf("[TRIG ] %4s %4s %4s %4s \n",
+              joy->btn_lb ? "LB" : "__", joy->btn_rb ? "RB" : "__",
+              joy->btn_ls ? "LS" : "__", joy->btn_rs ? "RS" : "__");
+
+    cliPrintf("[BTNS ] %4s %4s %4s\n",
+              joy->btn_view ? "VIEW" : "____",
+              joy->btn_menu ? "MENU" : "____",
+              joy->btn_xbox ? "XBOX" : "____");
+
+    return 10;
+}
+
+void cliCmd(cli_args_t *args)
+{
+  bool ret = false;
+
+
+  if (args->argc == 1 && args->isStr(0, "info"))
+  {
+    cliPrintf("is_init      : %d\n", is_init);
+    cliPrintf("is_connected : %d\n", is_connected);
+    cliPrintf("is_connecting_or_connected : %d\n", is_connecting_or_connected);
+    ret = true;
+  }
+
+  if (args->argc == 1 && args->isStr(0, "show"))
+  {
+    uint16_t line = 0;
+    xbox_hid_report_t hid_report;
+
+    cliShowCursor(false);
+    while(cliKeepLoop())
+    {
+      lock();
+      hid_report = xbox_report;
+      unLock();
+
+      cliPrintf("is_connected : %d\n", is_connected);
+      
+      line = bldPadReportLog(&hid_report);
+      line++;
+
+      delay(100);
+      cliMoveUp(line);
+    }
+    cliMoveDown(line);
+    cliShowCursor(true);
+    ret = true;
+  }
+
+  if (ret != true)
+  {
+    cliPrintf("blepad info\n");
+    cliPrintf("blepad show\n");
+  }
+}
+#endif
