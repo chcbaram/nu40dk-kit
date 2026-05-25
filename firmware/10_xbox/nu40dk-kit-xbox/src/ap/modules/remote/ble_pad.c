@@ -8,6 +8,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
+#include <zephyr/sys/reboot.h>
 
 
 LOG_MODULE_REGISTER(ble_pad, LOG_LEVEL_INF);
@@ -693,6 +694,11 @@ static uint16_t bldPadReportLog(xbox_hid_report_t *joy)
     return 10;
 }
 
+static void blePadClearAllBondsCb(const struct bt_bond_info *info, void *user_data)
+{
+    bt_unpair(BT_ID_DEFAULT, &info->addr);
+}
+
 void cliCmd(cli_args_t *args)
 {
   bool ret = false;
@@ -703,6 +709,46 @@ void cliCmd(cli_args_t *args)
     cliPrintf("is_init      : %d\n", is_init);
     cliPrintf("is_connected : %d\n", is_connected);
     cliPrintf("is_connecting_or_connected : %d\n", is_connecting_or_connected);
+    ret = true;
+  }
+
+  if (args->argc == 1 && args->isStr(0, "clear"))
+  {
+    // bt_unpair(BT_ID_DEFAULT, BT_ADDR_LE_ANY);
+
+    // cliPrintf("All bonding information cleared!\n");
+    // if (IS_ENABLED(CONFIG_SETTINGS))
+    // {
+    //   settings_save();
+    // }
+    // if (ble_pad_conn)
+    // {
+    //   cliPrintf("Disconnecting active link first...\n");
+    //   bt_conn_disconnect(ble_pad_conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+    //   delay(500); // 연결이 완전히 끊어질 시간 제공
+    // }
+
+    // cliPrintf("Flushing all bond identities...\n");
+    // // 주소 순회 삭제 방식 적용
+    // bt_foreach_bond(BT_ID_DEFAULT, blePadClearAllBondsCb, NULL);
+
+    // delay(200); // 스택 처리 대기
+
+    // #if IS_ENABLED(CONFIG_SETTINGS)
+    // settings_save();
+    // #endif
+
+    // cliPrintf("Done. Rebooting system for clean state...\n");
+    // delay(100);
+    // sys_reboot(SYS_REBOOT_COLD); // 깔끔하게 보드 리셋
+
+    ret = true;
+  }
+
+  if (args->argc == 1 && args->isStr(0, "reset"))
+  {
+    sys_reboot(SYS_REBOOT_COLD);
+
     ret = true;
   }
 
@@ -734,6 +780,8 @@ void cliCmd(cli_args_t *args)
   if (ret != true)
   {
     cliPrintf("blepad info\n");
+    cliPrintf("blepad clear\n");
+    cliPrintf("blepad reset\n");
     cliPrintf("blepad show\n");
   }
 }
