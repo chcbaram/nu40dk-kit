@@ -75,7 +75,7 @@ static uint8_t dither_lut[2][256];
 /*
  * ink 모드: 픽셀(블록)별 펄스 카운터 (InkBoy 방식)
  *
- *   - GB 픽셀(=화면 2x2 블록) 마다 3bit 카운터. 명암이 바뀌면 카운터 = 예산(ink_budget)
+ *   - GB 픽셀(=화면 2x2 블록) 마다 4bit 카운터. 명암이 바뀌면 카운터 = 예산(ink_budget)
  *   - 스캔마다 카운터가 남은 블록만 목표색으로 구동하고 1 씩 줄인다. 0 이면 구동 안 함(HOLD)
  *   - 변하지 않은 블록은 전압이 걸리지 않아 DC 가 쌓이지 않는다 (hold 구동의 패널 잔상 문제 해결)
  *   - 카운터는 비트 슬라이스: ink_cnt[k][w] 의 비트 b = 픽셀 (w*32+b) 카운터의 k 번째 비트
@@ -84,18 +84,37 @@ static uint8_t dither_lut[2][256];
 #define DISP_MODE_FRAME     0         // 프레임 전체를 FAST 로 갱신 (Phase 4~7)
 #define DISP_MODE_INK       1         // 픽셀별 펄스 카운터 (Phase 8)
 #define INK_WORDS           ((GB_LCD_WIDTH * GB_LCD_HEIGHT) / 32)    // 720
-#define INK_CNT_BITS        3
+#define INK_CNT_BITS        4
 
 static volatile uint8_t disp_mode    = DISP_MODE_INK;
 static volatile bool    disp_busy    = false;                 // EPD 갱신 중
-static uint8_t          ink_budget   = 7;                     // 명암이 바뀐 블록에 줄 펄스 수 (1~7)
+static uint8_t          ink_budget   = 8;                     // 명암이 바뀐 블록에 줄 펄스 수 (1~7)
 static uint8_t          ink_frames   = 3;                     // 스캔 1 회 펄스 길이 (프레임, 8ms)
-static uint32_t         ink_frame_ms = 100;                   // 새 GB 프레임을 받는 최소 간격
+static uint32_t         ink_frame_ms = 100;
+static uint8_t          ink_fr       = 0x05;                  // 커스텀 LUT 프레임 속도 125Hz (50Hz 는 체감 차이 없이 스캔만 느려짐)                   // 새 GB 프레임을 받는 최소 간격
 static uint8_t          ink_shade[GB_LCD_HEIGHT][GB_LCD_WIDTH / 4];   // 현재 목표 (2bpp)
 static uint32_t         ink_cnt[INK_CNT_BITS][INK_WORDS];
 static uint8_t          ink_black[GB_SCR_H * EPD_STRIDE];     // 검정 구동 마스크 (게임 영역 줄, 전체 폭)
 static uint8_t          expand4[16];                          // 4 픽셀 니블 → 8 화면 픽셀 바이트
 static uint8_t          diff_nib[256];                        // 2bpp 바이트 차이 → 바뀐 픽셀 니블
+
+/*
+ * 회색(grayscale) 모드: 디더 점 대신 2x2 블록 전체를 한 방향으로, 전환별 펄스 수만큼만 구동해
+ * 입자를 중간에 멈춘다 (InkBoy grayscale). shade: 0 흰색, 1 연회색, 2 진회색, 3 검정
+ *   gray_dose[이전][새] : 펄스 수 (InkBoy 기본 표)
+ *   ink_dir             : 1 = 검정 방향 구동 (비트 슬라이스, GB 픽셀당 1bit)
+ */
+static volatile bool    ink_gray     = false;
+static uint8_t          gray_frames  = 2;                     // 회색 모드 스캔 1 회 프레임 수 (16ms)
+static uint8_t          gray_dose[4][4] =
+{
+  //  W  L  D  K   (새)      InkBoy 기본 표에서 검정 쪽을 늘림 (우리 패널은 검정이 옅게 나옴)
+  {   0, 2, 4,12 },   // W (이전)
+  {   5, 0, 1, 8 },   // L
+  {   6, 1, 0, 6 },   // D
+  {   7, 4, 2, 0 },   // K
+};
+static uint32_t         ink_dir[INK_WORDS];
 
 
 
@@ -166,6 +185,34 @@ static void inkPlan(const uint8_t *p_new)
     memcpy(&o0, p_old, 4); memcpy(&o1, p_old + 4, 4);
     if (n0 == o0 && n1 == o1) continue;
 
+    if (ink_gray)
+    {
+      // 바뀐 픽셀마다 (이전, 새) 명암으로 펄스 수와 방향을 정한다
+      for (int b = 0; b < 8; b++)
+      {
+        uint8_t d = diff_nib[p_new[b] ^ p_old[b]];
+        for (int p = 0; p < 4 && d; p++)
+        {
+          if (!(d & (1 << p))) continue;
+
+          uint8_t  o    = (p_old[b] >> (6 - p * 2)) & 3;
+          uint8_t  n    = (p_new[b] >> (6 - p * 2)) & 3;
+          uint8_t  dose = gray_dose[o][n];
+          uint32_t bit  = 1u << (b * 4 + p);
+
+          for (int k = 0; k < INK_CNT_BITS; k++)
+          {
+            if ((dose >> k) & 1) ink_cnt[k][w] |= bit;
+            else                 ink_cnt[k][w] &= ~bit;
+          }
+          if (n > o) ink_dir[w] |= bit;     // 어두워짐 → 검정 방향
+          else       ink_dir[w] &= ~bit;
+        }
+      }
+      memcpy(p_old, p_new, 8);
+      continue;
+    }
+
     uint32_t changed = 0;
     for (int b = 0; b < 8; b++)
     {
@@ -190,7 +237,7 @@ static uint32_t inkBuildMask(uint8_t *p_white)
 
   for (int w = 0; w < INK_WORDS; w++)
   {
-    uint32_t active = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w];
+    uint32_t active = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w];
 
     if (active == 0) continue;
     pending += __builtin_popcount(active);
@@ -201,10 +248,22 @@ static uint32_t inkBuildMask(uint8_t *p_white)
     uint8_t       *pb0  = &ink_black[(y * 2) * EPD_STRIDE + GB_SCR_X / 8 + gx0];
     uint8_t       *pw0  = &p_white[(y * 2) * EPD_STRIDE + GB_SCR_X / 8 + gx0];
 
-    for (int g = 0; g < 8; g++, active >>= 4)
+    uint32_t dir = ink_dir[w];
+
+    for (int g = 0; g < 8; g++, active >>= 4, dir >>= 4)
     {
       uint8_t nib = active & 0xF;
       if (nib == 0) continue;
+
+      if (ink_gray)
+      {
+        // 블록 전체를 한 방향으로 (점 없음)
+        uint8_t blk = expand4[nib & (dir & 0xF)];          // 검정 방향 픽셀
+        uint8_t wht = expand4[nib & ~(dir & 0xF)];         // 흰색 방향 픽셀
+        pb0[g] = blk; pb0[g + EPD_STRIDE] = blk;
+        pw0[g] = wht; pw0[g + EPD_STRIDE] = wht;
+        continue;
+      }
 
       uint8_t v   = p_sh[g];
       uint8_t act = expand4[nib];
@@ -225,7 +284,7 @@ static uint32_t inkDecrement(void)
 
   for (int w = 0; w < INK_WORDS; w++)
   {
-    uint32_t borrow = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w];
+    uint32_t borrow = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w];
 
     for (int k = 0; k < INK_CNT_BITS && borrow; k++)
     {
@@ -233,7 +292,7 @@ static uint32_t inkDecrement(void)
       ink_cnt[k][w] = old ^ borrow;
       borrow &= ~old;
     }
-    remain += __builtin_popcount(ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w]);
+    remain += __builtin_popcount(ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w]);
   }
   return remain;
 }
@@ -387,6 +446,7 @@ bool gbRunStartEx(bool clear_ram)
   if (!gbLoadEx(clear_ram)) return false;
 
   i2sSetSampleRate(GB_AUDIO_RATE);
+  epdSetLutOption(ink_fr, false);
 
   memset(&stat, 0, sizeof(stat));
   is_pause    = false;
@@ -437,6 +497,37 @@ void gbRunWaitDisplayIdle(void)
   }
 }
 
+void gbRunSetGray(bool enable)
+{
+  ink_gray = enable;
+  req_full = true;
+}
+
+bool gbRunGetGray(void)
+{
+  return ink_gray;
+}
+
+void gbRunSetGrayDose(uint8_t from, uint8_t to, uint8_t dose)
+{
+  if (from < 4 && to < 4 && from != to) gray_dose[from][to] = MIN(dose, 15);
+}
+
+uint8_t gbRunGetGrayDose(uint8_t from, uint8_t to)
+{
+  return (from < 4 && to < 4) ? gray_dose[from][to] : 0;
+}
+
+void gbRunSetGrayFrames(uint8_t frames)
+{
+  gray_frames = constrain(frames, 1, 63);
+}
+
+uint8_t gbRunGetGrayFrames(void)
+{
+  return gray_frames;
+}
+
 void gbRunSetDispMode(uint8_t mode)
 {
   disp_mode = mode ? DISP_MODE_INK : DISP_MODE_FRAME;
@@ -450,7 +541,7 @@ uint8_t gbRunGetDispMode(void)
 
 void gbRunSetInk(uint8_t budget, uint8_t frames, uint32_t frame_ms)
 {
-  ink_budget   = constrain(budget, 1, 7);
+  ink_budget   = constrain(budget, 1, 15);
   ink_frames   = constrain(frames, 1, 63);
   ink_frame_ms = frame_ms;
 }
@@ -660,15 +751,27 @@ static void dispInkMode(void)
     }
     // 시작/재개: 전체 갱신으로 기준 화면을 만들고 카운터 초기화
     disp_busy = true;
-    drawGameCanvas(gbGetLcdBuf());
-    memcpy(ink_shade, gbGetLcdBuf(), sizeof(ink_shade));
     memset(ink_cnt, 0, sizeof(ink_cnt));
+    memset(ink_dir, 0, sizeof(ink_dir));
+    if (ink_gray)
+    {
+      // 회색 모드: 흰 화면(+테두리)을 기준으로 시작해 모든 픽셀을 흰색에서 목표 회색까지 구동
+      memset(ink_shade, 0, sizeof(ink_shade));
+      drawGameCanvas(&ink_shade[0][0]);
+      epdUpdate(EPD_MODE_FULL);
+      inkPlan(gbGetLcdBuf());
+    }
+    else
+    {
+      drawGameCanvas(gbGetLcdBuf());
+      memcpy(ink_shade, gbGetLcdBuf(), sizeof(ink_shade));
+      epdUpdate(EPD_MODE_FULL);
+    }
     frame_ready = false;
     req_full    = false;
-    epdUpdate(EPD_MODE_FULL);
     disp_busy   = false;
     take_ms     = millis();
-    remain      = 0;
+    remain      = ink_gray ? 1 : 0;
     disp_ready  = true;
     return;
   }
@@ -711,7 +814,7 @@ static void dispInkMode(void)
   }
 
   disp_busy = true;
-  epdUpdateMask(ink_black, p_white, GB_SCR_Y, GB_SCR_H, ink_frames);
+  epdUpdateMask(ink_black, p_white, GB_SCR_Y, GB_SCR_H, ink_gray ? gray_frames : ink_frames);
   disp_busy = false;
   uint32_t t2 = micros();
   remain = inkDecrement();

@@ -29,6 +29,11 @@ static uint8_t    fast_frames    = 10;      // 전환 펄스 길이 (프레임, 
 static uint8_t    fast_hold      = 0;       // 유지 픽셀 구동 길이 (0 = 구동 안 함. DC 누적으로 패널 잔상 유발)
 static uint8_t    lut_frames     = 0;       // 지금 로드된 커스텀 LUT 의 전환 프레임 수
 static uint8_t    lut_hold       = 0xFF;    // 지금 로드된 커스텀 LUT 의 hold
+static uint8_t    lut_fr         = 0x05;    // 커스텀 LUT 프레임 속도 (0x05 = 125Hz, 0x02 = 50Hz)
+static uint8_t    lut_fr_loaded  = 0xFF;
+static bool       lut_vendor     = false;   // 제조사 전압/VCOM 사용 (Waveshare EPD_4in2_V2 4Gray LUT 값)
+                                            // 기본 끔: 체감 효과가 없었고, 켠 상태에서 패널이 구동되지 않는 멈춤이 있었음
+static bool       lut_vendor_ld  = false;
 
 static const char *mode_str[EPD_MODE_MAX] = {"full", "part", "fast"};
 static uint32_t   busy_err_cnt   = 0;       // BUSY 제한시간 초과 → 자동 복구 횟수
@@ -125,19 +130,43 @@ static void epdCustomLutSetup(uint8_t frames, uint8_t hold)
 {
   uint8_t d[4];
 
-  if (fast_ready && lut_frames == frames && lut_hold == hold) return;
+  if (fast_ready && lut_frames == frames && lut_hold == hold &&
+      lut_fr_loaded == lut_fr && lut_vendor_ld == lut_vendor) return;
 
-  epdBuildLut(frames, 1, 2, 0x05, hold);
+  epdBuildLut(frames, 1, 2, lut_fr, hold);
   epdWriteLut();
+
+  if (lut_vendor)
+  {
+    // 제조사(Waveshare EPD_4in2_V2, SSD1683 4.2") 4 단계 회색 LUT 의 전압/VCOM.
+    // OTP 값은 읽을 수 없어 이 패널용으로 공개된 값을 쓴다. EOPT 는 0x22 유지 (0x07 은 점 발생 이력)
+    d[0] = 0x17;                              ssd1683WriteCmdData(0x03, d, 1);   // VGH 20V
+    d[0] = 0x41; d[1] = 0xA8; d[2] = 0x32;    ssd1683WriteCmdData(0x04, d, 3);   // VSH1 15V, VSH2 5V, VSL -15V
+    d[0] = 0x30;                              ssd1683WriteCmdData(0x2C, d, 1);   // VCOM -1.2V
+  }
   if (!fast_ready)
   {
     d[0] = 0x8B; d[1] = 0x9C; d[2] = 0x96; d[3] = 0x00;   // 부스터 소프트 스타트 90ms → 30ms
     ssd1683WriteCmdData(0x0C, d, 4);
     fast_analog_on = false;
   }
-  fast_ready = true;
-  lut_frames = frames;
-  lut_hold   = hold;
+  fast_ready    = true;
+  lut_frames    = frames;
+  lut_hold      = hold;
+  lut_fr_loaded = lut_fr;
+  lut_vendor_ld = lut_vendor;
+}
+
+void epdSetLutOption(uint8_t fr, bool vendor)
+{
+  lut_fr     = fr;
+  lut_vendor = vendor;
+}
+
+void epdGetLutOption(uint8_t *p_fr, bool *p_vendor)
+{
+  *p_fr     = lut_fr;
+  *p_vendor = lut_vendor;
 }
 
 bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16_t h)
@@ -602,6 +631,20 @@ void cliEpd(cli_args_t *args)
     ret = true;
   }
 
+  // epd opt <fr_hex> <vendor 0|1> : 커스텀 LUT 프레임 속도, 제조사 전압/VCOM 사용
+  if (args->argc >= 1 && args->isStr(0, "opt"))
+  {
+    uint8_t fr; bool vendor;
+
+    epdGetLutOption(&fr, &vendor);
+    if (args->argc >= 2) fr     = (uint8_t)strtoul(args->getStr(1), NULL, 16);
+    if (args->argc >= 3) vendor = args->getData(2) ? true : false;
+    epdSetLutOption(fr, vendor);
+    cliPrintf("lut opt : fr 0x%02X (%s), vendor voltage %d\n", fr,
+              fr == 0x05 ? "125Hz" : fr == 0x02 ? "50Hz" : fr == 0x01 ? "25Hz" : fr == 0x03 ? "75Hz" : fr == 0x04 ? "100Hz" : "?", vendor);
+    ret = true;
+  }
+
   if (args->argc == 1 && args->isStr(0, "off"))
   {
     epdPowerOff();
@@ -674,6 +717,7 @@ void cliEpd(cli_args_t *args)
     cliPrintf("epd bench <count> [full|part|fast]\n");
     cliPrintf("epd fast <frames> <hold>\n");
     cliPrintf("epd off\n");
+    cliPrintf("epd opt [fr_hex vendor]\n");
     cliPrintf("epd ctrl [full|part] <hex>\n");
     cliPrintf("epd temp <C>\n");
     cliPrintf("epd lut <frames> [hold vs_black vs_white fr_hex]\n");

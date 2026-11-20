@@ -382,7 +382,32 @@ void cliGb(cli_args_t *args)
     if (args->argc >= 4) ms = args->getData(3);
     gbRunSetInk(b, f, ms);
     gbRunGetInk(&b, &f, &ms);
-    cliPrintf("ink : budget %d pulses, %d frames/scan (%d ms), new frame every %d ms\n", b, f, f * 8, ms);
+    cliPrintf("ink : budget %d pulses, %d frames/scan, new frame every %d ms (fr: epd opt)\n", b, f, ms);
+    ret = true;
+  }
+
+  // gb gray on|off [frames] : 회색 모드
+  if (args->argc >= 2 && args->isStr(0, "gray"))
+  {
+    if (args->argc >= 3) gbRunSetGrayFrames(args->getData(2));
+    gbRunSetGray(args->isStr(1, "on"));
+    cliPrintf("gray %s, %d frames/scan\n", gbRunGetGray() ? "on" : "off", gbRunGetGrayFrames());
+    ret = true;
+  }
+
+  // gb dose [from to n] : 회색 전환 펄스 수 (0 흰, 1 연회, 2 진회, 3 검정)
+  if (args->argc >= 1 && args->isStr(0, "dose"))
+  {
+    const char *name = "WLDK";
+
+    if (args->argc >= 4) gbRunSetGrayDose(args->getData(1), args->getData(2), args->getData(3));
+    cliPrintf("from\\to  W  L  D  K\n");
+    for (int f = 0; f < 4; f++)
+    {
+      cliPrintf("   %c   ", name[f]);
+      for (int t = 0; t < 4; t++) cliPrintf("%2d ", gbRunGetGrayDose(f, t));
+      cliPrintf("\n");
+    }
     ret = true;
   }
 
@@ -513,6 +538,8 @@ void cliGb(cli_args_t *args)
     cliPrintf("gb win full|game\n");
     cliPrintf("gb disp ink|frame\n");
     cliPrintf("gb ink [budget frames frame_ms]\n");
+    cliPrintf("gb gray on|off [frames]\n");
+    cliPrintf("gb dose [from to n]\n");
     cliPrintf("gb key <a,b,select,start,right,left,up,down> [ms]\n");
     cliPrintf("gb load <index|file> [force]\n");
     cliPrintf("gb bench <frames> [nolcd] [skip] [core option]\n");

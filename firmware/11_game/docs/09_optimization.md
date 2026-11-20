@@ -66,9 +66,9 @@ InkBoy(https://github.com/kuslota/InkBoy, MIT)의 방식을 nRF52840 메모리�
 | 항목 | InkBoy | 11_game |
 |---|---|---|
 | 카운터 단위 | 패널 픽셀 (200×200) | **GB 픽셀 = 화면 2×2 블록** (160×144). 2배 확대라 블록 안 4픽셀이 같이 바뀜 |
-| 카운터 | 4bit × 비트 슬라이스 | 3bit (최대 7펄스) × 비트 슬라이스, **8.6KB** |
+| 카운터 | 4bit × 비트 슬라이스 | 4bit × 비트 슬라이스, **11.5KB** |
 | 변하지 않은 픽셀 | HOLD (전압 0) | 같음 |
-| 바뀐 픽셀 | 예산만큼 구동 후 HOLD | 같음 (예산 7, 스캔당 3프레임 = 24ms, 총 168ms) |
+| 바뀐 픽셀 | 예산만큼 구동 후 HOLD | 같음 (예산 8, 스캔당 3프레임 = 24ms, 총 192ms) |
 | EPD RAM | 두 면을 검정/흰색 마스크로 | 같음: RED = 검정 마스크, BW = 흰색 마스크 (커스텀 LUT hold 0 이 그대로 지원) |
 | 마스크 버퍼 | 5KB × 2 | 14.4KB (검정) + 캔버스 버퍼 재사용 (흰색) |
 
@@ -76,11 +76,12 @@ InkBoy(https://github.com/kuslota/InkBoy, MIT)의 방식을 nRF52840 메모리�
 
 | 항목 | 크기 |
 |---|---|
-| 카운터 (3 × 720 워드) | 8.6KB |
+| 카운터 (4 × 720 워드) | 11.5KB |
+| 회색 모드 방향 비트 | 2.9KB |
 | 현재 목표 (2bpp 160×144) | 5.8KB |
 | 검정 마스크 (전체 폭 288줄) | 14.4KB |
 | 흰색 마스크 | 0 (캔버스 15KB 재사용. 게임 메뉴를 그리기 전에 이미지 복원) |
-| **합계** | **약 29KB** (RAM 240KB / 256KB) |
+| **합계** | **약 35KB** (RAM 246KB / 256KB) |
 
 패널 픽셀 단위 카운터(InkBoy 와 완전히 같은 방식)는 약 58KB 가 필요하다. 스택(약 12KB), 믹서(8KB), cart RAM 공유로 확보할 수 있으나 블록 단위로도 효과가 같아 보류.
 
@@ -105,21 +106,33 @@ InkBoy(https://github.com/kuslota/InkBoy, MIT)의 방식을 nRF52840 메모리�
 | 에뮬 속도 (스크롤) | 85~105% | 86~96% |
 | 화질 | 덜 진함 | 진함, 디더 점이 또렷해 거칠게 보임 |
 
-CLI: `gb disp ink|frame`, `gb ink [budget frames frame_ms]` (기본 7 3 100).
+CLI: `gb disp ink|frame`, `gb ink [budget frames frame_ms]` (기본 8 3 100), `gb gray on|off [frames]`, `gb dose [from to n]`, `epd opt [fr vendor]`.
+
+### 화질 실험 (ink 모드)
+
+| 실험 | 설정 | 결과 | 채택 |
+|---|---|---|---|
+| 제조사 전압/VCOM | Waveshare EPD_4in2_V2 4Gray LUT 의 VGH 0x17, VSH1 0x41, VSH2 0xA8, VSL 0x32, VCOM 0x30 | 체감 차이 없음. 켠 상태에서 **패널이 구동되지 않는 멈춤**(전체 갱신 114ms, BUSY 복구)이 생겨 `epd init` 으로 회복 | X (`epd opt <fr> 1` 로만) |
+| 50Hz 1프레임 (제조사 FR 0x02) | InkBoy 와 같은 스캔당 약 20ms | 체감 차이 없음. 방전(EOPT 2프레임)도 50Hz 라 스캔 56 → 76ms | X |
+| 카운터 3bit → **4bit**, 예산 8 | InkBoy 기본값 | 유지 (RAM +2.9KB) | O |
+| **회색(grayscale) 모드** | 디더 대신 2×2 블록을 한 방향으로 전환별 펄스 수만큼 구동 (InkBoy 표 + 검정 쪽 증가) | 디더 점이 사라져 부드럽지만 **검정이 옅고 잔상이 많음**. 펄스 수 열린 제어라 오차 누적, 패널 기존 잔상의 영향도 큼 | X (`gb gray on` 실험 옵션) |
+
+InkBoy 와의 화질 차이는 패널 해상도(184ppi, GB 1픽셀 = 패널 1픽셀 vs 120ppi, GB 1픽셀 = 2×2), 초당 30회 갱신, 카메라 측정 튜닝, 패널 상태 차이로 본다.
 
 ## 7. 메모리 (Phase 8 후)
 
 | 항목 | 값 |
 |---|---|
-| RAM | 240KB / 256KB (여유 약 16KB) |
-| FLASH (app) | 428KB / 504KB |
+| RAM | 246KB / 256KB (여유 약 10KB) |
+| FLASH (app) | 429KB / 504KB |
 | 큰 항목 | cart RAM 32KB, BT·커널, Walnut `gb_s` 16.9KB, 믹서 16KB, 캔버스 15KB, ink 마스크 14.4KB, 카운터 8.6KB, 스레드 스택 |
 
 ## 8. 다음 후보
 
 | 후보 | 기대 효과 |
 |---|---|
-| ink 회색(grayscale) 모드: 디더 대신 블록을 단계별 펄스 수만큼만 구동 (InkBoy 의 12 전환 펄스 표) | 디더 점 없는 매끈한 4단계 회색. 방향 비트 3KB 추가, 펄스 수 튜닝 필요 |
+| 회색 모드 개선: 픽셀별 도달 수준 추정과 이력 보정 (InkBoy grayscale 의 retarget / reversal compensation) | 회색 모드의 잔상·옅음 개선. RAM 추가 필요 |
+| 새 패널로 비교 | 현재 패널은 hold 실험의 잔상이 남아 화질 판단이 불리 |
 | 마스크 생성 추가 최적화 (32bit 단위 쓰기, 바뀐 줄만) | 스캔당 약 3ms 절약 |
 | 스레드 스택 실측 후 축소 | 약 12KB RAM |
 | 에뮬 CPU (Walnut 메모리 접근 테이블화) | 무거운 장면 속도 |

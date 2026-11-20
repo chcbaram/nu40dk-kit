@@ -32,6 +32,12 @@ bool gbRunGetMenuRequest(void);   // 메뉴 버튼(Xbox / BTN4 길게) 눌림 �
 void gbRunSetSound(bool enable);
 void gbRunSetWinFull(bool full);
 void gbRunInjectKey(uint8_t keys, uint32_t ms);
+void    gbRunSetGray(bool enable);             // ink 회색 모드 (디더 없이 단계별 펄스 수)
+bool    gbRunGetGray(void);
+void    gbRunSetGrayDose(uint8_t from, uint8_t to, uint8_t dose);   // shade 0 흰 ~ 3 검정
+uint8_t gbRunGetGrayDose(uint8_t from, uint8_t to);
+void    gbRunSetGrayFrames(uint8_t frames);
+uint8_t gbRunGetGrayFrames(void);
 void    gbRunSetDispMode(uint8_t mode);    // 0: frame (FAST 전체), 1: ink (픽셀별 펄스 카운터)
 uint8_t gbRunGetDispMode(void);
 void    gbRunSetInk(uint8_t budget, uint8_t frames, uint32_t frame_ms);
