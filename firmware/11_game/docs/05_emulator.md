@@ -97,14 +97,34 @@ src/ap/modules/emul/
 | `gb bench <frames> [nolcd] [skip]` | 화면 없이 에뮬레이션 속도 측정 |
 | `gb show [frames]` | LCD 버퍼를 문자(40×18)로 출력 |
 
-## 실행 구조
+## 실행 구조 (Phase 4, `gb/gb_run.c`)
 
 | 항목 | 내용 |
 |---|---|
-| 에뮬 스레드 | 59.7Hz 프레임 단위로 `gb_run_frame()` 실행 |
-| 화면 | `lcd_draw_line(line, pixels[160])` 콜백 → 2×2 디더 → EPD 1bpp 버퍼 |
-| 표시 | 디스플레이 스레드가 BUSY가 풀릴 때마다 최신 프레임만 부분 갱신 (에뮬 속도와 분리) |
-| 프레임 스킵 | 표시하지 않을 프레임은 라인 렌더링 생략 (CPU 절약) |
+| 에뮬 스레드 `gb_emu` (우선순위 7, 가장 낮음) | 59.73Hz 페이싱(`k_usleep`)으로 프레임 실행. 늦으면 쉬지 않고 따라잡음 |
+| 렌더링 | 디스플레이가 새 프레임을 기다릴 때만 렌더링 (`gbCoreSetDrawNext`). Walnut 의 `frame_skip_count` 를 프레임마다 직접 지정 |
+| 디스플레이 스레드 `gb_disp` (우선순위 4) | 2bpp 버퍼 → 2×2 디더 룩업(GB 1바이트 → 캔버스 1바이트, 줄당 테이블 1개) → 캔버스 (40,6) 320×288 → `EPD_MODE_FAST` 윈도우 갱신 |
+| 버퍼 공유 | `lcd_buf` 하나를 공유. 변환이 수 ms 라 이중 버퍼 없이 핸드셰이크(`disp_ready`/`frame_ready`) |
+| 첫 화면 / `gb full` | 흰 배경 + 게임 영역 테두리로 전체 갱신 후 FAST 갱신 |
+| 종료 | `gbRunStop()` 후 `epdPowerOff()` (FAST 모드는 아날로그 전원 유지) |
+
+### Phase 4 측정 (2026-11-20)
+
+| 게임 | 에뮬 속도 | 프레임 실행 | 화면 갱신 |
+|---|---|---|---|
+| Super Mario Land | **59~62fps (원래 속도 100%)** | 약 7ms (필요한 프레임만 렌더링) | **6~7fps** (갱신 1회 약 140ms) |
+| Donkey Kong | 19~23fps (33~38%) | 37~46ms | 5fps |
+
+- 화면에서 GB 4단계 회색이 구분되고, 잔상은 생각보다 적어 볼 만함 (육안 확인).
+- SML 은 프레임당 약 9ms 의 CPU 여유가 있음 → Phase 6 사운드에 사용.
+- 임시 입력 매핑(Phase 5 에서 정리): 보드 BTN1 Start, BTN2 Select, BTN3 A, BTN4 B / Xbox D-pad·왼쪽 스틱 방향, A·Y → A, B·X → B, View Select, Menu Start.
+
+| CLI | 동작 |
+|---|---|
+| `gb run [번호]` | (번호가 있으면 SD 에서 load 후) 실행 |
+| `gb stop` | 정지, EPD 아날로그 전원 끄기 |
+| `gb stat` | 1초마다 에뮬 fps / 속도 / 화면 fps |
+| `gb full` | 다음 표시를 전체 갱신 (잔상 정리) |
 
 ## 성능 리스크와 대응 (Phase 3에서 확인)
 

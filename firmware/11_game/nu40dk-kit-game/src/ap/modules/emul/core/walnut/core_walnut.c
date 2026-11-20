@@ -125,6 +125,15 @@ void gbCoreSetFrameSkip(bool enable)
   gb.direct.frame_skip = enable;
 }
 
+// frame_skip 을 켜 두고 frame_skip_count 를 직접 넣으면 프레임 단위로 렌더링을 정할 수 있다.
+//   gb_run_frame() 은 VBlank(LY=144) 에서 끝나고, 그 시점에 frame_skip_count 를 뒤집는다.
+//   다음 프레임의 0~143 줄은 실행 직전에 넣은 값으로 렌더링 여부가 정해진다.
+void gbCoreSetDrawNext(bool draw)
+{
+  gb.direct.frame_skip         = true;
+  gb.display.frame_skip_count  = draw;
+}
+
 void gbCoreSetOption(const char *p_opt)
 {
   if (strcmp(p_opt, "single") == 0) run_dualfetch = false;

@@ -13,6 +13,7 @@
 #include "gb_core.h"
 #include "gb_emul.h"
 #include "gb_rom.h"
+#include "gb_run.h"
 
 
 #define GB_ROM_ADDR         PM_ROM_STORAGE_ADDRESS
@@ -201,6 +202,7 @@ void cliGb(cli_args_t *args)
     uint32_t max_us = 0;
     bool     bench_skip = false;
 
+    gbRunStop();
     lcd_enable = true;
     gbCoreSetOption("dual");
 
@@ -271,6 +273,62 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  // gb run [번호] : (번호가 있으면 SD 에서 먼저 load) Flash 의 ROM 실행, EPAPER 표시
+  if (args->argc >= 1 && args->isStr(0, "run"))
+  {
+    if (args->argc >= 2)
+    {
+      char name[64];
+
+      gbRunStop();
+      if (gbRomGetName(args->getData(1), name, sizeof(name)))
+      {
+        cliPrintf("load : %s\n", name);
+        cliPrintf("load : %s\n", gbRomErrStr(gbRomLoad(name, false, cliLoadProgress)));
+      }
+    }
+    char title[16];
+    gbRomGetTitle(title, sizeof(title));
+    cliPrintf("run  : %s %s\n", title, gbRunStart() ? "OK" : "Fail");
+    ret = true;
+  }
+
+  if (args->argc == 1 && args->isStr(0, "stop"))
+  {
+    gbRunStop();
+    cliPrintf("stop\n");
+    ret = true;
+  }
+
+  if (args->argc == 1 && args->isStr(0, "full"))
+  {
+    gbRunRequestFull();
+    ret = true;
+  }
+
+  // gb stat : 1 초마다 에뮬 속도와 화면 fps 출력 (아무 키나 누르면 종료)
+  if (args->argc == 1 && args->isStr(0, "stat"))
+  {
+    gb_run_stat_t pre, cur;
+
+    gbRunGetStat(&pre);
+    while (cliKeepLoop())
+    {
+      delay(1000);
+      gbRunGetStat(&cur);
+
+      uint32_t ef = cur.emu_frames  - pre.emu_frames;
+      uint32_t df = cur.disp_frames - pre.disp_frames;
+      uint32_t eu = cur.emu_us_sum  - pre.emu_us_sum;
+      uint32_t dm = cur.disp_ms_sum - pre.disp_ms_sum;
+
+      cliPrintf("emu %2d fps (%3d %%, %5d us/frame)  disp %d fps (%d ms)\n",
+                ef, ef * 100 / 60, ef ? eu / ef : 0, df, df ? dm / df : 0);
+      pre = cur;
+    }
+    ret = true;
+  }
+
   if (args->argc == 1 && args->isStr(0, "list"))
   {
     uint32_t idx = 0;
@@ -321,6 +379,10 @@ void cliGb(cli_args_t *args)
   {
     cliPrintf("gb info\n");
     cliPrintf("gb list\n");
+    cliPrintf("gb run [index]\n");
+    cliPrintf("gb stop\n");
+    cliPrintf("gb stat\n");
+    cliPrintf("gb full\n");
     cliPrintf("gb load <index|file> [force]\n");
     cliPrintf("gb bench <frames> [nolcd] [skip] [core option]\n");
     cliPrintf("gb show [run_frames]\n");
