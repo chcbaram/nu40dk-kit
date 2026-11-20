@@ -283,7 +283,9 @@ void cliGb(cli_args_t *args)
     bool     bench_skip = false;
     bool     bench_audio = false;
     bool     bench_prof  = false;
+    bool     bench_play  = false;   // 정해진 프레임에 Start, 오른쪽+점프 입력 (재현 가능한 플레이 장면)
     uint32_t audio_sum = 0;
+    uint32_t audio_crc = 0;       // 생성한 샘플의 체크섬 (최적화 전후 소리가 같은지 확인)
     static int16_t bench_audio_buf[768];       // 22050Hz 스테레오 1 프레임 738 샘플
 
     gbRunStop();
@@ -298,6 +300,7 @@ void cliGb(cli_args_t *args)
         else if (args->isStr(i, "skip"))  bench_skip = true;
         else if (args->isStr(i, "audio")) bench_audio = true;
         else if (args->isStr(i, "prof"))  bench_prof = true;
+        else if (args->isStr(i, "play"))  bench_play = true;
         else gbCoreSetOption(args->getStr(i));
       }
       gbCoreSetFrameSkip(bench_skip);
@@ -312,6 +315,14 @@ void cliGb(cli_args_t *args)
 
       for (uint32_t i = 0; i < frames; i++)
       {
+        if (bench_play)
+        {
+          uint8_t joy = 0;
+          if ((i >= 300 && i < 310) || (i >= 600 && i < 610)) joy |= GB_JOY_START;
+          if (i >= 700) joy |= GB_JOY_RIGHT;
+          if (i >= 700 && (i % 50) < 15) joy |= GB_JOY_A;
+          gbSetJoypad(joy);
+        }
         pre_us = micros();
         gbRunFrame();
         exe_us = micros() - pre_us;
@@ -320,8 +331,9 @@ void cliGb(cli_args_t *args)
         {
           // 사운드 합성을 별도로 재서, 에뮬레이터 프레임 시간에 사운드가 주는 영향을 분리한다
           uint32_t a_us = micros();
-          gbCoreAudioGetFrame(bench_audio_buf);
+          uint32_t n = gbCoreAudioGetFrame(bench_audio_buf);
           audio_sum += micros() - a_us;
+          for (uint32_t k = 0; k < n; k++) audio_crc = audio_crc * 31 + (uint16_t)bench_audio_buf[k];
         }
 
         if ((i & 0x3F) == 0 && cliKeepLoop() == false)
@@ -356,7 +368,7 @@ void cliGb(cli_args_t *args)
         }
         cliPrintf("\nprof end\n");
       }
-      if (bench_audio) cliPrintf("audio %d us/frame (excluded from emu time)\n", audio_sum / frames);
+      if (bench_audio) cliPrintf("audio %d us/frame (excluded from emu time), crc %08X\n", audio_sum / frames, audio_crc);
     }
     lcd_enable = true;
     gbCoreSetOption("dual");

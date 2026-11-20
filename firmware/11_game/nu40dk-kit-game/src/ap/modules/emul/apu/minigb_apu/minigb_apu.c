@@ -138,6 +138,51 @@ static void update_sweep(struct chan *c)
 	}
 }
 
+/*
+ * [nu40dk-kit] 채널 루프 일괄 처리
+ *   원래는 샘플마다 길이(len)·엔벨로프(env)·스윕(sweep) 카운터를 갱신했다. 이 값들은 초당 64~256 번만
+ *   바뀌므로, 다음 이벤트까지 남은 샘플 수(m)를 계산해 그 사이는 파형만 계산하고(볼륨 0 이면 건너뜀),
+ *   이벤트가 일어나는 샘플만 원래 순서(update_len → update_env → update_sweep)로 처리한다.
+ *   카운터는 더하기만 하므로 결과는 원래와 같다 (gb bench ... audio play 의 crc 로 확인).
+ */
+
+/* counter + k * inc > FREQ_INC_REF 가 되는 최소 k (이벤트가 일어나는 샘플). inc = 0 이면 없음 */
+static inline uint32_t steps_until(uint32_t counter, uint32_t inc)
+{
+	if (inc == 0)
+		return UINT32_MAX;
+	if (counter > FREQ_INC_REF)
+		return 1;
+	return (FREQ_INC_REF - counter) / inc + 1;
+}
+
+static inline uint32_t min_u32(uint32_t a, uint32_t b)
+{
+	return a < b ? a : b;
+}
+
+/* 사각파 한 샘플 (원래 루프 본문과 같음) */
+static inline int32_t square_sample(struct chan *c)
+{
+	uint32_t pos = 0;
+	uint32_t prev_pos = 0;
+	int32_t sample = 0;
+
+	while (update_freq(c, &pos)) {
+		c->square.duty_counter = (c->square.duty_counter + 1) & 7;
+		sample += ((pos - prev_pos) / c->freq_inc) * c->val;
+		c->val = (c->square.duty & (1 << c->square.duty_counter)) ?
+			VOL_INIT_MAX / MAX_CHAN_VOLUME :
+			VOL_INIT_MIN / MAX_CHAN_VOLUME;
+		prev_pos = pos;
+	}
+
+	sample += c->val;
+	sample *= c->volume;
+	sample /= 4;
+	return sample;
+}
+
 static void update_square(struct minigb_apu_ctx *ctx, audio_sample_t *samples,
 		const bool ch2)
 {
@@ -149,37 +194,62 @@ static void update_square(struct minigb_apu_ctx *ctx, audio_sample_t *samples,
 	set_note_freq(c);
 	FREQ_INC_CAP(c, MINIGB_APU_MAX_STEPS_SQUARE);
 
-	for (uint_fast16_t i = 0; i < AUDIO_NSAMPLES; i += 2) {
+	const int32_t mul_l = c->on_left * ctx->vol_l;
+	const int32_t mul_r = c->on_right * ctx->vol_r;
+	uint_fast16_t i = 0;
+
+	while (i < AUDIO_NSAMPLES) {
+		if (!c->enabled) {
+			update_len(ctx, c);     /* 원래는 다음 샘플의 update_len 뒤에 return */
+			return;
+		}
+
+		/* 이벤트 없이 처리할 수 있는 샘플 수 */
+		uint32_t m = (AUDIO_NSAMPLES - i) / 2;
+		if (c->len.enabled)
+			m = min_u32(m, steps_until(c->len.counter, c->len.inc) - 1);
+		m = min_u32(m, steps_until(c->env.counter, c->env.inc) - 1);
+		/* 스윕은 볼륨이 0 이 아닐 때만 갱신된다 (원래 코드: 볼륨 0 이면 continue 로 건너뜀) */
+		if (!ch2 && c->volume)
+			m = min_u32(m, steps_until(c->sweep.counter, c->sweep.inc) - 1);
+
+		if (m > 0) {
+			if (c->len.enabled)
+				c->len.counter += m * c->len.inc;
+			c->env.counter += m * c->env.inc;
+
+			if (!c->volume) {
+				i += 2 * m;
+				continue;
+			}
+			if (!ch2)
+				c->sweep.counter += m * c->sweep.inc;
+			for (uint32_t k = 0; k < m; k++, i += 2) {
+				int32_t sample = square_sample(c);
+				samples[i + 0] += sample * mul_l;
+				samples[i + 1] += sample * mul_r;
+			}
+			continue;
+		}
+
+		/* 이벤트가 있는 샘플: 원래 순서 */
 		update_len(ctx, c);
 		if (!c->enabled)
 			return;
 
 		update_env(c);
-		if (!c->volume)
+		if (!c->volume) {
+			i += 2;
 			continue;
+		}
 
 		if (!ch2)
 			update_sweep(c);
 
-		uint32_t pos = 0;
-		uint32_t prev_pos = 0;
-		int32_t sample = 0;
-
-		while (update_freq(c, &pos)) {
-			c->square.duty_counter = (c->square.duty_counter + 1) & 7;
-			sample += ((pos - prev_pos) / c->freq_inc) * c->val;
-			c->val = (c->square.duty & (1 << c->square.duty_counter)) ?
-				VOL_INIT_MAX / MAX_CHAN_VOLUME :
-				VOL_INIT_MIN / MAX_CHAN_VOLUME;
-			prev_pos = pos;
-		}
-
-		sample += c->val;
-		sample *= c->volume;
-		sample /= 4;
-
-		samples[i + 0] += sample * c->on_left * ctx->vol_l;
-		samples[i + 1] += sample * c->on_right * ctx->vol_r;
+		int32_t sample = square_sample(c);
+		samples[i + 0] += sample * mul_l;
+		samples[i + 1] += sample * mul_r;
+		i += 2;
 	}
 }
 
@@ -199,6 +269,36 @@ static int8_t wave_sample(struct minigb_apu_ctx *ctx,
 	return volume ? (signed_sample >> (volume - 1)) : 0;
 }
 
+/* 웨이브 한 샘플 (원래 루프 본문과 같음) */
+static inline audio_sample_t wave_one(struct minigb_apu_ctx *ctx, struct chan *c)
+{
+	uint32_t pos = 0;
+	uint32_t prev_pos = 0;
+	audio_sample_t sample = 0;
+
+	c->wave.sample = wave_sample(ctx, c->val, c->volume);
+
+	while (update_freq(c, &pos)) {
+		c->val = (c->val + 1) & 31;
+		sample += ((pos - prev_pos) / c->freq_inc) *
+			((audio_sample_t)c->wave.sample) *
+				(AUDIO_SAMPLE_MAX/32);
+		c->wave.sample = wave_sample(ctx, c->val, c->volume);
+		prev_pos  = pos;
+	}
+
+	sample += ((audio_sample_t)c->wave.sample) *
+			(audio_sample_t)(AUDIO_SAMPLE_MAX/32);
+	{
+		/* First element is unused. */
+		audio_sample_t div[] = { AUDIO_SAMPLE_MAX, 1, 2, 4 };
+		sample = sample / (div[c->volume]);
+	}
+
+	sample /= 4;
+	return sample;
+}
+
 static void update_wave(struct minigb_apu_ctx *ctx, audio_sample_t *samples)
 {
 	struct chan *c = &ctx->chans[2];
@@ -210,38 +310,68 @@ static void update_wave(struct minigb_apu_ctx *ctx, audio_sample_t *samples)
 	c->freq_inc *= 2;
 	FREQ_INC_CAP(c, MINIGB_APU_MAX_STEPS_WAVE);
 
-	for (uint_fast16_t i = 0; i < AUDIO_NSAMPLES; i += 2) {
+	const int32_t mul_l = c->on_left * ctx->vol_l;
+	const int32_t mul_r = c->on_right * ctx->vol_r;
+	uint_fast16_t i = 0;
+
+	while (i < AUDIO_NSAMPLES) {
+		uint32_t m = (AUDIO_NSAMPLES - i) / 2;
+		if (c->len.enabled)
+			m = min_u32(m, steps_until(c->len.counter, c->len.inc) - 1);
+
+		if (m > 0) {
+			if (c->len.enabled)
+				c->len.counter += m * c->len.inc;
+			for (uint32_t k = 0; k < m; k++, i += 2) {
+				audio_sample_t sample = wave_one(ctx, c);
+				samples[i + 0] += sample * mul_l;
+				samples[i + 1] += sample * mul_r;
+			}
+			continue;
+		}
+
 		update_len(ctx, c);
 		if (!c->enabled)
 			return;
 
-		uint32_t pos = 0;
-		uint32_t prev_pos = 0;
-		audio_sample_t sample = 0;
-
-		c->wave.sample = wave_sample(ctx, c->val, c->volume);
-
-		while (update_freq(c, &pos)) {
-			c->val = (c->val + 1) & 31;
-			sample += ((pos - prev_pos) / c->freq_inc) *
-				((audio_sample_t)c->wave.sample) *
-					(AUDIO_SAMPLE_MAX/32);
-			c->wave.sample = wave_sample(ctx, c->val, c->volume);
-			prev_pos  = pos;
-		}
-
-		sample += ((audio_sample_t)c->wave.sample) *
-				(audio_sample_t)(AUDIO_SAMPLE_MAX/32);
-		{
-			/* First element is unused. */
-			audio_sample_t div[] = { AUDIO_SAMPLE_MAX, 1, 2, 4 };
-			sample = sample / (div[c->volume]);
-		}
-
-		sample /= 4;
-		samples[i + 0] += sample * c->on_left * ctx->vol_l;
-		samples[i + 1] += sample * c->on_right * ctx->vol_r;
+		audio_sample_t sample = wave_one(ctx, c);
+		samples[i + 0] += sample * mul_l;
+		samples[i + 1] += sample * mul_r;
+		i += 2;
 	}
+}
+
+/* 노이즈 한 샘플 (원래 루프 본문과 같음) */
+static inline int32_t noise_one(struct chan *c)
+{
+	uint32_t pos      = 0;
+	uint32_t prev_pos = 0;
+	int32_t sample    = 0;
+
+	while (update_freq(c, &pos)) {
+		c->noise.lfsr_reg = (c->noise.lfsr_reg << 1) |
+			(c->val >= VOL_INIT_MAX/MAX_CHAN_VOLUME);
+
+		if (c->noise.lfsr_wide) {
+			c->val = !(((c->noise.lfsr_reg >> 14) & 1) ^
+					((c->noise.lfsr_reg >> 13) & 1)) ?
+				VOL_INIT_MAX / MAX_CHAN_VOLUME :
+				VOL_INIT_MIN / MAX_CHAN_VOLUME;
+		} else {
+			c->val = !(((c->noise.lfsr_reg >> 6) & 1) ^
+					((c->noise.lfsr_reg >> 5) & 1)) ?
+				VOL_INIT_MAX / MAX_CHAN_VOLUME :
+				VOL_INIT_MIN / MAX_CHAN_VOLUME;
+		}
+
+		sample += ((pos - prev_pos) / c->freq_inc) * c->val;
+		prev_pos = pos;
+	}
+
+	sample += c->val;
+	sample *= c->volume;
+	sample /= 4;
+	return sample;
 }
 
 static void update_noise(struct minigb_apu_ctx *ctx, audio_sample_t *samples)
@@ -265,45 +395,52 @@ static void update_noise(struct minigb_apu_ctx *ctx, audio_sample_t *samples)
 		FREQ_INC_CAP(c, MINIGB_APU_MAX_STEPS_NOISE);
 	}
 
-	for (uint_fast16_t i = 0; i < AUDIO_NSAMPLES; i += 2) {
+	const int32_t mul_l = c->on_left * ctx->vol_l;
+	const int32_t mul_r = c->on_right * ctx->vol_r;
+	uint_fast16_t i = 0;
+
+	while (i < AUDIO_NSAMPLES) {
+		if (!c->enabled) {
+			update_len(ctx, c);
+			return;
+		}
+
+		uint32_t m = (AUDIO_NSAMPLES - i) / 2;
+		if (c->len.enabled)
+			m = min_u32(m, steps_until(c->len.counter, c->len.inc) - 1);
+		m = min_u32(m, steps_until(c->env.counter, c->env.inc) - 1);
+
+		if (m > 0) {
+			if (c->len.enabled)
+				c->len.counter += m * c->len.inc;
+			c->env.counter += m * c->env.inc;
+
+			if (!c->volume) {
+				i += 2 * m;
+				continue;
+			}
+			for (uint32_t k = 0; k < m; k++, i += 2) {
+				int32_t sample = noise_one(c);
+				samples[i + 0] += sample * mul_l;
+				samples[i + 1] += sample * mul_r;
+			}
+			continue;
+		}
+
 		update_len(ctx, c);
 		if (!c->enabled)
 			return;
 
 		update_env(c);
-		if (!c->volume)
+		if (!c->volume) {
+			i += 2;
 			continue;
-
-		uint32_t pos      = 0;
-		uint32_t prev_pos = 0;
-		int32_t sample    = 0;
-
-		while (update_freq(c, &pos)) {
-			c->noise.lfsr_reg = (c->noise.lfsr_reg << 1) |
-				(c->val >= VOL_INIT_MAX/MAX_CHAN_VOLUME);
-
-			if (c->noise.lfsr_wide) {
-				c->val = !(((c->noise.lfsr_reg >> 14) & 1) ^
-						((c->noise.lfsr_reg >> 13) & 1)) ?
-					VOL_INIT_MAX / MAX_CHAN_VOLUME :
-					VOL_INIT_MIN / MAX_CHAN_VOLUME;
-			} else {
-				c->val = !(((c->noise.lfsr_reg >> 6) & 1) ^
-						((c->noise.lfsr_reg >> 5) & 1)) ?
-					VOL_INIT_MAX / MAX_CHAN_VOLUME :
-					VOL_INIT_MIN / MAX_CHAN_VOLUME;
-			}
-
-			sample += ((pos - prev_pos) / c->freq_inc) * c->val;
-			prev_pos = pos;
 		}
 
-		sample += c->val;
-		sample *= c->volume;
-		sample /= 4;
-
-		samples[i + 0] += sample * c->on_left * ctx->vol_l;
-		samples[i + 1] += sample * c->on_right * ctx->vol_r;
+		int32_t sample = noise_one(c);
+		samples[i + 0] += sample * mul_l;
+		samples[i + 1] += sample * mul_r;
+		i += 2;
 	}
 }
 

@@ -9,6 +9,7 @@
 
 
 #include "mixer.h"
+#include <string.h>
 
 
 
@@ -49,39 +50,33 @@ int32_t mixerGetVolume(mixer_t *p_mixer)
   return p_mixer->volume;
 }
 
+// 링 버퍼에 쓰기. 빈 공간만큼 최대 두 번의 memcpy 로 복사한다 (샘플 단위 루프 대신).
+// 공간이 모자라면 들어가는 만큼만 쓰고 false (원래 동작과 같음)
 bool mixerWrite(mixer_t *p_mixer, uint8_t ch, int16_t *p_data, uint32_t length)
 {
-  bool ret = true;
-  uint32_t index;
-  uint32_t next_index;
-  uint32_t i;
+  mixer_buf_t *p_buf;
+  uint32_t     in, out, len, space, n, first;
 
   if (ch >= MIXER_MAX_CH) return false;
 
-  for (i=0; i<length; i++)
+  p_buf = &p_mixer->buf[ch];
+  in    = p_buf->in;
+  out   = p_buf->out;
+  len   = p_buf->length;
+  space = (out + len - in - 1) % len;
+  n     = length < space ? length : space;
+
+  first = len - in;
+  if (first > n) first = n;
+  memcpy(&p_buf->buf[in], p_data, first * sizeof(int16_t));
+  if (n > first)
   {
-    index      = p_mixer->buf[ch].in;
-    next_index = p_mixer->buf[ch].in + 1;
-
-    if (next_index == p_mixer->buf[ch].length)
-    {
-      next_index = 0;;
-    }
-
-    if (next_index != p_mixer->buf[ch].out)
-    {
-      // p_mixer->buf[ch].buf[index] = p_data[i] * p_mixer->volume / 100;
-      p_mixer->buf[ch].buf[index] = p_data[i];
-      p_mixer->buf[ch].in         = next_index;
-    }
-    else
-    {
-      ret = false; // ERR_FULL
-      break;
-    }
+    memcpy(&p_buf->buf[0], &p_data[first], (n - first) * sizeof(int16_t));
   }
+  __asm volatile("" ::: "memory");            // 데이터를 쓴 뒤에 in 갱신 (I2S 스레드가 읽음)
+  p_buf->in = (in + n) % len;
 
-  return ret;
+  return n == length;
 }
 
 
@@ -103,24 +98,38 @@ int16_t mixerSamples(int16_t a, int16_t b)
         a + b);
 }
 
+// 비어 있는 채널은 섞어도 값이 그대로(mixerSamples(a, 0) = a)라 건너뛴다.
+// 시작할 때 채널별 남은 샘플 수를 한 번 구해 둔다.
 bool mixerRead(mixer_t *p_mixer, int16_t *p_data, uint32_t length)
 {
   uint32_t i;
   uint32_t ch;
-  int16_t mixer_out;
-  int16_t sample;
+  int16_t  mixer_out;
+  uint32_t avail[MIXER_MAX_CH];
+
+  for (ch=0; ch<MIXER_MAX_CH; ch++)
+  {
+    avail[ch] = mixerBufAvailable(p_mixer, ch);
+  }
 
   for (i=0; i<length; i++)
   {
-
-    mixer_out = mixerBufRead(p_mixer, 0);
+    mixer_out = 0;
+    if (avail[0] > 0)
+    {
+      avail[0]--;
+      mixer_out = mixerBufRead(p_mixer, 0);
+    }
     for (ch=1; ch<MIXER_MAX_CH; ch++)
     {
-      sample = mixerBufRead(p_mixer, ch);
-      mixer_out = mixerSamples(mixer_out, sample);
+      if (avail[ch] > 0)
+      {
+        avail[ch]--;
+        mixer_out = mixerSamples(mixer_out, mixerBufRead(p_mixer, ch));
+      }
     }
 
-    p_data[i] = mixer_out * p_mixer->volume / 100;;
+    p_data[i] = mixer_out * p_mixer->volume / 100;
   }
 
   return true;
