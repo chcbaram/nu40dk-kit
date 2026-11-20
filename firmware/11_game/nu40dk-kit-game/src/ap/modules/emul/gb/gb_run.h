@@ -33,6 +33,8 @@ void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h);
 bool gbRunIsPaused(void);
 void     gbRunSetEdge(uint8_t n);      // 테두리였던 머물던 픽셀이 흰색으로 갈 때 추가 펄스
 uint8_t  gbRunGetEdge(void);
+void     gbRunSetThin(uint8_t n);      // 1px 선이었던 픽셀 추가 펄스
+uint8_t  gbRunGetThin(void);
 void     gbRunSetSettle(uint8_t l, uint8_t d, uint8_t k);   // 머물던 픽셀이 흰색으로 갈 때 추가 펄스
 void     gbRunGetSettle(uint8_t *p_l, uint8_t *p_d, uint8_t *p_k);
 void     gbRunSetRetarget(uint16_t rev_pct, bool same_add);  // 회색 모드 목표 변경 보정 (0 = 끔)

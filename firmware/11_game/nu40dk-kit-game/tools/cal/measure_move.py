@@ -72,6 +72,11 @@ else:
         print(f"{f'stop@{stop} line':22s} mean {np.mean(line):.3f}")
         stops.append(float(np.mean(line)))
 print(f"STOP GHOST {np.mean(stops):.3f}")
+if not BIG:
+    lines = [np.mean([res[100 - t, st + t] for t in range(40) if st + t < 160] + [res[60 + t, st + 40 + t] for t in range(40) if st + 40 + t < 160]) for st in (40, 80)]
+    over  = np.clip(ratio - 1, 0, 1)
+    lover = [np.mean([over[100 - t, st + t] for t in range(40) if st + t < 160] + [over[60 + t, st + 40 + t] for t in range(40) if st + 40 + t < 160]) for st in (40, 80)]
+    print(f"LINE {np.mean(lines):.3f}  LINE OVER-WHITE {np.mean(lover):.3f}  (control over {over[124:138, 6:150].mean():.3f})")
 if BIG:
     edges, inners = [], []
     for stop in (40, 80):

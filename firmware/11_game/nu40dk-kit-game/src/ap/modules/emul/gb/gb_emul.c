@@ -543,6 +543,13 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  if (args->argc >= 1 && args->isStr(0, "thin"))
+  {
+    if (args->argc >= 2) gbRunSetThin(args->getData(1));
+    cliPrintf("thin : %d\n", gbRunGetThin());
+    ret = true;
+  }
+
   if (args->argc >= 1 && args->isStr(0, "edge"))
   {
     if (args->argc >= 2) gbRunSetEdge(args->getData(1));

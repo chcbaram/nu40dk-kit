@@ -93,7 +93,8 @@ static uint8_t dither_lut[2][256];
 #define DISP_MODE_FRAME     0         // 프레임 전체를 FAST 로 갱신 (Phase 4~7)
 #define DISP_MODE_INK       1         // 픽셀별 펄스 카운터 (Phase 8)
 #define INK_WORDS           ((GB_LCD_WIDTH * GB_LCD_HEIGHT) / 32)    // 720
-#define INK_CNT_BITS        4
+#define INK_CNT_BITS        5         // 펄스 카운터 비트 (최대 31). 4 비트(15)면 검→흰 10 + 머문 4 + 테두리 2 에서 잘려 선 보너스가 안 들어감
+#define INK_DOSE_MAX        ((1 << INK_CNT_BITS) - 1)
 
 static volatile uint8_t disp_mode    = DISP_MODE_INK;
 static volatile bool    disp_busy    = false;                 // EPD 갱신 중
@@ -104,6 +105,14 @@ static uint8_t          ink_fr       = 0x05;                  // 커스텀 LUT �
 static uint8_t          ink_shade[GB_LCD_HEIGHT][GB_LCD_WIDTH / 4];   // 현재 목표 (2bpp)
 static uint8_t          ink_base[GB_LCD_HEIGHT][GB_LCD_WIDTH / 4];    // 바뀌기 직전 목표 (2bpp): 이 패턴과 다른 디더 점만 구동
 static uint32_t         ink_cnt[INK_CNT_BITS][INK_WORDS];
+
+// 카운터가 남은 픽셀 (모든 비트 OR)
+static inline uint32_t inkActive(int w)
+{
+  uint32_t a = 0;
+  for (int k = 0; k < INK_CNT_BITS; k++) a |= ink_cnt[k][w];
+  return a;
+}
 static uint8_t          ink_black[GB_SCR_H * EPD_STRIDE];     // 검정 구동 마스크 (게임 영역 줄, 전체 폭)
 static uint8_t          expand4[16];                          // 4 픽셀 니블 → 8 화면 픽셀 바이트
 static uint8_t          diff_nib[256];                        // 2bpp 바이트 차이 → 바뀐 픽셀 니블
@@ -117,13 +126,14 @@ static uint8_t          diff_nib[256];                        // 2bpp 바이트 
 static volatile bool    ink_gray     = true;
 static uint32_t         ink_scene_px = (GB_LCD_WIDTH * GB_LCD_HEIGHT) * 40 / 100;  // 장면 전환 기준 (바뀐 픽셀 수, 0 = 끔)
 static uint32_t         scene_ms     = 0;
-static uint32_t         ink_quiet_ms  = 1500;                 // 조용한 상태가 이만큼 이어지면 정리 (0 = 끔)
+static uint32_t         ink_quiet_ms  = 0;                    // 조용한 상태가 이만큼 이어지면 정리 (0 = 끔, 기본 끔). 예: gb quiet 1500
 static uint32_t         ink_quiet_px  = 120;                  // 프레임당 바뀐 픽셀이 이보다 적으면 조용함
 static uint32_t         ink_quiet_act = 3000;                 // 직전 정리 뒤 바뀐 픽셀 합이 이 이상일 때만
 static uint32_t         quiet_ms      = 0;
 static uint32_t         quiet_act     = 0;
 static uint8_t          ink_settle[4] = {0, 1, 2, 4};        // 머물던 픽셀이 흰색으로 갈 때 추가 펄스 [-, L, D, K]. gb settle
                                                               // gb calmove 측정 (edge 2 와 함께): 멈췄던 자리 잔상 0.026 → 0.006 (잡음 수준), 과구동 없음
+static uint8_t          ink_thin     = 4;                     // 1px 선이었던 픽셀 추가 펄스 (edge 에 더해). gb thin. 선 잔상 0.012 → 0.007, 8 은 흰 선
 static uint8_t          ink_edge     = 2;                     // 테두리였던 픽셀 추가 펄스 (settle 과 함께). gb edge. 테두리 잔상 0.029 → 0.007
 static uint16_t         ink_rev_pct  = 0;                     // 되돌아갈 때 펄스 비율 % (0 = 보정 안 함). gb retarget
 static bool             ink_same_add = false;                 // 같은 방향으로 더 갈 때 남은 펄스 더하기
@@ -216,7 +226,7 @@ static void inkUpdateGroup(uint8_t *p_white, int y, int gx)
 {
   int      w      = y * (GB_LCD_WIDTH / 32) + gx / 8;
   int      sh     = (gx % 8) * 4;
-  uint8_t  nib    = ((ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w]) >> sh) & 0xF;
+  uint8_t  nib    = ((inkActive(w)) >> sh) & 0xF;
   int      bx     = GB_SCR_X / 8 + gx;
   uint8_t *pb0    = &ink_black[(y * 2) * EPD_STRIDE + bx];
   uint8_t *pw0    = &p_white[(y * 2) * EPD_STRIDE + bx];
@@ -350,18 +360,21 @@ static void inkPlan(const uint8_t *p_new)
 
               // 가장자리 보너스: 이웃(상하좌우)이 원래 더 밝았던 픽셀 = 물체의 테두리였던 픽셀.
               //   구동하지 않는 이웃 쪽으로 전기장이 새어 테두리가 덜 돌아온다 (카메라: 테두리 잔상이 안쪽의 2~3배)
-              if (ink_edge > 0)
+              //   선 보너스: 밝은 이웃이 3개 이상 = 1px 선(산 윤곽 등). 사방으로 새어 가장 덜 돌아온다
+              if (ink_edge > 0 || ink_thin > 0)
               {
                 int x = (w % 5) * 32 + b * 4 + p;
                 int y = w / 5;
-                if ((x > 0                 && shadeAt(plan_cur, x - 1) < o) ||
-                    (x < GB_LCD_WIDTH - 1  && shadeAt(plan_cur, x + 1) < o) ||
-                    (y > 0                 && shadeAt(plan_prev, x) < o) ||
-                    (y < GB_LCD_HEIGHT - 1 && shadeAt(&ink_shade[y + 1][0], x) < o))
-                  dose += ink_edge;
+                int lighter = 0;
+                if (x > 0                 && shadeAt(plan_cur, x - 1) < o) lighter++;
+                if (x < GB_LCD_WIDTH - 1  && shadeAt(plan_cur, x + 1) < o) lighter++;
+                if (y > 0                 && shadeAt(plan_prev, x) < o) lighter++;
+                if (y < GB_LCD_HEIGHT - 1 && shadeAt(&ink_shade[y + 1][0], x) < o) lighter++;
+                if (lighter >= 1) dose += ink_edge;
+                if (lighter >= 3) dose += ink_thin;
               }
             }
-            if (dose > 15) dose = 15;
+            if (dose > INK_DOSE_MAX) dose = INK_DOSE_MAX;
           }
 
           if (ink_rev_pct > 0 || ink_same_add)
@@ -386,7 +399,7 @@ static void inkPlan(const uint8_t *p_new)
               {
                 dose += r;
               }
-              if (dose > 15) dose = 15;
+              if (dose > INK_DOSE_MAX) dose = INK_DOSE_MAX;
             }
           }
 
@@ -435,7 +448,7 @@ static uint32_t inkBuildMask(uint8_t *p_white)
 
   for (int w = 0; w < INK_WORDS; w++)
   {
-    uint32_t active = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w];
+    uint32_t active = inkActive(w);
 
     if (active == 0) continue;
     pending += __builtin_popcount(active);
@@ -486,7 +499,7 @@ static uint32_t inkDecrement(void)
 
   for (int w = 0; w < INK_WORDS; w++)
   {
-    uint32_t before = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w];
+    uint32_t before = inkActive(w);
     uint32_t borrow = before;
 
     if (before == 0) continue;
@@ -496,7 +509,7 @@ static uint32_t inkDecrement(void)
       ink_cnt[k][w] = old ^ borrow;
       borrow &= ~old;
     }
-    uint32_t after = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w];
+    uint32_t after = inkActive(w);
     remain += __builtin_popcount(after);
 
     // 카운터가 0 이 된 픽셀의 묶음은 마스크에서 꺼야 한다
@@ -799,7 +812,7 @@ bool gbRunGetGray(void)
 
 void gbRunSetGrayDose(uint8_t from, uint8_t to, uint8_t dose)
 {
-  if (from < 4 && to < 4 && from != to) gray_dose[from][to] = MIN(dose, 15);
+  if (from < 4 && to < 4 && from != to) gray_dose[from][to] = MIN(dose, INK_DOSE_MAX);
 }
 
 uint8_t gbRunGetGrayDose(uint8_t from, uint8_t to)
@@ -859,6 +872,16 @@ void gbRunSetEdge(uint8_t n)
 uint8_t gbRunGetEdge(void)
 {
   return ink_edge;
+}
+
+void gbRunSetThin(uint8_t n)
+{
+  ink_thin = n;
+}
+
+uint8_t gbRunGetThin(void)
+{
+  return ink_thin;
 }
 
 void gbRunSetSettle(uint8_t l, uint8_t d, uint8_t k)
@@ -1225,7 +1248,7 @@ static void dispInkMode(void)
     // 새 계획 뒤 남은 구동 수 다시 계산
     pending = 0;
     for (int w = 0; w < INK_WORDS; w++)
-      pending += __builtin_popcount(ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w]);
+      pending += __builtin_popcount(inkActive(w));
   }
   if (pending == 0)
   {
