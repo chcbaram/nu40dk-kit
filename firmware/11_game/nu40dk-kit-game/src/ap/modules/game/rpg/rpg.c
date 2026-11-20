@@ -913,12 +913,13 @@ static void runScripts(uint8_t owner)
 /*---------------------------------------------------------------------------
  * 이동
  *-------------------------------------------------------------------------*/
+// 다른 방으로: 짧은 깜빡임 갱신으로 이전 방의 잔상을 지운다
 static void enterRoom(void)
 {
   if (rpg_room_ckpt[g.room]) g.ckpt = g.room;
-  sceneSnap();
+  dirtyClear();
   drawMap();
-  transition();
+  show(APP_REFRESH_FLASH);
 }
 
 // 지금 눌린 방향 (없으면 -1)

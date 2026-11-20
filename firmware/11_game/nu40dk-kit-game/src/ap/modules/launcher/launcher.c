@@ -833,6 +833,15 @@ static void      apiLog(const char *fmt, ...)
 static void      apiRefresh(app_refresh_t mode)
 {
   if (mode == APP_REFRESH_STRONG)     epdUpdateStrong();
+  else if (mode == APP_REFRESH_FLASH)
+  {
+    if (app_lut_frames != MENU_FAST_FRAMES)
+    {
+      epdSetFastLut(MENU_FAST_FRAMES, 0);
+      app_lut_frames = MENU_FAST_FRAMES;
+    }
+    epdUpdateFlash();
+  }
   else if (mode == APP_REFRESH_CLEAN)
   {
     if (app_clean_strong) epdUpdateStrong();

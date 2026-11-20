@@ -442,6 +442,62 @@ bool epdSetOldImage(const uint8_t *p_old, uint16_t y, uint16_t h)
   return true;
 }
 
+// RAM 한 면을 같은 값으로 (전체 화면)
+static void epdFillRam(ssd1683_ram_t ram, uint8_t value)
+{
+  uint8_t line[EPD_STRIDE];
+
+  memset(line, value, sizeof(line));
+  ssd1683SetWindow(0, 0, EPD_WIDTH, EPD_HEIGHT);
+  ssd1683WriteCmd((uint8_t)ram);
+  for (int y = 0; y < EPD_HEIGHT; y++) ssd1683WriteData(line, EPD_STRIDE);
+}
+
+// 커스텀 파형 깜빡임 갱신 (약 1.2초): 전체 검정 → 전체 흰색 → 새 그림.
+//   모든 픽셀을 끝까지 한 번씩 밀어 이전 화면을 지운다. 공장 전체 갱신(저온 1.3초)과 달리
+//   커스텀 펄스 세기를 떨어뜨리지 않고, 강한 갱신(2.8초)보다 짧다. 파형은 epdSetFastLut 의 FAST.
+//   SSD168x 는 갱신 뒤 두 RAM 을 맞바꾸는 것으로 보여 매 단계 두 면을 모두 다시 쓴다.
+bool epdUpdateFlash(void)
+{
+  uint8_t *p_fb = canvasGetBuffer();
+  uint8_t  data[2];
+  bool     ret = true;
+
+  if (!epdWake()) return false;
+  if (ssd1683IsBusy() && !ssd1683WaitBusy(3000)) epdRecover("busy before flash");
+
+  epdCustomLutSetup(fast_frames, fast_hold);
+  data[0] = 0x00; data[1] = 0x00;                // RED = 이전 이미지
+  ssd1683WriteCmdData(0x21, data, 2);
+
+  for (int step = 0; step < 3; step++)
+  {
+    // (RED 이전, BW 새): 0 = 지금 화면 → 검정, 1 = 검정 → 흰색, 2 = 흰색 → 새 그림
+    if (step == 0)
+    {
+      epdFillRam(SSD1683_RAM_RED, 0xFF);           // 모든 픽셀을 "흰색이었다"고 보고 전부 검정 쪽으로
+      epdFillRam(SSD1683_RAM_BW,  0x00);
+    }
+    else if (step == 1)
+    {
+      epdFillRam(SSD1683_RAM_RED, 0x00);
+      epdFillRam(SSD1683_RAM_BW,  0xFF);
+    }
+    else
+    {
+      epdFillRam(SSD1683_RAM_RED, 0xFF);
+      ssd1683WriteRam(SSD1683_RAM_BW, 0, 0, EPD_WIDTH, EPD_HEIGHT, p_fb, EPD_STRIDE);
+    }
+    epdFastActivate();
+    if (!ssd1683WaitBusy(EPD_PART_TIMEOUT_MS)) { ret = false; break; }
+  }
+  // 다음 차분 갱신의 기준
+  ssd1683WriteRam(SSD1683_RAM_RED, 0, 0, EPD_WIDTH, EPD_HEIGHT, p_fb, EPD_STRIDE);
+  ssd1683WriteRam(SSD1683_RAM_BW,  0, 0, EPD_WIDTH, EPD_HEIGHT, p_fb, EPD_STRIDE);
+  if (!ret) epdRecover("flash");
+  return ret;
+}
+
 bool epdZeroRam(void)
 {
   static const uint8_t zero_line[EPD_STRIDE] = {0};

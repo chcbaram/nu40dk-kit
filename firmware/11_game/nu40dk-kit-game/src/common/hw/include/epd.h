@@ -50,6 +50,7 @@ bool epdUpdateStrong(void);              // 3색 웨이브폼 전체 갱신 (잔
 bool epdUpdateFullClean(void);           // 흰색으로 지운 뒤 전체 갱신 (약 1.3초)
 bool epdUpdateCold(int8_t temp);
 bool epdSetOldImage(const uint8_t *p_old, uint16_t y, uint16_t h);   // 다음 FAST 갱신의 이전 이미지 지정
+bool epdUpdateFlash(void);              // 커스텀 파형 깜빡임 갱신 (검정 → 흰색 → 그림, 약 1.2초)
 bool epdZeroRam(void);                   // RAM 두 면을 0 (마스크 구동에서 구동 안 함)         // 저온 웨이브폼 흑백 전체 갱신 (10°C 약 1.25초)
 void epdPowerOff(void);
 void epdSleep(void);

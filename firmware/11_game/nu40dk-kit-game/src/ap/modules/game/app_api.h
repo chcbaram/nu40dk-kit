@@ -27,6 +27,7 @@ typedef enum
   APP_REFRESH_QUICK,      // 바뀐 픽셀만, 짧은 파형 (약 0.2초), 걷기 애니메이션 (조금 흐릴 수 있음)
   APP_REFRESH_CLEAN,      // 흑백 전체 갱신 (약 1.3초, 깜빡임), 장면 전환·잔상 정리
   APP_REFRESH_STRONG,     // 3색 강한 갱신 (약 2.8초), 시작·종료
+  APP_REFRESH_FLASH,      // 짧은 깜빡임 (검정 → 흰색 → 그림, 약 1.2초), 장면 전환·잔상 정리
 } app_refresh_t;
 
 typedef enum
