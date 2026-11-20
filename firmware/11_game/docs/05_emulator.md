@@ -43,6 +43,10 @@
 `[nu40dk-kit]` 주석으로 표시했다.
 - `WGB_ROM_READ/16/32` 매크로: ROM 읽기를 콜백 대신 포인터 직접 읽기로 바꿀 수 있게 함. 기본값은 원래 콜백
 - `WGB_HOT` 속성 자리: RAM 실행 실험용. 기본은 비어 있음
+- `__gb_draw_line`: `pixels` 초기화를 프레임 스킵 판단 뒤로, DMG 배경을 4픽셀 표(`wgb_bg_lut`)로 타일 단위 그리기
+- `__gb_step_cpu`: GB 레지스터를 프레임 루프의 지역 변수(`WGB_CPU` 매크로)로, CB 명령 전후 동기화
+- 타이밍 일괄 처리: `__gb_tick` / `__gb_tick_next` / `__gb_tick_sync`. DIV·TIMA 읽기와 IO 쓰기 전 동기화, `gb_reset` 에서 초기화
+- 자세한 내용과 측정은 09 문서 2-1
 - 사용 버전: Mr-PauI/Walnut-CGB `a42c186` (2026-08-17)
 
 ## 처음 검토: Game Boy (DMG) — Peanut-GB + minigb_apu
