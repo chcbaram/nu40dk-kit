@@ -211,6 +211,11 @@ void gbSetJoypad(uint8_t pressed)
   gbCoreSetJoypad(pressed);
 }
 
+uint8_t *gbGetLcdBufRW(void)
+{
+  return &lcd_buf[0][0];
+}
+
 const uint8_t *gbGetLcdBuf(void)
 {
   return &lcd_buf[0][0];
@@ -538,6 +543,17 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  // 머물던 픽셀이 흰색으로 갈 때 추가 펄스: gb settle <L> <D> <K>
+  if (args->argc >= 1 && args->isStr(0, "settle"))
+  {
+    uint8_t l, d, k;
+    gbRunGetSettle(&l, &d, &k);
+    if (args->argc >= 4) { l = args->getData(1); d = args->getData(2); k = args->getData(3); }
+    gbRunSetSettle(l, d, k);
+    cliPrintf("settle : L %d, D %d, K %d\n", l, d, k);
+    ret = true;
+  }
+
   // 회색 모드 목표 변경 보정: gb retarget <되돌림 % (0=끔)> [같은 방향 더하기 0|1]
   if (args->argc >= 1 && args->isStr(0, "retarget"))
   {
@@ -552,12 +568,190 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  // 측정 전 흰 화면 (기준 사진용): gb calclean [n=1]  (3색 강한 갱신 n 번)
+  if (args->argc >= 1 && args->isStr(0, "calclean"))
+  {
+    int n = args->argc >= 2 ? args->getData(1) : 1;
+    gbRunStop();
+    gbRunSetExtBusy(true);
+    canvasClear(CANVAS_WHITE);
+    for (int i = 0; i < n; i++) epdUpdateStrong();
+    epdPowerOff();
+    cliPrintf("calclean done\n");
+    ret = true;                                     // 런처는 다음 calmove 또는 gb calhold 0 까지 멈춤
+  }
+
+  if (args->argc >= 2 && args->isStr(0, "calhold"))
+  {
+    gbRunSetExtBusy(args->getData(1) != 0);
+    cliPrintf("calhold %d\n", gbRunIsExtBusy());
+    ret = true;
+  }
+
+  // 잔상 측정용 움직이는 패턴: gb calmove [speed=1] [move=40] [pause=120] [reps=3] [big=0] / gb calmove info
+  //   게임과 같은 ink 모드 화면 처리로 물체가 지나간 뒤 멈춤. gb stop 으로 끝냄.
+  if (args->argc >= 1 && args->isStr(0, "calmove"))
+  {
+    if (args->argc >= 2 && args->isStr(1, "info"))
+    {
+      int16_t gx, gy, gw, gh;
+      gbRunGetScreenRect(&gx, &gy, &gw, &gh);
+      cliPrintf("screen : x %d, y %d, w %d, h %d\n", gx, gy, gw, gh);
+    }
+    else
+    {
+      uint16_t speed  = args->argc >= 2 ? args->getData(1) : 1;
+      uint16_t frames = args->argc >= 3 ? args->getData(2) : 40;
+      uint16_t pause  = args->argc >= 4 ? args->getData(3) : 120;
+      uint16_t reps   = args->argc >= 5 ? args->getData(4) : 3;
+      uint8_t  big    = args->argc >= 6 ? args->getData(5) : 0;
+      if (!gbRunIsExtBusy())
+      {
+        gbRunStop();
+        canvasClear(CANVAS_WHITE);                // 이전 화면이 측정에 섞이지 않게 강한 갱신으로 흰 화면
+        epdUpdateStrong();
+      }
+      gbRunSetExtBusy(false);
+      cliPrintf("calmove : %s (speed %d, frames %d)\n", gbRunStartPattern(speed, frames, pause, reps, big) ? "start" : "fail", speed, frames);
+    }
+    ret = true;
+  }
+
+  // 머문 시간 측정 화면: gb caldwell [frames=4] [black=7]
+  //   5줄 x 9칸 (calrev 와 같은 배치). 줄 0~3: 흰색에서 black 펄스로 검정을 만든 뒤 10/3/1/0 초 머묾.
+  //   줄 4: 기준 갱신(F7) 때부터 검정. 그 뒤 모든 패치에 칸 c 만큼 흰색 쪽 펄스 (4 + c, 4~12)
+  if (args->argc >= 1 && args->isStr(0, "caldwell"))
+  {
+    gbRunSetExtBusy(true);
+    uint8_t  frames  = args->argc >= 2 ? args->getData(1) : 4;
+    uint8_t  black_n = args->argc >= 3 ? args->getData(2) : 7;
+    uint32_t size;
+    uint8_t *p_buf   = gbRunGetScratch(&size);
+    const uint16_t y0 = 90, h = 110, stride = 50, ph = 14, pitch = 24;
+    const uint32_t dwell_ms[4] = {10000, 3000, 1000, 0};
+
+    if (p_buf == NULL || size < 2u * h * stride)
+    {
+      cliPrintf("stop game first (gb stop)\n");
+      gbRunSetExtBusy(false);
+      return;
+    }
+
+    canvasClear(CANVAS_WHITE);
+    canvasFillRect(0,   0,   10, 10, CANVAS_BLACK);
+    canvasFillRect(390, 0,   10, 10, CANVAS_BLACK);
+    canvasFillRect(0,   290, 10, 10, CANVAS_BLACK);
+    canvasFillRect(390, 290, 10, 10, CANVAS_BLACK);
+    canvasFillRect(16, 20, 176, 50, CANVAS_BLACK);
+    for (int c = 0; c < 9; c++)
+    {
+      canvasPrintf(16 + c * 40 + (c + 4 < 10 ? 12 : 8), 236, CANVAS_BLACK, "%d", c + 4);
+      canvasFillRect(16 + c * 40, y0 + 4 * pitch, 32, ph, CANVAS_BLACK);
+    }
+    epdUpdateStrong();
+
+    uint8_t *p_black = p_buf;
+    uint8_t *p_white = p_buf + h * stride;
+    uint32_t start   = millis();
+    for (int r = 0; r < 4; r++)
+    {
+      // 줄 r 의 검정 구동이 (전체 10 초 중) 10 - dwell 초에 끝나도록 기다린다
+      while (millis() - start < 10000 - dwell_ms[r]) delay(10);
+      for (int i = 1; i <= black_n; i++)
+      {
+        memset(p_buf, 0, 2u * h * stride);
+        for (int c = 0; c < 9; c++)
+        {
+          int bx = (16 + c * 40) / 8;
+          for (int y = 0; y < ph; y++) memset(&p_black[(r * pitch + y) * stride + bx], 0xFF, 4);
+        }
+        epdUpdateMask(p_black, p_white, y0, h, frames);
+      }
+    }
+    for (int i = 1; i <= 12; i++)
+    {
+      memset(p_buf, 0, 2u * h * stride);
+      for (int r = 0; r < 5; r++)
+        for (int c = 0; c < 9; c++)
+        {
+          if (c + 4 < i) continue;
+          int bx = (16 + c * 40) / 8;
+          for (int y = 0; y < ph; y++) memset(&p_white[(r * pitch + y) * stride + bx], 0xFF, 4);
+        }
+      epdUpdateMask(p_black, p_white, y0, h, frames);
+    }
+    epdPowerOff();
+    gbRunSetExtBusy(false);
+    cliPrintf("caldwell done : frames %d, black %d\n", frames, black_n);
+    ret = true;
+  }
+
+  // 되돌림 측정 화면: gb calrev [frames=4] [dir=0]
+  //   6줄 x 9칸, 패치 32x14, 줄 간격 24 (y 90~), x = 16 + 40*칸.
+  //   dir 0: 흰 바탕에서 줄 k(1~6) 만큼 검정 쪽 펄스 → 바로 칸 m(0~8) 만큼 흰색 쪽 펄스
+  //   dir 1: 검정 패치에서 줄 k 만큼 흰색 쪽 → 칸 m 만큼 검정 쪽
+  if (args->argc >= 1 && args->isStr(0, "calrev"))
+  {
+    gbRunSetExtBusy(true);
+    uint8_t  frames = args->argc >= 2 ? args->getData(1) : 4;
+    uint8_t  dir    = args->argc >= 3 ? args->getData(2) : 0;
+    uint32_t size;
+    uint8_t *p_buf  = gbRunGetScratch(&size);
+    const uint16_t y0 = 90, h = 134, stride = 50, ph = 14, pitch = 24;
+
+    if (p_buf == NULL || size < 2u * h * stride)
+    {
+      cliPrintf("stop game first (gb stop)\n");
+      gbRunSetExtBusy(false);
+      return;
+    }
+
+    canvasClear(CANVAS_WHITE);
+    canvasFillRect(0,   0,   10, 10, CANVAS_BLACK);
+    canvasFillRect(390, 0,   10, 10, CANVAS_BLACK);
+    canvasFillRect(0,   290, 10, 10, CANVAS_BLACK);
+    canvasFillRect(390, 290, 10, 10, CANVAS_BLACK);
+    canvasFillRect(16, 20, 176, 50, CANVAS_BLACK);
+    for (int m = 0; m <= 8; m++) canvasPrintf(16 + m * 40 + 12, 236, CANVAS_BLACK, "%d", m);
+    if (dir == 1)
+      for (int k = 0; k < 6; k++)
+        for (int m = 0; m <= 8; m++) canvasFillRect(16 + m * 40, y0 + k * pitch, 32, ph, CANVAS_BLACK);
+    epdUpdateStrong();
+
+    uint8_t *p_black = p_buf;
+    uint8_t *p_white = p_buf + h * stride;
+    for (int stage = 0; stage < 2; stage++)
+    {
+      int max_d = stage == 0 ? 6 : 8;
+      for (int i = 1; i <= max_d; i++)
+      {
+        memset(p_buf, 0, 2u * h * stride);
+        for (int k = 0; k < 6; k++)
+          for (int m = 0; m <= 8; m++)
+          {
+            int n = stage == 0 ? k + 1 : m;
+            if (n < i) continue;
+            bool     dark = (stage == 0) ? (dir == 0) : (dir == 1);
+            uint8_t *p_m  = dark ? p_black : p_white;
+            int      bx   = (16 + m * 40) / 8;
+            for (int y = 0; y < ph; y++) memset(&p_m[(k * pitch + y) * stride + bx], 0xFF, 4);
+          }
+        epdUpdateMask(p_black, p_white, y0, h, frames);
+      }
+    }
+    epdPowerOff();
+    gbRunSetExtBusy(false);
+    cliPrintf("calrev done : frames %d, dir %d\n", frames, dir);
+    ret = true;
+  }
+
   // 펄스 표 검증 화면: gb caltable [frames=4]
   //   4줄(출발 W/L/D/K) x 4칸(목표 W/L/D/K) 패치 48x24, 줄 간격 38 (y 90, 128, 166, 204), x = 16 + 64*칸.
   //   기준: 3색 강한 갱신 (바탕 흰색, K 줄 패치 검정, 순흑 기준 패치)
   //   1단계: L·D 줄 패치를 흰색에서 펄스 표대로 L·D 로. 2단계: 각 패치를 목표까지 펄스 표대로.
   if (args->argc >= 1 && args->isStr(0, "caltable"))
   {
+    gbRunSetExtBusy(true);
     uint8_t  frames = args->argc >= 2 ? args->getData(1) : 4;
     uint32_t size;
     uint8_t *p_buf  = gbRunGetScratch(&size);
@@ -566,6 +760,7 @@ void cliGb(cli_args_t *args)
     if (p_buf == NULL || size < 2u * h * stride)
     {
       cliPrintf("stop game first (gb stop)\n");
+      gbRunSetExtBusy(false);
       return;
     }
 
@@ -615,6 +810,7 @@ void cliGb(cli_args_t *args)
       }
     }
     epdPowerOff();
+    gbRunSetExtBusy(false);
     cliPrintf("caltable done : frames %d\n", frames);
     ret = true;
   }
@@ -625,6 +821,7 @@ void cliGb(cli_args_t *args)
   //   패치 k 에 펄스 k 개 (게임과 같은 커스텀 LUT, frames x 8ms). 네 모서리에 위치 표시 사각형.
   if (args->argc >= 1 && args->isStr(0, "cal"))
   {
+    gbRunSetExtBusy(true);
     uint8_t  frames = args->argc >= 2 ? args->getData(1) : 4;
     uint8_t  max_n  = args->argc >= 3 ? args->getData(2) : 10;
     uint32_t size;
@@ -634,6 +831,7 @@ void cliGb(cli_args_t *args)
     if (p_buf == NULL || size < 2u * h * stride)
     {
       cliPrintf("stop game first (gb stop)\n");
+      gbRunSetExtBusy(false);
       return;
     }
     if (max_n > 10) max_n = 10;
@@ -668,6 +866,7 @@ void cliGb(cli_args_t *args)
       epdUpdateMask(p_black, p_white, y0, h, frames);
     }
     epdPowerOff();
+    gbRunSetExtBusy(false);
     cliPrintf("cal done : frames %d, pulses 0~%d\n", frames, max_n);
     ret = true;
   }

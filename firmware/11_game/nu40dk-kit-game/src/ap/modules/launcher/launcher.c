@@ -802,6 +802,12 @@ void launcherMain(void)
 
   while (1)
   {
+    // CLI 캘리브레이션·테스트 패턴 중에는 화면을 건드리지 않는다
+    if (gbRunIsExtBusy() || gbRunIsPattern())
+    {
+      delay(20);
+      continue;
+    }
     if (gbRunIsRunning())
     {
       // 게임 중: 메뉴 요청만 처리

@@ -14,6 +14,7 @@ uint8_t       *gbGetCartRam(void);
 void           gbClearCartRam(void);
 void           gbRunFrame(void);
 void           gbSetJoypad(uint8_t pressed);  // GB_JOY_* 비트, 1 = 눌림
+uint8_t       *gbGetLcdBufRW(void);  // 테스트 패턴용 (gb calmove)
 const uint8_t *gbGetLcdBuf(void);   // [144][40] 2bit/픽셀, MSB 가 왼쪽, 0 흰색 ~ 3 검정
 bool           gbIsCgb(void);
 

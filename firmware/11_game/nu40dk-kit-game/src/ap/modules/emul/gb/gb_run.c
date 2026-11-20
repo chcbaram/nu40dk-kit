@@ -52,7 +52,16 @@ static volatile bool disp_ready   = false;   // 디스플레이가 새 프레임
 static volatile bool frame_ready  = false;   // lcd_buf 에 새 프레임이 있음
 static volatile bool req_full     = false;   // 다음 표시를 전체 갱신으로
 static volatile bool is_pause     = false;   // 일시정지 (메뉴)
-static volatile bool menu_req     = false;   // 메뉴 요청 (런처가 읽고 지움)
+static volatile bool menu_req     = false;
+static volatile bool pat_req      = false;   // 다음 시작을 테스트 패턴으로
+static volatile bool pat_active   = false;
+static uint16_t      pat_speed    = 1;
+static uint16_t      pat_frames   = 40;      // 한 번 이동 프레임
+static uint16_t      pat_pause    = 120;     // 멈춤 프레임
+static uint16_t      pat_reps     = 3;       // 이동+멈춤 반복
+static uint8_t       pat_big      = 0;       // 1 = 큰 도형 (측정 잡음 감소)
+static uint32_t      pat_n        = 0;
+static volatile bool ext_busy     = false;   // CLI 측정 중 (런처가 화면을 건드리지 않음)   // 메뉴 요청 (런처가 읽고 지움)
 
 #define MENU_LONG_PRESS_MS  1000            // 보드 BTN4 길게 누르면 메뉴
 
@@ -113,6 +122,8 @@ static uint32_t         ink_quiet_px  = 120;                  // 프레임당 �
 static uint32_t         ink_quiet_act = 3000;                 // 직전 정리 뒤 바뀐 픽셀 합이 이 이상일 때만
 static uint32_t         quiet_ms      = 0;
 static uint32_t         quiet_act     = 0;
+static uint8_t          ink_settle[4] = {0, 1, 2, 3};        // 머물던 픽셀이 흰색으로 갈 때 추가 펄스 [-, L, D, K]. gb settle
+                                                              // gb calmove 측정: 멈췄던 자리 잔상 0.029 → 0.010, 과구동 0.009
 static uint16_t         ink_rev_pct  = 0;                     // 되돌아갈 때 펄스 비율 % (0 = 보정 안 함). gb retarget
 static bool             ink_same_add = false;                 // 같은 방향으로 더 갈 때 남은 펄스 더하기
 static uint8_t          gray_frames  = 4;                     // 회색 모드 스캔 1 회 프레임 수 (32ms)
@@ -309,6 +320,18 @@ static void inkPlan(const uint8_t *p_new)
           //     100% (= 표 - r) 은 잔상이 늘었다. 입자는 처음 몇 펄스에 크게 움직여서 받은 만큼만
           //     되돌리면 덜 돌아온다 (InkBoy 기본 150%).
           //   같은 방향 더 감: ink_same_add 면 표 + r
+          // settle 보너스: 남은 펄스가 0 (도착해서 머물던 픽셀)이고 흰색으로 갈 때 펄스 추가.
+          //   카메라 측정: 검정에 오래 머물수록 흰색으로 덜 돌아온다 (0초 5펄스, 1초 7, 10초 10 필요).
+          //   멈췄던 자리에 잔상이 남던 원인. 움직이는 중인 픽셀(r > 0)은 해당 없음.
+          if (n == 0 && o > 0 && ink_settle[o] > 0)
+          {
+            bool settled = true;
+            for (int k = 0; k < INK_CNT_BITS; k++)
+              if (ink_cnt[k][w] & bit) { settled = false; break; }
+            if (settled) dose += ink_settle[o];
+            if (dose > 15) dose = 15;
+          }
+
           if (ink_rev_pct > 0 || ink_same_add)
           {
             int r = 0;
@@ -586,6 +609,84 @@ bool init(void)
   return true;
 }
 
+/*
+ * 잔상 측정용 테스트 패턴: 에뮬레이터 대신 GB 화면(lcd_buf)에 움직이는 물체를 그린다.
+ *   화면 처리(ink 모드 디스플레이 스레드)는 게임과 똑같다.
+ *   흰 바탕, 네 모서리 4x4 검정(위치 표시), 1px 산 윤곽선(K), 구름(L 채움 + D 테두리), 검정 상자.
+ *   pat_frames 프레임 동안 pat_speed px/프레임으로 오른쪽 이동 후 멈춤. 아래 띠(y 124~137)는 안 지나감 (기준).
+ */
+static void patPixel(uint8_t *p_buf, int x, int y, uint8_t c)
+{
+  if (x < 0 || x >= GB_LCD_WIDTH || y < 0 || y >= GB_LCD_HEIGHT) return;
+  uint8_t *p = &p_buf[y * (GB_LCD_WIDTH / 4) + (x >> 2)];
+  int      sh = 6 - 2 * (x & 3);
+  *p = (*p & ~(3 << sh)) | (c << sh);
+}
+
+static void patRect(uint8_t *p_buf, int x, int y, int w, int h, uint8_t c)
+{
+  for (int j = 0; j < h; j++)
+    for (int i = 0; i < w; i++) patPixel(p_buf, x + i, y + j, c);
+}
+
+static void patternFrame(void)
+{
+  uint8_t *p_buf = gbGetLcdBufRW();
+  // 이동(pat_frames) → 멈춤(pat_pause) 을 pat_reps 번. 이동한 프레임 수만큼 ox 증가
+  uint32_t cyc   = pat_frames + pat_pause;
+  uint32_t full  = pat_n / cyc;
+  uint32_t part  = pat_n % cyc;
+  uint32_t moved = (full >= pat_reps) ? pat_reps * pat_frames
+                                      : full * pat_frames + (part < pat_frames ? part : pat_frames);
+  int      ox    = (int)(moved * pat_speed);
+
+  pat_n++;
+  memset(p_buf, 0, GB_LCD_HEIGHT * GB_LCD_WIDTH / 4);
+  patRect(p_buf, 0,   0,   4, 4, 3);
+  patRect(p_buf, 156, 0,   4, 4, 3);
+  patRect(p_buf, 0,   140, 4, 4, 3);
+  patRect(p_buf, 156, 140, 4, 4, 3);
+
+  if (pat_big)
+  {
+    // 큰 도형: 2px 산(가로 64, y 60~92), 구름 40x16 (y 24), 상자 24x24 (y 98)
+    for (int t = 0; t < 32; t++)
+    {
+      patRect(p_buf, ox + t,      91 - t, 2, 2, 3);
+      patRect(p_buf, ox + 32 + t, 60 + t, 2, 2, 3);
+    }
+    patRect(p_buf, ox + 4,  24, 40, 16, 2);
+    patRect(p_buf, ox + 5,  25, 38, 14, 1);
+    patRect(p_buf, ox + 60, 98, 24, 24, 3);
+    return;
+  }
+
+  for (int t = 0; t < 40; t++)                        // 산 윤곽선 (1px, K)
+  {
+    patPixel(p_buf, ox + t,      100 - t, 3);
+    patPixel(p_buf, ox + 40 + t, 60 + t,  3);
+  }
+  patRect(p_buf, ox + 10, 30, 24, 10, 2);             // 구름: D 테두리
+  patRect(p_buf, ox + 11, 31, 22, 8,  1);             //       L 채움
+  patRect(p_buf, ox + 50, 108, 12, 12, 3);            // 검정 상자
+}
+
+bool gbRunStartPattern(uint16_t speed, uint16_t frames, uint16_t pause, uint16_t reps, uint8_t big)
+{
+  pat_big    = big;
+  pat_speed  = speed;
+  pat_frames = frames;
+  pat_pause  = pause;
+  pat_reps   = reps;
+  pat_req   = true;
+  return gbRunStartEx(true);
+}
+
+bool gbRunIsPattern(void)
+{
+  return pat_active && is_run;
+}
+
 bool gbRunStart(void)
 {
   return gbRunStartEx(true);
@@ -595,6 +696,9 @@ bool gbRunStart(void)
 bool gbRunStartEx(bool clear_ram)
 {
   gbRunStop();
+  pat_active = pat_req;                   // gbRunStartPattern 으로 시작할 때만 패턴
+  pat_req    = false;
+  pat_n      = 0;
 
   if (!gbLoadEx(clear_ram)) return false;
 
@@ -715,6 +819,20 @@ void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h)
   *p_h = GB_SCR_H;
 }
 
+void gbRunSetSettle(uint8_t l, uint8_t d, uint8_t k)
+{
+  ink_settle[1] = l;
+  ink_settle[2] = d;
+  ink_settle[3] = k;
+}
+
+void gbRunGetSettle(uint8_t *p_l, uint8_t *p_d, uint8_t *p_k)
+{
+  *p_l = ink_settle[1];
+  *p_d = ink_settle[2];
+  *p_k = ink_settle[3];
+}
+
 void gbRunSetRetarget(uint16_t rev_pct, bool same_add)
 {
   ink_rev_pct  = rev_pct;
@@ -728,6 +846,16 @@ void gbRunGetRetarget(uint16_t *p_rev_pct, bool *p_same_add)
 }
 
 // 게임이 멈춰 있을 때 ink 마스크 버퍼를 다른 용도(캘리브레이션 등)로 빌려 준다
+void gbRunSetExtBusy(bool busy)
+{
+  ext_busy = busy;
+}
+
+bool gbRunIsExtBusy(void)
+{
+  return ext_busy;
+}
+
 uint8_t *gbRunGetScratch(uint32_t *p_size)
 {
   if (is_run) return NULL;
@@ -867,13 +995,14 @@ void emuThread(void *arg1, void *arg2, void *arg3)
     gbCoreSetDrawNext(draw);
 
     uint32_t pre_us = micros();
-    gbCoreRunFrame();
+    if (pat_active) patternFrame();       // 잔상 측정용 테스트 패턴 (gb calmove)
+    else            gbCoreRunFrame();
     uint32_t exe_us = micros() - pre_us;
 
     stat.emu_frames++;
     stat.emu_us_sum += exe_us;
 
-    if (sound_enable)
+    if (sound_enable && !pat_active)
     {
       uint32_t pre_audio = micros();
       writeAudio();

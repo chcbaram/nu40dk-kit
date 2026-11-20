@@ -31,8 +31,14 @@ void gbRunSetPause(bool pause);
 void gbRunWaitDisplayIdle(void);
 void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h);
 bool gbRunIsPaused(void);
+void     gbRunSetSettle(uint8_t l, uint8_t d, uint8_t k);   // 머물던 픽셀이 흰색으로 갈 때 추가 펄스
+void     gbRunGetSettle(uint8_t *p_l, uint8_t *p_d, uint8_t *p_k);
 void     gbRunSetRetarget(uint16_t rev_pct, bool same_add);  // 회색 모드 목표 변경 보정 (0 = 끔)
 void     gbRunGetRetarget(uint16_t *p_rev_pct, bool *p_same_add);
+bool     gbRunStartPattern(uint16_t speed, uint16_t frames, uint16_t pause, uint16_t reps, uint8_t big);  // 잔상 측정용 움직이는 테스트 패턴
+bool     gbRunIsPattern(void);
+void     gbRunSetExtBusy(bool busy);   // CLI 측정 중 표시 (런처가 화면을 건드리지 않음)
+bool     gbRunIsExtBusy(void);
 uint8_t *gbRunGetScratch(uint32_t *p_size);  // 게임 정지 중 ink 마스크 버퍼 빌리기 (실행 중 NULL)
 void     gbRunSetQuiet(uint32_t ms, uint32_t px, uint32_t act);   // 조용한 순간 정리 (ms = 0 끔)
 void     gbRunGetQuiet(uint32_t *p_ms, uint32_t *p_px, uint32_t *p_act);
