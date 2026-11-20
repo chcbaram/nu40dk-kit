@@ -443,21 +443,23 @@ static void drawController(void)
 
 static void drawSettings(void)
 {
-  char        items[4][40];
-  const char *p_items[4];
+  char        items[5][40];
+  const char *p_items[5];
 
   snprintf(items[0], 40, "SOUND    : %s", cfg.sound ? "ON" : "OFF");
   snprintf(items[1], 40, "VOLUME   : %d", cfg.volume);
   snprintf(items[2], 40, "SCREEN   : %s", screen_str[cfg.screen]);
   snprintf(items[3], 40, "CLEAN SCREEN");
-  for (int i = 0; i < 4; i++) p_items[i] = items[i];
+  snprintf(items[4], 40, "WHITE SCREEN");
+  for (int i = 0; i < 5; i++) p_items[i] = items[i];
 
   drawTopBar("SETTINGS");
   box(1, 1, 48, 15, "SETTINGS");
-  menuList(4, 3, 42, p_items, 4, sel[SCR_SETTINGS]);
-  text(4, 9,  false, "SCREEN: game screen drawing");
-  text(4, 10, false, "  GRAY = smooth shades, DITHER = dots");
-  text(4, 12, false, "LEFT/RIGHT or OK to change");
+  menuList(4, 3, 42, p_items, 5, sel[SCR_SETTINGS]);
+  text(4, 10, false, "SCREEN: game screen drawing");
+  text(4, 11, false, "  GRAY = smooth shades, DITHER = dots");
+  text(4, 12, false, "WHITE : blank panel (rest/storage)");
+  text(4, 14, false, "LEFT/RIGHT or OK to change");
   drawBottomBar("[1]UP [2]DOWN [3]CHANGE [4]BACK");
 }
 
@@ -665,6 +667,22 @@ static bool gameMenu(void)
 /*---------------------------------------------------------------------------
  * 키 처리
  *-------------------------------------------------------------------------*/
+// 전체 흰 화면: 패널을 쉬게 하거나 보관할 때. 아무 키나 누르면 설정 화면으로 돌아간다
+static void whiteScreen(void)
+{
+  canvasClear(CANVAS_WHITE);
+  epdUpdateStrong();
+  epdPowerOff();
+  epd_on = false;
+
+  waitKeyRelease();
+  while (readKey() == KEY_NONE) delay(20);
+  waitKeyRelease();
+
+  fast_cnt  = 0;
+  need_full = true;
+}
+
 static void changeScreen(screen_t next)
 {
   screen    = next;
@@ -708,8 +726,13 @@ static bool handleKey(ui_key_t key)
 
     case SCR_SETTINGS:
       if (key == KEY_BACK) { changeScreen(SCR_MAIN); return true; }
-      if (key == KEY_UP)   { *p_sel = (*p_sel + 3) % 4; return true; }
-      if (key == KEY_DOWN) { *p_sel = (*p_sel + 1) % 4; return true; }
+      if (key == KEY_UP)   { *p_sel = (*p_sel + 4) % 5; return true; }
+      if (key == KEY_DOWN) { *p_sel = (*p_sel + 1) % 5; return true; }
+      if (key == KEY_OK && *p_sel == 4)
+      {
+        whiteScreen();
+        return true;
+      }
       if (key == KEY_OK || key == KEY_LEFT || key == KEY_RIGHT)
       {
         int dir = key == KEY_LEFT ? -1 : 1;

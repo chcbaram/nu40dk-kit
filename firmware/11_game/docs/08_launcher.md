@@ -14,6 +14,7 @@
 | 게임 메뉴 | RESUME / SAVE & QUIT / RESET / QUIT (NO SAVE). 게임 화면 위에 상자로 그림 |
 | 세이브 | 배터리 백업 카트리지만 `/saves/<ROM 이름>.sav` (`gbGetSaveSize()`, `gbSaveRead/Write()`) |
 | 설정 | Zephyr settings `game/cfg`: 사운드, 볼륨, **게임 화면 GRAY / DITHER** (Phase 8) |
+| 화면 관리 | SETTINGS `CLEAN SCREEN` (3색 검정/흰색 반복), `WHITE SCREEN` (3색 갱신으로 전체 흰색 후 전원 끔, 아무 키나 누르면 복귀. 패널 휴식·보관용) |
 
 ### Phase 7 에서 발견한 문제
 
