@@ -447,6 +447,14 @@ void cliGb(cli_args_t *args)
   }
 
   // gb key <a|b|select|start|right|left|up|down>[,..] [ms] : 테스트용 입력
+  // gb opt <idle|noidle|dual|single> : 실행 중인 코어 옵션 (호환성 확인용)
+  if (args->argc == 2 && args->isStr(0, "opt"))
+  {
+    gbCoreSetOption(args->getStr(1));
+    cliPrintf("core option %s\n", args->getStr(1));
+    ret = true;
+  }
+
   if (args->argc >= 2 && args->isStr(0, "key"))
   {
     const char *names[8] = {"a", "b", "select", "start", "right", "left", "up", "down"};
