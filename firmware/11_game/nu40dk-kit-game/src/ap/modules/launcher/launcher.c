@@ -787,7 +787,7 @@ static void whiteScreen(void)
 static app_key_t apiReadKey(void)            { return (app_key_t)readKey(); }
 static void      apiWaitKeyRelease(void)     { waitKeyRelease(); }
 static uint8_t   apiKeyHeld(void)            { return readKeyBits(); }
-static uint8_t   app_quick_frames = 16;      // 걷기용 짧은 FAST 파형 길이 (ui quick N)
+static uint8_t   app_quick_frames = 8;       // 걷기용 짧은 FAST 파형 길이 (ui quick N)
 static uint8_t   app_lut_frames   = 0;
 static bool      app_fast_part    = false;   // 앱의 FAST(메뉴·대화창) 를 공장 부분 갱신(0.6초)으로 (ui dlg part|fast)
 static bool      app_clean_strong = true;    // 앱의 CLEAN 갱신: true = 3색 강한 갱신(F7, 2.8초), false = 저온(1.3초)

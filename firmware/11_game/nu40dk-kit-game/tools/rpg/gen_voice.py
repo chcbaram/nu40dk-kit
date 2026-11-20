@@ -44,33 +44,41 @@ def c_unescape(s):
     return s.encode('utf-8').decode('unicode_escape').encode('latin-1').decode('utf-8')
 
 
-def parse_pages(src):
-    text = open(src, encoding='utf-8').read()
-    pages = []
-    for m in re.finditer(r'static const char \*const (\w+)\[\] = \{(.*?)\};', text, re.S):
-        name, body = m.group(1), m.group(2)
-        lines = [c_unescape(s) for s in re.findall(r'"((?:[^"\\]|\\.)*)"', body)]
-        rest = text[m.end():]
-        call = re.search(r'\b(dialog\(\s*(NULL|"[^"]*")\s*,\s*%s\s*\)|say\(\s*%s\s*\))' % (name, name), rest)
-        if not call:
-            continue
-        if call.group(1).startswith('say'):
-            who = '바람'
+def split_pages(lines):
+    """대화창과 같은 규칙으로 쪽 나누기: "" 로 나누고, 한 쪽 최대 3 줄 (rpg.c dialogP)"""
+    pages, page = [], []
+    for ln in lines + ['']:
+        if ln == '':
+            if page:
+                pages.append(page)
+            page = []
         else:
-            w = call.group(2)
-            who = None if w == 'NULL' else w.strip('"')
-        page = []
-        for ln in lines + ['']:
-            if ln == '':
-                if page:
-                    pages.append((who, page))
+            page.append(ln)
+            if len(page) == 3:
+                pages.append(page)
                 page = []
-            else:
-                page.append(ln)
-                if len(page) == 3:             # 대화창은 한 쪽에 3 줄 (rpg.c dialogP)
-                    pages.append((who, page))
-                    page = []
     return pages
+
+
+def parse_pages(src=None):
+    """story.py 의 대사 블록·문답 대답을 (화자, 쪽) 목록으로"""
+    sys.path.insert(0, HERE)
+    import story as S
+    out = []
+    def add_blocks(blocks):
+        for who, lines in blocks:
+            for pg in split_pages(lines):
+                out.append((who, pg))
+    add_blocks(S.INTRO)
+    add_blocks(S.GATE_OPEN)
+    for owner, cond, pre, quiz, act, post in S.SCRIPTS:
+        add_blocks(pre)
+        if quiz:
+            who = pre[-1][0] if pre else None
+            q = S.QUIZZES[quiz]
+            add_blocks([(who, q[3]), (who, q[4])])
+        add_blocks(post)
+    return out
 
 
 def speak_text(page):
@@ -78,6 +86,37 @@ def speak_text(page):
     for a, b in SPEAK:
         s = s.replace(a, b)
     return s
+
+
+def trim_write(data, dst):
+    step = 2 * RATE // 100
+    def loud(i):
+        return audioop.rms(data[i:i + step], 2) > 200
+    a = 0
+    while a < len(data) - step and not loud(a):
+        a += step
+    b = len(data) - step
+    while b > a and not loud(b):
+        b -= step
+    data = data[max(0, a - step):min(len(data), b + 2 * step)]
+    with wave.open(dst, 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(RATE)
+        w.writeframes(data)
+    return len(data) / 2 / RATE
+
+
+def convert_rec(src, dst):
+    """직접 녹음한 파일 → 16kHz 모노 16bit, 앞뒤 무음 정리, 소리 크기 맞춤"""
+    with tempfile.TemporaryDirectory() as td:
+        raw = os.path.join(td, 'a.wav')
+        subprocess.run(['afconvert', '-f', 'WAVE', '-d', 'LEI16@%d' % RATE, '-c', '1', src, raw], check=True)
+        with wave.open(raw) as r:
+            data = r.readframes(r.getnframes())
+    peak = audioop.max(data, 2) or 1
+    data = audioop.mul(data, 2, min(4.0, 26000 / peak))
+    return trim_write(data, dst)
 
 
 def make_wav(voice, text, dst):
@@ -113,7 +152,9 @@ def make_wav(voice, text, dst):
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, 'out', 'rpg', 'v')
     os.makedirs(out, exist_ok=True)
-    pages = parse_pages(SRC)
+    pages = parse_pages()
+    rec_dir = os.path.join(HERE, 'voice_rec')       # 직접 녹음한 파일: voice_rec/<CRC>.(wav|m4a|aiff)
+    script = []
     total_s, total_b, n = 0.0, 0, 0
     seen = set()
     for who, page in pages:
@@ -123,12 +164,27 @@ def main():
             continue
         seen.add(crc)
         dst = os.path.join(out, '%08X.WAV' % crc)
-        sec = make_wav(VOICES.get(who, 'Yuna'), speak_text(page), dst)
+        if who == '바람':
+            script.append('%08X  %s' % (crc, ' / '.join(page)))
+        rec = None
+        for ext in ('wav', 'm4a', 'aiff', 'mp3'):
+            cand = os.path.join(rec_dir, '%08X.%s' % (crc, ext))
+            if os.path.exists(cand):
+                rec = cand
+        if rec:
+            sec = convert_rec(rec, dst)
+        else:
+            sec = make_wav(VOICES.get(who, 'Yuna'), speak_text(page), dst)
         total_s += sec
         total_b += os.path.getsize(dst)
         n += 1
         print('%08X %-8s %4.1fs  %s' % (crc, who or '-', sec, ' / '.join(page)))
     print('%d files, %.0f s, %.1f MB -> %s' % (n, total_s, total_b / 1e6, out))
+    with open(os.path.join(HERE, 'baram_lines.txt'), 'w', encoding='utf-8') as f:
+        f.write('# 바람 대사 녹음 목록: 각 줄을 녹음해 tools/rpg/voice_rec/<번호>.wav (또는 m4a) 로 저장\n')
+        f.write('#   "/" 는 줄바꿈 (이어서 자연스럽게 읽으면 됨). 녹음이 있으면 TTS 대신 녹음을 쓴다\n')
+        f.write('\n'.join(script) + '\n')
+    print('바람 대사 %d 개 -> tools/rpg/baram_lines.txt' % len(script))
 
 
 if __name__ == '__main__':

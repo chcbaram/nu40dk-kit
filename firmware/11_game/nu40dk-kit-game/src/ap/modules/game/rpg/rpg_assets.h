@@ -473,98 +473,107 @@ static const char *const rpg_t24[] = { "바람, 고수가 되고 싶다고?", "�
 static const rpg_block_t rpg_bk25[] = { { "선배 개발자", rpg_t24 } };
 static const char *const rpg_t26[] = { "printf 는 이미 쓸 줄 알지?", "커피 두 잔 챙겨 가.", NULL };
 static const char *const rpg_t27[] = { "(커피 2잔을 얻었다)", NULL };
-static const rpg_block_t rpg_bk28[] = { { "선배 개발자", rpg_t26 }, { NULL, rpg_t27 } };
-static const char *const rpg_t29[] = { "동쪽 광장에 잔상 유령이", "나타났대. printf 로 상태를", "찍어 보면 약점이 보일 거야.", NULL };
-static const rpg_block_t rpg_bk30[] = { { "선배 개발자", rpg_t29 } };
-static const char *const rpg_t31[] = { "잘하고 있구나!", "", "예전에 키보드 버그를 잡는데,", "범인이 물려 둔 전류계였지.", "", "계측 도구도 대상을", "바꿀 수 있다는 걸 잊지 마.", NULL };
-static const rpg_block_t rpg_bk32[] = { { "선배 개발자", rpg_t31 } };
-static const char *const rpg_t33[] = { "[부트로더 마을]", "동: 마을 광장, 호숫가 길", NULL };
-static const rpg_block_t rpg_bk34[] = { { NULL, rpg_t33 } };
-static const char *const rpg_t35[] = { "바람의 집이다.", "책상 위에 굽다 만 보드가 있다.", NULL };
-static const rpg_block_t rpg_bk36[] = { { NULL, rpg_t35 } };
-static const char *const rpg_t37[] = { "광장에 유령이 나와서", "화면이 이상해!", "지난 화면이 계속 남아 있어...", NULL };
-static const rpg_block_t rpg_bk38[] = { { "마을 사람", rpg_t37 } };
-static const char *const rpg_t39[] = { "유령이 사라지니", "화면이 깨끗해졌어!", "고마워, 바람!", NULL };
-static const rpg_block_t rpg_bk40[] = { { "마을 사람", rpg_t39 } };
-static const char *const rpg_t41[] = { "상자를 열었다!", "멀티미터와 고무오리를 얻었다.", "", NULL };
-static const char *const rpg_t42[] = { "고무 오리에게 설명하다 보면", "버그가 보인다고 했지!", NULL };
-static const rpg_block_t rpg_bk43[] = { { NULL, rpg_t41 }, { "바람", rpg_t42 } };
-static const char *const rpg_t44[] = { "빈 상자다.", NULL };
-static const rpg_block_t rpg_bk45[] = { { NULL, rpg_t44 } };
-static const char *const rpg_t46[] = { "[호숫가 길]", "동쪽: 인터럽트 호수", NULL };
-static const rpg_block_t rpg_bk47[] = { { NULL, rpg_t46 } };
-static const char *const rpg_t48[] = { "허허, 물고기는 기다림으로,", "버그는 관찰로 잡는 법이지.", "", "한 가지 묻겠네.", NULL };
-static const rpg_block_t rpg_bk49[] = { { "인터럽트 장인", rpg_t48 } };
-static const char *const rpg_t50[] = { "브레이크포인트를 가르쳐 주마.", "멈춰 세우고 들여다보는 기술이지.", NULL };
-static const char *const rpg_t51[] = { "(기술 '중단점'을 배웠다!)", "(커피 1잔을 얻었다)", NULL };
-static const rpg_block_t rpg_bk52[] = { { "인터럽트 장인", rpg_t50 }, { NULL, rpg_t51 } };
-static const char *const rpg_t53[] = { "동쪽에 키 씹힘 벌레가 있네.", "중단점이 잘 들을 걸세.", NULL };
-static const rpg_block_t rpg_bk54[] = { { "인터럽트 장인", rpg_t53 } };
-static const char *const rpg_t55[] = { "잘했네. 이제 레지스터 숲으로.", "데이터시트 현자가 기다리네.", NULL };
+static const char *const rpg_t28[] = { "고마워요, 선배!", "꼭 고수가 돼서 돌아올게요.", NULL };
+static const rpg_block_t rpg_bk29[] = { { "선배 개발자", rpg_t26 }, { NULL, rpg_t27 }, { "바람", rpg_t28 } };
+static const char *const rpg_t30[] = { "동쪽 광장에 잔상 유령이", "나타났대. printf 로 상태를", "찍어 보면 약점이 보일 거야.", NULL };
+static const rpg_block_t rpg_bk31[] = { { "선배 개발자", rpg_t30 } };
+static const char *const rpg_t32[] = { "잘하고 있구나!", "", "예전에 키보드 버그를 잡는데,", "범인이 물려 둔 전류계였지.", "", "계측 도구도 대상을", "바꿀 수 있다는 걸 잊지 마.", NULL };
+static const rpg_block_t rpg_bk33[] = { { "선배 개발자", rpg_t32 } };
+static const char *const rpg_t34[] = { "[부트로더 마을]", "동: 마을 광장, 호숫가 길", NULL };
+static const rpg_block_t rpg_bk35[] = { { NULL, rpg_t34 } };
+static const char *const rpg_t36[] = { "바람의 집이다.", "책상 위에 굽다 만 보드가 있다.", NULL };
+static const rpg_block_t rpg_bk37[] = { { NULL, rpg_t36 } };
+static const char *const rpg_t38[] = { "광장에 유령이 나와서", "화면이 이상해!", "지난 화면이 계속 남아 있어...", NULL };
+static const rpg_block_t rpg_bk39[] = { { "마을 사람", rpg_t38 } };
+static const char *const rpg_t40[] = { "유령이 사라지니", "화면이 깨끗해졌어!", "고마워, 바람!", NULL };
+static const rpg_block_t rpg_bk41[] = { { "마을 사람", rpg_t40 } };
+static const char *const rpg_t42[] = { "상자를 열었다!", "멀티미터와 고무오리를 얻었다.", "", NULL };
+static const char *const rpg_t43[] = { "고무 오리에게 설명하다 보면", "버그가 보인다고 했지!", NULL };
+static const rpg_block_t rpg_bk44[] = { { NULL, rpg_t42 }, { "바람", rpg_t43 } };
+static const char *const rpg_t45[] = { "빈 상자다.", NULL };
+static const rpg_block_t rpg_bk46[] = { { NULL, rpg_t45 } };
+static const char *const rpg_t47[] = { "[호숫가 길]", "동쪽: 인터럽트 호수", NULL };
+static const rpg_block_t rpg_bk48[] = { { NULL, rpg_t47 } };
+static const char *const rpg_t49[] = { "허허, 물고기는 기다림으로,", "버그는 관찰로 잡는 법이지.", "", "한 가지 묻겠네.", NULL };
+static const rpg_block_t rpg_bk50[] = { { "인터럽트 장인", rpg_t49 } };
+static const char *const rpg_t51[] = { "브레이크포인트를 가르쳐 주마.", "멈춰 세우고 들여다보는 기술이지.", NULL };
+static const char *const rpg_t52[] = { "(기술 '중단점'을 배웠다!)", "(커피 1잔을 얻었다)", NULL };
+static const char *const rpg_t53[] = { "멈춰 세우고 들여다보기...", "꼭 기억할게요!", NULL };
+static const rpg_block_t rpg_bk54[] = { { "인터럽트 장인", rpg_t51 }, { NULL, rpg_t52 }, { "바람", rpg_t53 } };
+static const char *const rpg_t55[] = { "동쪽에 키 씹힘 벌레가 있네.", "중단점이 잘 들을 걸세.", NULL };
 static const rpg_block_t rpg_bk56[] = { { "인터럽트 장인", rpg_t55 } };
-static const char *const rpg_t57[] = { "답은 늘 데이터시트에 있느니라.", "", "물어보마.", NULL };
-static const rpg_block_t rpg_bk58[] = { { "데이터시트 현자", rpg_t57 } };
-static const char *const rpg_t59[] = { "레지스터를 직접 읽는 법을", "알려 주마.", NULL };
-static const char *const rpg_t60[] = { "(기술 '레지스터'를 배웠다!)", "(커피 1잔을 얻었다)", NULL };
-static const rpg_block_t rpg_bk61[] = { { "데이터시트 현자", rpg_t59 }, { NULL, rpg_t60 } };
-static const char *const rpg_t62[] = { "숲 깊은 곳에", "스택 오버플로가 산다.", "레지스터로 스택을 보거라.", NULL };
-static const rpg_block_t rpg_bk63[] = { { "데이터시트 현자", rpg_t62 } };
-static const char *const rpg_t64[] = { "DMA 협곡의 장인을", "찾아가거라.", NULL };
-static const rpg_block_t rpg_bk65[] = { { "데이터시트 현자", rpg_t64 } };
-static const char *const rpg_t66[] = { "상자를 열었다!", "오실로스코프를 얻었다.", "(공격력 +2)", NULL };
-static const rpg_block_t rpg_bk67[] = { { NULL, rpg_t66 } };
-static const char *const rpg_t68[] = { "빈 상자다.", NULL };
-static const rpg_block_t rpg_bk69[] = { { NULL, rpg_t68 } };
-static const char *const rpg_t70[] = { "DMA 는 CPU 몰래", "일하는 일꾼이지.", "", "하나 물어보지.", NULL };
-static const rpg_block_t rpg_bk71[] = { { "DMA 장인", rpg_t70 } };
-static const char *const rpg_t72[] = { "로직 분석기로 신호를", "보는 법을 알려 주지.", NULL };
-static const char *const rpg_t73[] = { "(기술 '분석기'를 배웠다!)", "(커피 1잔을 얻었다)", NULL };
-static const rpg_block_t rpg_bk74[] = { { "DMA 장인", rpg_t72 }, { NULL, rpg_t73 } };
-static const char *const rpg_t75[] = { "협곡 끝에 쌍둥이가 살아.", "둘이 동시에 움직이는 걸", "파형으로 보면 잡혀.", NULL };
-static const rpg_block_t rpg_bk76[] = { { "DMA 장인", rpg_t75 } };
-static const char *const rpg_t77[] = { "RTOS 산맥의 수도승을", "만나 보게.", NULL };
-static const rpg_block_t rpg_bk78[] = { { "DMA 장인", rpg_t77 } };
-static const char *const rpg_t79[] = { "모든 태스크에는", "차례가 있지요.", "", "문제를 내겠습니다.", NULL };
-static const rpg_block_t rpg_bk80[] = { { "스케줄러 수도승", rpg_t79 } };
-static const char *const rpg_t81[] = { "뮤텍스로 순서를 지키는", "법을 알려 드리지요.", NULL };
-static const char *const rpg_t82[] = { "(기술 '뮤텍스'를 배웠다!)", "(커피 1잔을 얻었다)", NULL };
-static const rpg_block_t rpg_bk83[] = { { "스케줄러 수도승", rpg_t81 }, { NULL, rpg_t82 } };
-static const char *const rpg_t84[] = { "산 위의 골렘은 서로를", "기다리다 굳어 버린", "녀석입니다.", NULL };
+static const char *const rpg_t57[] = { "잘했네. 이제 레지스터 숲으로.", "데이터시트 현자가 기다리네.", NULL };
+static const rpg_block_t rpg_bk58[] = { { "인터럽트 장인", rpg_t57 } };
+static const char *const rpg_t59[] = { "답은 늘 데이터시트에 있느니라.", "", "물어보마.", NULL };
+static const rpg_block_t rpg_bk60[] = { { "데이터시트 현자", rpg_t59 } };
+static const char *const rpg_t61[] = { "레지스터를 직접 읽는 법을", "알려 주마.", NULL };
+static const char *const rpg_t62[] = { "(기술 '레지스터'를 배웠다!)", "(커피 1잔을 얻었다)", NULL };
+static const char *const rpg_t63[] = { "이제 데이터시트를", "꼼꼼히 읽어야겠어.", NULL };
+static const rpg_block_t rpg_bk64[] = { { "데이터시트 현자", rpg_t61 }, { NULL, rpg_t62 }, { "바람", rpg_t63 } };
+static const char *const rpg_t65[] = { "숲 깊은 곳에", "스택 오버플로가 산다.", "레지스터로 스택을 보거라.", NULL };
+static const rpg_block_t rpg_bk66[] = { { "데이터시트 현자", rpg_t65 } };
+static const char *const rpg_t67[] = { "DMA 협곡의 장인을", "찾아가거라.", NULL };
+static const rpg_block_t rpg_bk68[] = { { "데이터시트 현자", rpg_t67 } };
+static const char *const rpg_t69[] = { "상자를 열었다!", "오실로스코프를 얻었다.", "(공격력 +2)", NULL };
+static const char *const rpg_t70[] = { "오실로스코프다!", "이제 신호가 눈에 보인다.", NULL };
+static const rpg_block_t rpg_bk71[] = { { NULL, rpg_t69 }, { "바람", rpg_t70 } };
+static const char *const rpg_t72[] = { "빈 상자다.", NULL };
+static const rpg_block_t rpg_bk73[] = { { NULL, rpg_t72 } };
+static const char *const rpg_t74[] = { "DMA 는 CPU 몰래", "일하는 일꾼이지.", "", "하나 물어보지.", NULL };
+static const rpg_block_t rpg_bk75[] = { { "DMA 장인", rpg_t74 } };
+static const char *const rpg_t76[] = { "로직 분석기로 신호를", "보는 법을 알려 주지.", NULL };
+static const char *const rpg_t77[] = { "(기술 '분석기'를 배웠다!)", "(커피 1잔을 얻었다)", NULL };
+static const char *const rpg_t78[] = { "파형으로 보면", "숨은 게 다 보이겠지!", NULL };
+static const rpg_block_t rpg_bk79[] = { { "DMA 장인", rpg_t76 }, { NULL, rpg_t77 }, { "바람", rpg_t78 } };
+static const char *const rpg_t80[] = { "협곡 끝에 쌍둥이가 살아.", "둘이 동시에 움직이는 걸", "파형으로 보면 잡혀.", NULL };
+static const rpg_block_t rpg_bk81[] = { { "DMA 장인", rpg_t80 } };
+static const char *const rpg_t82[] = { "RTOS 산맥의 수도승을", "만나 보게.", NULL };
+static const rpg_block_t rpg_bk83[] = { { "DMA 장인", rpg_t82 } };
+static const char *const rpg_t84[] = { "모든 태스크에는", "차례가 있지요.", "", "문제를 내겠습니다.", NULL };
 static const rpg_block_t rpg_bk85[] = { { "스케줄러 수도승", rpg_t84 } };
-static const char *const rpg_t86[] = { "사막의 은둔자를", "찾아가 보세요.", NULL };
-static const rpg_block_t rpg_bk87[] = { { "스케줄러 수도승", rpg_t86 } };
-static const char *const rpg_t88[] = { "상자를 열었다!", "JTAG 디버거를 얻었다.", "(공격력 +3)", NULL };
-static const rpg_block_t rpg_bk89[] = { { NULL, rpg_t88 } };
-static const char *const rpg_t90[] = { "빈 상자다.", NULL };
-static const rpg_block_t rpg_bk91[] = { { NULL, rpg_t90 } };
-static const char *const rpg_t92[] = { "켜 있는 것만 일하는 게", "아니야. 잠드는 법을 알아야", "오래 가지.", "", "물어보마.", NULL };
-static const rpg_block_t rpg_bk93[] = { { "배터리 은둔자", rpg_t92 } };
-static const char *const rpg_t94[] = { "제대로 재우는 법을", "알려 주지.", NULL };
-static const char *const rpg_t95[] = { "(기술 '슬립모드'를 배웠다!)", "(에너지드링크 1개를 얻었다)", NULL };
-static const rpg_block_t rpg_bk96[] = { { "배터리 은둔자", rpg_t94 }, { NULL, rpg_t95 } };
-static const char *const rpg_t97[] = { "사막의 모래벌레가", "전류를 빨아먹어.", "제대로 재워야 이긴다.", NULL };
-static const rpg_block_t rpg_bk98[] = { { "배터리 은둔자", rpg_t97 } };
-static const char *const rpg_t99[] = { "이제 커널 사당으로 가거라.", "펌웨어 고수가 기다린다.", NULL };
+static const char *const rpg_t86[] = { "뮤텍스로 순서를 지키는", "법을 알려 드리지요.", NULL };
+static const char *const rpg_t87[] = { "(기술 '뮤텍스'를 배웠다!)", "(커피 1잔을 얻었다)", NULL };
+static const char *const rpg_t88[] = { "차례를 지키는 게", "이렇게 중요하구나.", NULL };
+static const rpg_block_t rpg_bk89[] = { { "스케줄러 수도승", rpg_t86 }, { NULL, rpg_t87 }, { "바람", rpg_t88 } };
+static const char *const rpg_t90[] = { "산 위의 골렘은 서로를", "기다리다 굳어 버린", "녀석입니다.", NULL };
+static const rpg_block_t rpg_bk91[] = { { "스케줄러 수도승", rpg_t90 } };
+static const char *const rpg_t92[] = { "사막의 은둔자를", "찾아가 보세요.", NULL };
+static const rpg_block_t rpg_bk93[] = { { "스케줄러 수도승", rpg_t92 } };
+static const char *const rpg_t94[] = { "상자를 열었다!", "JTAG 디버거를 얻었다.", "(공격력 +3)", NULL };
+static const char *const rpg_t95[] = { "JTAG 이다!", "이제 칩 속까지 들여다볼 수 있어.", NULL };
+static const rpg_block_t rpg_bk96[] = { { NULL, rpg_t94 }, { "바람", rpg_t95 } };
+static const char *const rpg_t97[] = { "빈 상자다.", NULL };
+static const rpg_block_t rpg_bk98[] = { { NULL, rpg_t97 } };
+static const char *const rpg_t99[] = { "켜 있는 것만 일하는 게", "아니야. 잠드는 법을 알아야", "오래 가지.", "", "물어보마.", NULL };
 static const rpg_block_t rpg_bk100[] = { { "배터리 은둔자", rpg_t99 } };
-static const char *const rpg_t101[] = { "제단에 리셋 벡터가", "새겨져 있다.", NULL };
-static const rpg_block_t rpg_bk102[] = { { NULL, rpg_t101 } };
-static const char *const rpg_t103[] = { "여기까지 왔구나, 바람.", "고수가 되려면", "세 가지 수련이 남았다.", "", "첫째, 마음가짐이다.", NULL };
-static const rpg_block_t rpg_bk104[] = { { "펌웨어 고수", rpg_t103 } };
-static const char *const rpg_t105[] = { "둘째, 실전이다.", "이 수련용 버그의", "약점을 찾아라.", "", "(힌트: 멈춰 세우고", " 들여다보아라)", NULL };
-static const rpg_block_t rpg_bk106[] = { { "펌웨어 고수", rpg_t105 } };
-static const char *const rpg_t107[] = { "셋째, 끝을 보는 눈이다.", NULL };
-static const rpg_block_t rpg_bk108[] = { { "펌웨어 고수", rpg_t107 } };
-static const char *const rpg_t109[] = { "좋다. 내 비기를 전하마.", NULL };
-static const char *const rpg_t110[] = { "(기술 '근본원인'을 배웠다!)", "(에너지드링크 2개를 얻었다)", NULL };
-static const rpg_block_t rpg_bk111[] = { { "펌웨어 고수", rpg_t109 }, { NULL, rpg_t110 } };
-static const char *const rpg_t112[] = { "마지막 시험이다.", "부팅마다 멈추는", "저 하드폴트를 잡아 보거라!", NULL };
-static const rpg_block_t rpg_bk113[] = { { "펌웨어 고수", rpg_t112 } };
-static const char *const rpg_t114[] = { "스택 프레임에서 PC 를", "찾았구나. 널 포인터 하나가", "범인이었지.", "", "이제 너는 펌웨어 고수다,", "바람!", NULL };
-static const char *const rpg_t115[] = { "버그는 무섭지 않아.", "재현하고, 관찰하고,", "고치면 돼!", NULL };
-static const char *const rpg_t116[] = { "- 끝 -", "플레이 고마워요!", NULL };
-static const rpg_block_t rpg_bk117[] = { { "펌웨어 고수", rpg_t114 }, { "바람", rpg_t115 }, { NULL, rpg_t116 } };
-static const char *const rpg_t118[] = { "버그는 늘 다시 온다.", "그때마다 침착하게", "재현하고 관찰하거라.", NULL };
-static const rpg_block_t rpg_bk119[] = { { "펌웨어 고수", rpg_t118 } };
+static const char *const rpg_t101[] = { "제대로 재우는 법을", "알려 주지.", NULL };
+static const char *const rpg_t102[] = { "(기술 '슬립모드'를 배웠다!)", "(에너지드링크 1개를 얻었다)", NULL };
+static const char *const rpg_t103[] = { "잘 재우는 것도", "실력이구나.", NULL };
+static const rpg_block_t rpg_bk104[] = { { "배터리 은둔자", rpg_t101 }, { NULL, rpg_t102 }, { "바람", rpg_t103 } };
+static const char *const rpg_t105[] = { "사막의 모래벌레가", "전류를 빨아먹어.", "제대로 재워야 이긴다.", NULL };
+static const rpg_block_t rpg_bk106[] = { { "배터리 은둔자", rpg_t105 } };
+static const char *const rpg_t107[] = { "이제 커널 사당으로 가거라.", "펌웨어 고수가 기다린다.", NULL };
+static const rpg_block_t rpg_bk108[] = { { "배터리 은둔자", rpg_t107 } };
+static const char *const rpg_t109[] = { "제단에 리셋 벡터가", "새겨져 있다.", NULL };
+static const rpg_block_t rpg_bk110[] = { { NULL, rpg_t109 } };
+static const char *const rpg_t111[] = { "여기까지 왔구나, 바람.", "고수가 되려면", "세 가지 수련이 남았다.", "", "첫째, 마음가짐이다.", NULL };
+static const rpg_block_t rpg_bk112[] = { { "펌웨어 고수", rpg_t111 } };
+static const char *const rpg_t113[] = { "둘째, 실전이다.", "이 수련용 버그의", "약점을 찾아라.", "", "(힌트: 멈춰 세우고", " 들여다보아라)", NULL };
+static const rpg_block_t rpg_bk114[] = { { "펌웨어 고수", rpg_t113 } };
+static const char *const rpg_t115[] = { "셋째, 끝을 보는 눈이다.", NULL };
+static const rpg_block_t rpg_bk116[] = { { "펌웨어 고수", rpg_t115 } };
+static const char *const rpg_t117[] = { "좋다. 내 비기를 전하마.", NULL };
+static const char *const rpg_t118[] = { "(기술 '근본원인'을 배웠다!)", "(에너지드링크 2개를 얻었다)", NULL };
+static const char *const rpg_t119[] = { "증상 너머의 원인을 보는 눈...", "이게 고수의 눈이구나.", NULL };
+static const rpg_block_t rpg_bk120[] = { { "펌웨어 고수", rpg_t117 }, { NULL, rpg_t118 }, { "바람", rpg_t119 } };
+static const char *const rpg_t121[] = { "마지막 시험이다.", "부팅마다 멈추는", "저 하드폴트를 잡아 보거라!", NULL };
+static const rpg_block_t rpg_bk122[] = { { "펌웨어 고수", rpg_t121 } };
+static const char *const rpg_t123[] = { "스택 프레임에서 PC 를", "찾았구나. 널 포인터 하나가", "범인이었지.", "", "이제 너는 펌웨어 고수다,", "바람!", NULL };
+static const char *const rpg_t124[] = { "버그는 무섭지 않아.", "재현하고, 관찰하고,", "고치면 돼!", NULL };
+static const char *const rpg_t125[] = { "- 끝 -", "플레이 고마워요!", NULL };
+static const rpg_block_t rpg_bk126[] = { { "펌웨어 고수", rpg_t123 }, { "바람", rpg_t124 }, { NULL, rpg_t125 } };
+static const char *const rpg_t127[] = { "버그는 늘 다시 온다.", "그때마다 침착하게", "재현하고 관찰하거라.", NULL };
+static const rpg_block_t rpg_bk128[] = { { "펌웨어 고수", rpg_t127 } };
 typedef struct {
   uint8_t owner; int8_t need, nope;
   const rpg_block_t *pre; uint8_t npre;
@@ -573,52 +582,53 @@ typedef struct {
 } rpg_script_t;
 #define RPG_SCRIPT_CNT 35
 static const rpg_script_t rpg_script[RPG_SCRIPT_CNT] = {
-  { 0, -1, 0, rpg_bk25, 1, 0, 0, -1, 0, 2, -1, -1, -1, 0, 0, rpg_bk28, 2 },
-  { 0, 0, 1, rpg_bk30, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 0, 1, -1, rpg_bk32, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 1, -1, -1, rpg_bk34, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 2, -1, -1, rpg_bk36, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 3, -1, 1, rpg_bk38, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 3, 1, -1, rpg_bk40, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 5, -1, 7, rpg_bk43, 2, -1, 7, -1, 2, 1, 0, -1, -1, 0, 0, NULL, 0 },
-  { 5, 7, -1, rpg_bk45, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 4, -1, -1, rpg_bk47, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 6, -1, 2, rpg_bk49, 1, 1, 2, 1, 0, 1, -1, -1, -1, 0, 0, rpg_bk52, 2 },
-  { 6, 2, 3, rpg_bk54, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 6, 3, -1, rpg_bk56, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 7, -1, 4, rpg_bk58, 1, 2, 4, 2, 0, 1, -1, -1, -1, 0, 0, rpg_bk61, 2 },
-  { 7, 4, 5, rpg_bk63, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 7, 5, -1, rpg_bk65, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 8, -1, 6, rpg_bk67, 1, -1, 6, -1, -1, 0, 1, -1, -1, 0, 0, NULL, 0 },
-  { 8, 6, -1, rpg_bk69, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 9, -1, 9, rpg_bk71, 1, 3, 9, 3, 0, 1, -1, -1, -1, 0, 0, rpg_bk74, 2 },
-  { 9, 9, 10, rpg_bk76, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 9, 10, -1, rpg_bk78, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 10, -1, 11, rpg_bk80, 1, 4, 11, 4, 0, 1, -1, -1, -1, 0, 0, rpg_bk83, 2 },
-  { 10, 11, 12, rpg_bk85, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 10, 12, -1, rpg_bk87, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 11, -1, 8, rpg_bk89, 1, -1, 8, -1, 2, 1, 2, -1, -1, 0, 0, NULL, 0 },
-  { 11, 8, -1, rpg_bk91, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 12, -1, 13, rpg_bk93, 1, 5, 13, 5, 1, 1, -1, -1, -1, 0, 0, rpg_bk96, 2 },
-  { 12, 13, 14, rpg_bk98, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 12, 14, -1, rpg_bk100, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 14, -1, -1, rpg_bk102, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
-  { 13, -1, 15, rpg_bk104, 1, 6, 15, -1, -1, 0, -1, -1, -1, 1, 0, NULL, 0 },
-  { 13, 15, 16, rpg_bk106, 1, -1, -1, -1, -1, 0, -1, 12, 16, 1, 0, NULL, 0 },
-  { 13, 16, 17, rpg_bk108, 1, 7, 17, 6, 1, 2, -1, -1, -1, 1, 0, rpg_bk111, 2 },
-  { 13, 17, 18, rpg_bk113, 1, -1, -1, -1, -1, 0, -1, 13, 18, 0, 1, rpg_bk117, 3 },
-  { 13, 18, -1, rpg_bk119, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 0, -1, 0, rpg_bk25, 1, 0, 0, -1, 0, 2, -1, -1, -1, 0, 0, rpg_bk29, 3 },
+  { 0, 0, 1, rpg_bk31, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 0, 1, -1, rpg_bk33, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 1, -1, -1, rpg_bk35, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 2, -1, -1, rpg_bk37, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 3, -1, 1, rpg_bk39, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 3, 1, -1, rpg_bk41, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 5, -1, 7, rpg_bk44, 2, -1, 7, -1, 2, 1, 0, -1, -1, 0, 0, NULL, 0 },
+  { 5, 7, -1, rpg_bk46, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 4, -1, -1, rpg_bk48, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 6, -1, 2, rpg_bk50, 1, 1, 2, 1, 0, 1, -1, -1, -1, 0, 0, rpg_bk54, 3 },
+  { 6, 2, 3, rpg_bk56, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 6, 3, -1, rpg_bk58, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 7, -1, 4, rpg_bk60, 1, 2, 4, 2, 0, 1, -1, -1, -1, 0, 0, rpg_bk64, 3 },
+  { 7, 4, 5, rpg_bk66, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 7, 5, -1, rpg_bk68, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 8, -1, 6, rpg_bk71, 2, -1, 6, -1, -1, 0, 1, -1, -1, 0, 0, NULL, 0 },
+  { 8, 6, -1, rpg_bk73, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 9, -1, 9, rpg_bk75, 1, 3, 9, 3, 0, 1, -1, -1, -1, 0, 0, rpg_bk79, 3 },
+  { 9, 9, 10, rpg_bk81, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 9, 10, -1, rpg_bk83, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 10, -1, 11, rpg_bk85, 1, 4, 11, 4, 0, 1, -1, -1, -1, 0, 0, rpg_bk89, 3 },
+  { 10, 11, 12, rpg_bk91, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 10, 12, -1, rpg_bk93, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 11, -1, 8, rpg_bk96, 2, -1, 8, -1, 2, 1, 2, -1, -1, 0, 0, NULL, 0 },
+  { 11, 8, -1, rpg_bk98, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 12, -1, 13, rpg_bk100, 1, 5, 13, 5, 1, 1, -1, -1, -1, 0, 0, rpg_bk104, 3 },
+  { 12, 13, 14, rpg_bk106, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 12, 14, -1, rpg_bk108, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 14, -1, -1, rpg_bk110, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
+  { 13, -1, 15, rpg_bk112, 1, 6, 15, -1, -1, 0, -1, -1, -1, 1, 0, NULL, 0 },
+  { 13, 15, 16, rpg_bk114, 1, -1, -1, -1, -1, 0, -1, 12, 16, 1, 0, NULL, 0 },
+  { 13, 16, 17, rpg_bk116, 1, 7, 17, 6, 1, 2, -1, -1, -1, 1, 0, rpg_bk120, 3 },
+  { 13, 17, 18, rpg_bk122, 1, -1, -1, -1, -1, 0, -1, 13, 18, 0, 1, rpg_bk126, 3 },
+  { 13, 18, -1, rpg_bk128, 1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, NULL, 0 },
 };
-static const char *const rpg_t120[] = { "개발자 바람은 오늘도", "보드 앞에 앉았다.", "이유 모를 리셋과 화면의 잔상...", NULL };
-static const char *const rpg_t121[] = { "펌웨어 고수가 되고 싶다!", "수련을 떠나자.", NULL };
-static const char *const rpg_t122[] = { "방향키: 이동", "A: 조사/대화  B: 메뉴", "먼저 선배에게 말을 걸어 보자.", NULL };
-static const rpg_block_t rpg_bk123[] = { { NULL, rpg_t120 }, { "바람", rpg_t121 }, { NULL, rpg_t122 } };
-static const char *const rpg_t124[] = { "동쪽 철문이 열렸다!", NULL };
-static const rpg_block_t rpg_bk125[] = { { NULL, rpg_t124 } };
-static const rpg_block_t *const rpg_intro = rpg_bk123;
+static const char *const rpg_t129[] = { "개발자 바람은 오늘도", "보드 앞에 앉았다.", "이유 모를 리셋과 화면의 잔상...", NULL };
+static const char *const rpg_t130[] = { "펌웨어 고수가 되고 싶다!", "수련을 떠나자.", NULL };
+static const char *const rpg_t131[] = { "방향키: 이동", "A: 조사/대화  B: 메뉴", "먼저 선배에게 말을 걸어 보자.", NULL };
+static const rpg_block_t rpg_bk132[] = { { NULL, rpg_t129 }, { "바람", rpg_t130 }, { NULL, rpg_t131 } };
+static const char *const rpg_t133[] = { "동쪽 철문이 열렸다!", NULL };
+static const char *const rpg_t134[] = { "버그 하나 잡았다!", "다음 지역으로 가자.", NULL };
+static const rpg_block_t rpg_bk135[] = { { NULL, rpg_t133 }, { "바람", rpg_t134 } };
+static const rpg_block_t *const rpg_intro = rpg_bk132;
 #define RPG_INTRO_CNT 3
-static const rpg_block_t *const rpg_gate_open = rpg_bk125;
-#define RPG_GATE_OPEN_CNT 1
+static const rpg_block_t *const rpg_gate_open = rpg_bk135;
+#define RPG_GATE_OPEN_CNT 2
 
 #define RPG_START_ROOM 0
 #define RPG_START_X    6
