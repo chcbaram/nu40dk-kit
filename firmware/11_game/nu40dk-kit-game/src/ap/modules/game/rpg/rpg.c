@@ -291,35 +291,44 @@ static void drawPortrait(int16_t px, int16_t py, int p)
 // portrait >= 0 이면 왼쪽에 초상화
 static void dialogP(const char *who, int portrait, const char *const *lines)
 {
+  // 대화창: 아래쪽 3 줄. 초상화는 창 왼쪽 위에 걸쳐 올리고, 이름표는 그 옆 창 테두리에 붙인다.
+  const int16_t bx = 8, by = 172, bw = 384, bh = 80;
   int i = 0;
-  int16_t tx = portrait >= 0 ? 96 : 20;
 
   while (lines[i] != NULL)
   {
     drawMap();
-    api->fillRect(8, 150, 384, 102, APP_WHITE);
-    api->drawRect(8, 150, 384, 102, APP_BLACK);
-    api->drawRect(10, 152, 380, 98, APP_BLACK);
-    int16_t y = 158;
+    api->fillRect(bx, by, bw, bh, APP_WHITE);
+    api->drawRect(bx, by, bw, bh, APP_BLACK);
+    api->drawRect(bx + 2, by + 2, bw - 4, bh - 4, APP_BLACK);
+
+    int16_t nx = bx;                         // 이름표 x (얼굴이 있으면 얼굴 박스 오른쪽에 붙임)
     if (portrait >= 0)
     {
-      drawPortrait(16, 166, portrait);
-      api->drawRect(15, 165, 66, 66, APP_BLACK);
+      // 64x64 초상화 + 흰 여백 + 두 줄 테두리, 아래 가장자리가 창 테두리와 겹친다
+      const int16_t px = bx + 4, py = by - 64 - 2;     // 바깥 테두리를 창 왼쪽에 맞춤
+      api->fillRect(px - 4, py - 4, 72, 72, APP_WHITE);
+      api->drawRect(px - 4, py - 4, 72, 72, APP_BLACK);
+      api->drawRect(px - 2, py - 2, 68, 68, APP_BLACK);
+      drawPortrait(px, py, portrait);
+      nx = px - 4 + 72 - 2;                  // 얼굴 박스 오른쪽 테두리와 겹치게
     }
     if (who != NULL)
     {
-      int16_t w = api->strWidth(who) + 12;
-      api->fillRect(tx - 4, y, w, 18, APP_BLACK);
-      api->print(tx + 2, y + 1, APP_WHITE, "%s", who);
-      y += 22;
+      // 탭 모양: 아래 끝이 창 위 테두리에 붙는다
+      int16_t w = api->strWidth(who) + 16;
+      api->fillRect(nx, by - 20, w, 22, APP_BLACK);
+      api->print(nx + 8, by - 18, APP_WHITE, "%s", who);
     }
+
+    int16_t y = by + 12;
     for (int n = 0; lines[i] != NULL && lines[i][0] != 0 && n < 3; n++, i++)
     {
-      api->print(tx, y, APP_BLACK, "%s", lines[i]);
+      api->print(bx + 14, y, APP_BLACK, "%s", lines[i]);
       y += 20;
     }
     if (lines[i] != NULL && lines[i][0] == 0) i++;
-    api->print(372, 232, APP_BLACK, ">");
+    api->print(bx + bw - 20, by + bh - 22, APP_BLACK, ">");
     show(APP_REFRESH_FAST);
     waitOk();
   }
