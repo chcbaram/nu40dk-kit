@@ -423,6 +423,78 @@ tile('stonewall', False, '''
 #.x#..x..#..x..#
 ################''')
 
+tile('cliff', False, '''
+################
+#x.x.x.##.x.x.x#
+#.x.x#..#x.x.x.#
+#x.x#....#.x.x.#
+##.#......##.x.#
+#.#.........#.##
+#x...........#.#
+#.x.........x.x#
+#x.x.......x.x.#
+#.x.x.x.x.x.x.x#
+##x.x.x.x.x.x.##
+#.##x.x.x.x.##.#
+#x.x###x.###x.x#
+#.x.x.x#.x.x.x.#
+#x.x.x.x.x.x.x.#
+################''')
+
+tile('mount', False, '''
+................
+.......##.......
+......#..#......
+.....#.x..#.....
+....#.x.x..#....
+...#.x.x.x..#...
+..#.x.x.x.x..#..
+..#x.x.x.x.x.#..
+.#.x.x.x.x.x..#.
+.#x.x.x.x.x.x.#.
+#.x.x.x.x.x.x..#
+#x.x.x.x.x.x.x.#
+################
+................
+................
+................''')
+
+tile('cactus', False, '''
+-.......-.......
+.......##.......
+......#..#......
+......#..#.##...
+..##..#..#.#.#..
+.#..#.#..#.#.#..
+.#..#.#..#.#.#..
+.#..###..###.#..
+..#..........#..
+...####..####...
+......#..#......
+......#..#......
+......#..#......
+-....######...-.
+................
+....-.......-...''')
+
+tile('sand', True, '''
+-.......-.......
+................
+....-.......-...
+................
+-.......-.......
+................
+....-.......-...
+................
+-.......-.......
+................
+....-.......-...
+................
+-.......-.......
+................
+....-.......-...
+................''')
+
 TILE_IDX = {t[0]: i for i, t in enumerate(TILES)}
 
 # 맵 문자 -> 타일
@@ -431,10 +503,9 @@ MAP_CHARS = {
     '=': 'bridge', 'B': 'brick', 'R': 'roof', 'D': 'door', 'F': 'fence',
     'o': 'rock', 'S': 'sign', 'C': 'chest', 'G': 'gate', 'A': 'altar',
     'P': 'pillar', '_': 'floor', 'H': 'hedge', 'r': 'reed', 'W': 'stonewall',
+    'X': 'cliff', 'M': 'mount', 'K': 'cactus', 's': 'sand',
 }
 
-# 지역마다 경계(가장자리의 'T')를 다른 타일로: 방 번호 -> 맵 문자
-ROOM_BORDER = {0: 'H', 1: 'F', 3: 'r', 4: 'W'}
 
 # ---------------------------------------------------------------------------
 # 스프라이트 (' ' 투명)
@@ -443,8 +514,12 @@ SPRITES = []
 
 
 def sprite(name, art):
-    rows = [r.rstrip() for r in art.strip('\n').split('\n')]
-    assert len(rows) == 16, (name, len(rows))
+    rows = art.split('\n')
+    if rows and rows[0] == '':
+        rows = rows[1:]                          # ''' 바로 뒤 줄바꿈
+    rows = [r.rstrip() for r in rows]
+    assert len(rows) <= 16, (name, len(rows))
+    rows = rows + [''] * (16 - len(rows))        # 아래쪽 빈 줄 채움
     rows = [r.ljust(16) for r in rows]
     for r in rows:
         assert len(r) == 16, (name, r)
@@ -693,6 +768,196 @@ sprite('bug_fault', '''
  ##  #    #  ##
      ##  ##       ''')
 
+
+# 마을 사람
+sprite('villager', '''
+     ######
+    #xxxxxx#
+   #xxxxxxxx#
+   #x......x#
+   #.#....#.#
+   #........#
+    #..##..#
+     ######
+    #......#
+   #.x.x.x.x#
+   #x.x.x.x.#
+   #.x.x.x.x#
+    ########
+     #.  .#
+     #.  .#
+     ##  ##''')
+
+# 데이터시트 현자 (뾰족 모자, 책)
+sprite('sage', '''
+       ##
+      #xx#
+     #xxxx#
+    ########
+     #....#
+     #.#.##
+     #....#
+    ##....##
+   #.######.#
+   #.#....#.#
+   #.#.##.#.#
+   #.#....#.#
+   #.######.#
+    #xxxxxx#
+    #xxxxxx#
+    ########''')
+
+# DMA 장인 (고글, 렌치)
+sprite('dma', '''
+     ######
+    #xxxxxx#
+   ##########
+   #.##..##.#
+   #.##..##.#
+   #........#
+    #..##..#  #
+     ######  ##
+   ##xxxxxx##
+  #.#xxxxxx#
+  #.#xxxxxx#
+   ##xxxxxx#
+    #xxxxxx#
+    #..##..#
+    #.#  #.#
+    ##   ##''')
+
+# 스케줄러 수도승 (민머리, 승복)
+sprite('monk', '''
+     ######
+    #......#
+   #........#
+   #.##..##.#
+   #........#
+   #...##...#
+    #......#
+     ######
+   ##xxxxxx##
+  #x#xxxxxx#x#
+  #x#xxxxxx#x#
+   ##xxxxxx##
+    #xxxxxx#
+    #xxxxxx#
+    ########
+     ##  ##''')
+
+# 배터리 은둔자 (두건, 배터리 지팡이)
+sprite('hermit', '''
+  ########   ##
+ #xxxxxxxx# #..#
+#xx#....#xx##..#
+#x#.#..#.#x##..#
+#x#......#x# ##
+ ##.####.##  #
+  #......#   #
+ #xxxxxxxx####
+#xxxxxxxxxx# #
+#xxxxxxxxxx# #
+#xxxxxxxxxx# #
+#xxxxxxxxxx# #
+#xxxxxxxxxx# #
+############ #
+ ##     ##
+''')
+
+# 애벌레 (작은 버그)
+sprite('larva', '''
+
+     #  #
+      ##
+    ######
+   #......#
+   #.#..#.#
+   #......#
+    #x.x.x#####
+   #x.x.x#x.x.x#
+   #.x.x.#.x.x.#
+    ####x.x.x.x#
+       #########
+        # # # #
+
+''')
+
+# 나방
+sprite('moth', '''
+
+  ##        ##
+ #xx#  ##  #xx#
+#x.xx#.##.#xx.x#
+#.x.xx#..#xx.x.#
+#x.x.x#..#x.x.x#
+ #x.x.#..#.x.x#
+  ####.##.####
+   #x.x#..#.x#
+   #.x.#..#x.#
+    ###.##.###
+       #..#
+        ##
+
+
+''')
+
+# 레이스 컨디션 쌍둥이 (값 하나를 둘이 잡아당김)
+sprite('twins', '''
+
+  ####    ####
+ #....#  #....#
+#.#..#.##.#..#.#
+#......##......#
+#..##..##..##..#
+ #....####....#
+  #####..#####
+   #.#.##.#.#
+   ##########
+   #.x.x.x.x#
+   #x.x.x.x.#
+   ##########
+
+
+''')
+
+# 데드락 골렘 (자물쇠 가슴)
+sprite('golem', '''
+    ########
+    #......#
+    #.#..#.#
+    #......#
+  ############
+ #x#........#x#
+ #x#..####..#x#
+ #x#..#..#..#x#
+ #x#.######.#x#
+ ###.##..##.###
+    #.######.#
+    #........#
+    ###....###
+    #x#    #x#
+    #x#    #x#
+    ###    ###''')
+
+# 누설전류 모래벌레
+sprite('worm', '''
+      ####
+     #....#
+    #.#..#.#
+    #......#
+    #.####.#
+     #x.x.#
+     #.x.x#
+     #x.x.#
+     #.x.x#
+    #x.x.x.#
+   #.x.x.x.x#
+-.-#x.x.x.x#-.-.
+.-.-######-.-.-.
+-.-.-.-.-.-.-.-.
+
+''')
+
 SPR_IDX = {s[0]: i for i, s in enumerate(SPRITES)}
 
 # ---------------------------------------------------------------------------
@@ -745,178 +1010,329 @@ portrait('baram', '''
 ################################''')
 
 
+
 # ---------------------------------------------------------------------------
-# 맵: 3x2 방, 방 하나 = 한 화면 12 x 8 칸 (화면에는 2배, 32x32 로 그린다)
-#   0 부트로더 마을  1 마을 동쪽  2 레지스터 숲
-#   3 인터럽트 호수  4 커널 사당  5 숲 속
-#   출구: 동서는 3~5 행, 남북은 5~6 열
+# 전투 그림 32x32 (' ' 투명). 전투 화면에 3 배로 그린다
 # ---------------------------------------------------------------------------
-W, H = 12, 8
-
-ROOMS = [
-    # 0 부트로더 마을
-    '''
-TTTTTTTTTTTT
-T.RRRR..,..T
-T.BBDB.....T
-T...:.......
-T...::::::::
-T.,.........
-T....:.....T
-TTTTT..TTTTT''',
-    # 1 마을 동쪽
-    '''
-TTTTTTTTTTTT
-T..,...o...T
-T.FFFF..S..T
-............
-::::::::::::
-............
-T..o....,..T
-TTTTTTTTTTTT''',
-    # 2 레지스터 숲
-    '''
-TTTTTTTTTTTT
-T.T...T..T.T
-T...T....T.T
-...T...T...T
-::::T......T
-.......T.T.T
-T.T...:....T
-TTTTT..TTTTT''',
-    # 3 인터럽트 호수
-    '''
-TTTTT..TTTTT
-T....:.....T
-T~~~~=~~~~.T
-T~~~~=~~~~.T
-T....:...o.T
-T.S..:.....T
-T..,.:..,..T
-TTTTTTTTTTTT''',
-    # 4 커널 사당
-    '''
-TTTTTTTTTTTT
-TFFFFFFFFF.T
-TF_P_A_P_F.T
-TF_______F..
-TF_______G..
-TF_P___P_F..
-TFFFFFFFFF.T
-TTTTTTTTTTTT''',
-    # 5 숲 속
-    '''
-TTTTT..TTTTT
-T.T...:..T.T
-T...T.:..C.T
-......:.T..T
-.......T...T
-...T.....T.T
-T.T..T...T.T
-TTTTTTTTTTTT''',
-]
-
-ROOM_NAMES = ['부트로더 마을', '마을 동쪽', '레지스터 숲', '인터럽트 호수', '커널 사당', '숲 속']
-
-# 이웃 방: (북, 남, 서, 동), -1 = 없음
-ROOM_LINK = [
-    (-1, 3, -1, 1),
-    (-1, -1, 0, 2),
-    (-1, 5, 1, -1),
-    (0, -1, -1, -1),
-    (-1, -1, -1, 5),
-    (2, -1, 4, -1),
-]
-
-# 엔티티: (방, x, y, 스프라이트, 종류, 값)
-#   종류 NPC: 값 = 대화 번호 / BUG: 값 = 적 번호
-ENTITIES = [
-    (0, 8, 5, 'senior', 'NPC', 0),
-    (3, 3, 4, 'master_irq', 'NPC', 1),
-    (4, 5, 4, 'master_fw', 'NPC', 2),
-    (2, 8, 2, 'bug_ghost', 'BUG', 0),
-    (5, 4, 5, 'bug_key', 'BUG', 1),
-    (3, 9, 6, 'bug_stack', 'BUG', 2),
-]
-
-START = (0, 6, 5)   # 방, x, y
+BATTLE = []
 
 
-def parse_room(i, art):
-    rows = art.strip('\n').split('\n')
-    assert len(rows) == H, ('room', i, len(rows))
-    b = ROOM_BORDER.get(i)
-    if b:
-        rows = [''.join(b if (c == 'T' and (y in (0, H - 1) or x in (0, W - 1))) else c
-                        for x, c in enumerate(r)) for y, r in enumerate(rows)]
+def battle(name, art):
+    rows = [r.rstrip() for r in art.strip('\n').split('\n')]
+    assert len(rows) <= 32, (name, len(rows))
     for r in rows:
-        assert len(r) == W, ('room', i, r, len(r))
-        for c in r:
-            assert c in MAP_CHARS, ('room', i, c)
-    return rows
+        assert len(r) <= 32, (name, r, len(r))
+    pad = (32 - len(rows)) // 2
+    rows = [''] * (32 - len(rows) - pad) + rows + [''] * pad   # 아래쪽 정렬
+    BATTLE.append((name, [r.ljust(32) for r in rows]))
+
+
+battle('b_larva', '''
+          #      #
+           #    #
+            #  #
+          ########
+         #........#
+        #..##..##..#
+        #..##..##..#
+        #..........#
+        #...####...#
+         #........#######
+          ###x.x.x#x.x.x.##
+         #x.x.x.x#x.x.x.x.x#
+        #.x.x.x.x#.x.x.x.x.x#
+        #x.x.x.x.#x.x.x.x.x.x#
+         #.x.x.x.#.x.x.x.x.x.x#
+          ########x.x.x.x.x.x.#
+             #.#  #.x.x.x.x.x.#
+             # #   ############
+                    # # # # #''')
+
+battle('b_moth', '''
+   ####                  ####
+  #x.x.#                #.x.x#
+ #x.x.x.#     #  #     #.x.x.x#
+ #.x##x.x#     ##     #.x.##.x#
+#x.####.x.#  ######  #.x.####.x#
+#.x.##.x.x.##......##.x.x.##.x.#
+#x.x.x.x.x.#..#..#..#.x.x.x.x.x#
+#.x.x.x.x.x#........#x.x.x.x.x.#
+ #x.x.x.x.x#..####..#.x.x.x.x.#
+  ##x.x.x.##........##x.x.x.##
+    ######.#......#.######
+      #.x.x#......#x.x.#
+     #x.##x.#....#.x##.x#
+     #.x##.x#....#x.##x.#
+      #x.x.#  ##  #.x.x#
+       ####        ####''')
+
+battle('b_ghost', '''
+           ##########
+         ##..........##
+       ##..............##
+      #..................#
+     #....................#
+    #......................#
+    #.....###......###.....#
+   #.....#####....#####.....#
+   #.....##.##....##.##.....#
+   #.....#####....#####.....#
+   #......###......###......#
+   #........................#
+   #...........####.........#
+   #..........#....#........#
+   #...........####.........#
+   #........................#
+   #.x.x.x.x.x.x.x.x.x.x.x.x#
+   #x.x.x.x.x.x.x.x.x.x.x.x.#
+   #.x.x.x.x.x.x.x.x.x.x.x.x#
+   #x.x.x.x.x.x.x.x.x.x.x.x.#
+   #.x.x.##.x.x.##.x.x.##.x.#
+   #x.x.#  #x.x#  #x.x#  #.x#
+   #.x.#    #x#    #x#    #x#
+   ###       #      #      ##''')
+
+battle('b_key', '''
+        #            #
+         #          #
+          ##########
+        ##..........##
+       #..###....###..#
+       #..###....###..#
+       #..............#
+   ##  #....######....#  ##
+  #..# #...#......#...# #..#
+   ##   #...######...#   ##
+     ##################
+    #x.x.x.x.x.x.x.x.x.#
+   #x.x.##########.x.x.x#
+   #.x.#..........#x.x.x.#
+   #x.x#.###..###.#.x.x.x#  ##
+   #.x.#.#..##..#.#x.x.x.###..#
+   #x.x#.###..###.#.x.x.x#  ##
+   #.x.#..........#x.x.x.#
+   #x.x.##########.x.x.x.#
+    #x.x.x.x.x.x.x.x.x.x#
+     ##################
+      #  #    #  #    #
+     #  #    #  #    #''')
+
+battle('b_stack', '''
+             ######
+           ##......##
+          #..#....#..#
+          #..........#
+           ##......##
+    ######################
+    #....................#
+    #..##..........##....#
+    #..##..........##....#
+    ######################
+    #x.x.x.x.x.x.x.x.x.x.#
+    #.x.x.x.x.x.x.x.x.x.x#
+    ######################
+    #....................#
+    #....##########......#
+    #....................#
+    ######################
+    #x.x.x.x.x.x.x.x.x.x.#
+    #.x.x.x.x.x.x.x.x.x.x#
+  ##########################
+ #..........................#
+#..x.x.x.x.x.x.x.x.x.x.x.x...#
+##############################''')
+
+battle('b_twins', '''
+     ######          ######
+   ##......##      ##......##
+  #..........#    #..........#
+ #..##....##..#  #..##....##..#
+ #..##....##..#  #..##....##..#
+ #............#  #............#
+ #...######...#  #...######...#
+ #....#..#....#  #....#..#....#
+  #..........#    #..........#
+   ##......##      ##......##
+     ###.###########.###
+        #.#.......#.#
+        ##############
+        #x.x.x.x.x.x.#
+        #.x.x.x.x.x.x#
+        #x.x.x.x.x.x.#
+        ##############
+      #.#            #.#
+     ##.##          ##.##''')
+
+battle('b_golem', '''
+          ############
+          #..........#
+          #.###..###.#
+          #.###..###.#
+          #..........#
+          #...####...#
+          ############
+   ##########################
+  #x.x.#.................#x.x#
+  #.x.x#....########.....#.x.#
+  #x.x.#....#......#.....#x.x#
+  #.x.x#...##.####.##....#.x.#
+  #x.x.#...#..#..#..#....#x.x#
+  #.x.x#...#...##...#....#.x.#
+  #x.x.#...#........#....#x.x#
+  ######...##########....######
+       #.................#
+       #x.x.x.x.x.x.x.x.x#
+       ######.....#######
+       #x.x.#     #x.x.#
+       #.x.x#     #.x.x#
+       #x.x.#     #x.x.#
+      ########   ########''')
+
+battle('b_worm', '''
+            ########
+          ##........##
+         #...##..##...#
+         #...##..##...#
+         #............#
+         #..########..#
+         #..#.#.#.#.#.#
+          #..........#
+          #x.x.x.x.x.#
+          #.x.x.x.x.x#     ##
+          #x.x.x.x.x.#    #..#
+          #.x.x.x.x.x#   #.##.#
+         #x.x.x.x.x.x.#   #..#
+        #.x.x.x.x.x.x.x#   ##
+       #x.x.x.x.x.x.x.x.#
+-.-.-.#.x.x.x.x.x.x.x.x.x#.-.-.-
+.-.-.-##################-.-.-.-.
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.''')
+
+battle('b_fault', '''
+     #  #  #  #  #  #  #  #
+     #  #  #  #  #  #  #  #
+   ########################
+   #x.x.x.x.x.#x.x.x.x.x.x#
+####.##....#x.#.x#....##.####
+   #.x.##.##.x#x.##.##.x.x#
+####.x.#####.x.#x.#####.x####
+   #.x.x.x.x.x#x.x.x.x.x.x#
+####.x.x.x.x.x.#x.x.x.x.x####
+   #.x.x.######.#######.x.#
+####.x.x#.#.#.#.#.#.#.#x.####
+   #.x.x.x.x.x.#x.x.x.x.x.#
+   ########################
+     #  #  #  #  #  #  #  #
+     #  #  #  #  #  #  #  #''')
+
+
+# ---------------------------------------------------------------------------
+# 이야기 (story.py) 읽기, 검사, C 헤더 출력
+# ---------------------------------------------------------------------------
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import story as S  # noqa: E402
+
+W, H = S.W, S.H
+
+
+def parse_rooms():
+    rooms = []
+    for i, (name, border, ckpt, art) in enumerate(S.ROOMS):
+        rows = art.strip('\n').split('\n')
+        assert len(rows) == H, ('room', name, len(rows))
+        rows = [''.join(border if (c == 'T' and (y in (0, H - 1) or x in (0, W - 1))) else c
+                        for x, c in enumerate(r)) for y, r in enumerate(rows)]
+        for r in rows:
+            assert len(r) == W, ('room', name, r)
+            for c in r:
+                assert c in MAP_CHARS, ('room', name, repr(c))
+        rooms.append(rows)
+    return rooms
 
 
 def walkable(c):
+    if c == 'G':
+        return True                      # 철문은 열린 것으로 (도달 가능성·가장자리 검사)
     return TILES[TILE_IDX[MAP_CHARS[c]]][1]
 
 
+def links(n):
+    # 동서로 한 줄: (북, 남, 서, 동)
+    return [(-1, -1, i - 1 if i > 0 else -1, i + 1 if i < n - 1 else -1) for i in range(n)]
+
+
 def check(rooms):
-    # 출구 맞춤
-    n, s, w, e = 0, 1, 2, 3
-    for i, (ln, ls, lw, le) in enumerate(ROOM_LINK):
-        if le >= 0:
-            for y in range(H):
-                a, b = walkable(rooms[i][y][W - 1]), walkable(rooms[le][y][0])
-                assert a == b, ('east/west edge mismatch', i, le, y)
-        if ls >= 0:
-            for x in range(W):
-                a, b = walkable(rooms[i][H - 1][x]), walkable(rooms[ls][0][x])
-                assert a == b, ('south/north edge mismatch', i, ls, x)
-        # 링크가 없는 가장자리는 막혀 있어야 한다
+    L = links(len(rooms))
+    for i, (n, s_, w, e) in enumerate(L):
         for y in range(H):
-            if lw < 0: assert not walkable(rooms[i][y][0]), ('open west edge', i, y)
-            if le < 0: assert not walkable(rooms[i][y][W - 1]), ('open east edge', i, y)
+            if e >= 0:
+                assert walkable(rooms[i][y][W - 1]) == walkable(rooms[e][y][0]), ('edge', i, e, y)
+            else:
+                assert not walkable(rooms[i][y][W - 1]), ('open east', i, y)
+            if w < 0:
+                assert not walkable(rooms[i][y][0]), ('open west', i, y)
         for x in range(W):
-            if ln < 0: assert not walkable(rooms[i][0][x]), ('open north edge', i, x)
-            if ls < 0: assert not walkable(rooms[i][H - 1][x]), ('open south edge', i, x)
-
-    # 도달 가능성 (문은 열린 것으로, 엔티티는 막힘이지만 옆에서 말 걸기)
-    def solid(r, x, y):
-        c = rooms[r][y][x]
-        if c == 'G':
-            return False
-        return not walkable(c)
-
-    blocked = {(r, x, y) for (r, x, y, *_rest) in ENTITIES}
-    seen = set()
-    q = deque([START])
-    seen.add(START)
+            assert not walkable(rooms[i][0][x]) and not walkable(rooms[i][H - 1][x]), ('open n/s', i, x)
+    for i, g in S.GATES.items():
+        assert any('G' in r for r in rooms[i]), ('gate missing', i)
+    blocked = {(r, x, y) for (r, x, y, spr, kind, val) in S.ENTITIES if kind != 'OBJ'}
+    start = S.START
+    seen = {start}
+    q = deque([start])
     while q:
         r, x, y = q.popleft()
         for dx, dy, d in ((0, -1, 0), (0, 1, 1), (-1, 0, 2), (1, 0, 3)):
             nr, nx, ny = r, x + dx, y + dy
             if nx < 0 or nx >= W or ny < 0 or ny >= H:
-                nr = ROOM_LINK[r][d]
+                nr = L[r][d]
                 if nr < 0:
                     continue
                 nx %= W
                 ny %= H
-            if solid(nr, nx, ny) or (nr, nx, ny) in blocked:
+            if not walkable(rooms[nr][ny][nx]) or (nr, nx, ny) in blocked:
                 continue
             if (nr, nx, ny) not in seen:
                 seen.add((nr, nx, ny))
                 q.append((nr, nx, ny))
-
-    def adjacent_reachable(r, x, y):
-        return any((r, x + dx, y + dy) in seen for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)))
-
-    for (r, x, y, spr, kind, val) in ENTITIES:
-        assert adjacent_reachable(r, x, y), ('entity unreachable', spr)
-    for r in range(len(rooms)):
-        for y in range(H):
-            for x in range(W):
-                if rooms[r][y][x] in 'CGAS':
-                    assert adjacent_reachable(r, x, y), ('object unreachable', r, x, y, rooms[r][y][x])
+    for (r, x, y, spr, kind, val) in S.ENTITIES:
+        ok = any((r, x + dx, y + dy) in seen for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)))
+        assert ok, ('entity unreachable', r, x, y, val)
+        if kind == 'OBJ':
+            assert not walkable(rooms[r][y][x]), ('object on walkable tile', r, x, y)
+        else:
+            assert walkable(rooms[r][y][x]), ('entity on solid tile', r, x, y, val)
+    # 스크립트 주인·참조 검사
+    owners = {val for (r, x, y, spr, kind, val) in S.ENTITIES if kind != 'BUG'}
+    for sc in S.SCRIPTS:
+        assert sc[0] in owners, ('script owner', sc[0])
+        cond, quiz, act = sc[1], sc[3], sc[4]
+        for k in ('need', 'nope'):
+            if k in cond:
+                assert cond[k] in S.FLAG_IDX, cond
+        if quiz:
+            assert quiz in S.QUIZZES, quiz
+        for k in ('set', 'win_set'):
+            if k in act:
+                assert act[k] in S.FLAG_IDX, act
+        if 'skill' in act:
+            assert act['skill'] in S.SKILL_IDX, act
+        if 'battle' in act:
+            assert act['battle'] in S.ENEMY_IDX, act
+    # 대사 폭 (한글 16px, 영문 8px), 대화창 안쪽 약 360px
+    def width(t):
+        return sum(16 if ord(ch) > 0x7F else 8 for ch in t)
+    def lines_of(blocks):
+        for who, ls in blocks:
+            for l in ls:
+                yield l
+    allt = []
+    for sc in S.SCRIPTS:
+        allt += list(lines_of(sc[2])) + list(lines_of(sc[5]))
+    for q in S.QUIZZES.values():
+        allt += q[0] + q[3] + q[4]
+    allt += list(lines_of(S.INTRO))
+    for t in allt:
+        assert width(t) <= 360, ('line too wide', t, width(t))
 
 
 def bits(rows, on):
@@ -925,7 +1341,7 @@ def bits(rows, on):
         v = 0
         for x, c in enumerate(r):
             if on(c, x, y):
-                v |= 0x8000 >> x
+                v |= (1 << (len(r) - 1 - x))
         out.append(v)
     return out
 
@@ -940,103 +1356,228 @@ def ink(c, x, y):
     return False
 
 
+def cstr(t):
+    return '"' + t.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
 def main():
-    rooms = [parse_room(i, a) for i, a in enumerate(ROOMS)]
+    rooms = parse_rooms()
     check(rooms)
 
     o = []
-    o.append('// 자동 생성: tools/rpg/gen_assets.py (직접 고치지 말 것)')
-    o.append('#ifndef RPG_ASSETS_H_')
-    o.append('#define RPG_ASSETS_H_')
-    o.append('')
-    o.append('#define RPG_MAP_W      %d' % W)
-    o.append('#define RPG_MAP_H      %d' % H)
-    o.append('#define RPG_ROOM_CNT   %d' % len(rooms))
-    o.append('#define RPG_TILE_CNT   %d' % len(TILES))
-    o.append('#define RPG_SPR_CNT    %d' % len(SPRITES))
-    o.append('#define RPG_ENT_CNT    %d' % len(ENTITIES))
-    o.append('')
+    A = o.append
+    A('// 자동 생성: tools/rpg/gen_assets.py + story.py (직접 고치지 말 것)')
+    A('#ifndef RPG_ASSETS_H_')
+    A('#define RPG_ASSETS_H_')
+    A('')
+    A('#define RPG_MAP_W      %d' % W)
+    A('#define RPG_MAP_H      %d' % H)
+    A('#define RPG_ROOM_CNT   %d' % len(rooms))
+    A('#define RPG_TILE_CNT   %d' % len(TILES))
+    A('#define RPG_SPR_CNT    %d' % len(SPRITES))
+    A('#define RPG_BAT_CNT    %d' % len(BATTLE))
+    A('#define RPG_ENT_CNT    %d' % len(S.ENTITIES))
+    A('#define RPG_SKILL_CNT  %d' % len(S.SKILLS))
+    A('#define RPG_ITEM_CNT   %d' % len(S.ITEMS))
+    A('#define RPG_EQUIP_CNT  %d' % len(S.EQUIPS))
+    A('#define RPG_ENEMY_CNT  %d' % len(S.ENEMIES))
+    A('#define RPG_FLAG_CNT   %d' % len(S.FLAGS))
+    A('')
     for i, t in enumerate(TILES):
-        o.append('#define RPG_T_%-12s %d' % (t[0].upper(), i))
-    o.append('')
-    for i, s in enumerate(SPRITES):
-        o.append('#define RPG_S_%-12s %d' % (s[0].upper(), i))
-    o.append('')
-    o.append('// 타일: 비트 1 = 검정, MSB 가 왼쪽')
-    o.append('static const uint16_t rpg_tile_bits[RPG_TILE_CNT][16] = {')
+        A('#define RPG_T_%-12s %d' % (t[0].upper(), i))
+    for i, sp in enumerate(SPRITES):
+        A('#define RPG_S_%-12s %d' % (sp[0].upper(), i))
+    for i, b in enumerate(BATTLE):
+        A('#define RPG_B_%-12s %d' % (b[0][2:].upper(), i))
+    for i, f in enumerate(S.FLAGS):
+        A('#define RPG_F_%-12s %d' % (f, i))
+    A('')
+    A('static const uint16_t rpg_tile_bits[RPG_TILE_CNT][16] = {')
     for name, walk, rows in TILES:
-        o.append('  { ' + ', '.join('0x%04X' % v for v in bits(rows, ink)) + ' },  // ' + name)
-    o.append('};')
-    o.append('')
-    o.append('static const uint8_t rpg_tile_walk[RPG_TILE_CNT] = { ' +
-             ', '.join('1' if t[1] else '0' for t in TILES) + ' };')
-    o.append('')
-    o.append('// 스프라이트: bits 1 = 검정, mask 1 = 그림 (0 = 투명)')
-    o.append('static const uint16_t rpg_spr_bits[RPG_SPR_CNT][16] = {')
+        A('  { ' + ', '.join('0x%04X' % v for v in bits(rows, ink)) + ' },  // ' + name)
+    A('};')
+    A('static const uint8_t rpg_tile_walk[RPG_TILE_CNT] = { ' + ', '.join('1' if t[1] else '0' for t in TILES) + ' };')
+    A('')
+    A('static const uint16_t rpg_spr_bits[RPG_SPR_CNT][16] = {')
     for name, rows in SPRITES:
-        o.append('  { ' + ', '.join('0x%04X' % v for v in bits(rows, ink)) + ' },  // ' + name)
-    o.append('};')
-    o.append('static const uint16_t rpg_spr_mask[RPG_SPR_CNT][16] = {')
+        A('  { ' + ', '.join('0x%04X' % v for v in bits(rows, ink)) + ' },  // ' + name)
+    A('};')
+    A('static const uint16_t rpg_spr_mask[RPG_SPR_CNT][16] = {')
     for name, rows in SPRITES:
-        o.append('  { ' + ', '.join('0x%04X' % v for v in bits(rows, lambda c, x, y: c != ' ')) + ' },  // ' + name)
-    o.append('};')
-    o.append('')
-    o.append('#define RPG_PORTRAIT_CNT %d' % len(PORTRAITS))
+        A('  { ' + ', '.join('0x%04X' % v for v in bits(rows, lambda c, x, y: c != ' ')) + ' },')
+    A('};')
+    A('')
+    A('// 전투 그림 32x32 (비트 1 = 검정, MSB 왼쪽)')
+    A('static const uint32_t rpg_bat_bits[RPG_BAT_CNT][32] = {')
+    for name, rows in BATTLE:
+        A('  { ' + ', '.join('0x%08X' % v for v in bits(rows, ink)) + ' },  // ' + name)
+    A('};')
+    A('static const uint32_t rpg_bat_mask[RPG_BAT_CNT][32] = {')
+    for name, rows in BATTLE:
+        A('  { ' + ', '.join('0x%08X' % v for v in bits(rows, lambda c, x, y: c != ' ')) + ' },')
+    A('};')
+    A('')
+    A('#define RPG_PORTRAIT_CNT %d' % len(PORTRAITS))
     for i, pr in enumerate(PORTRAITS):
-        o.append('#define RPG_P_%-10s %d' % (pr[0].upper(), i))
-    o.append('static const uint32_t rpg_portrait[RPG_PORTRAIT_CNT][32] = {')
+        A('#define RPG_P_%-10s %d' % (pr[0].upper(), i))
+    A('static const uint32_t rpg_portrait[RPG_PORTRAIT_CNT][32] = {')
     for name, rows in PORTRAITS:
-        vals = []
-        for y, r in enumerate(rows):
-            v = 0
-            for x, c in enumerate(r):
-                if ink(c, x, y):
-                    v |= 0x80000000 >> x
-            vals.append('0x%08X' % v)
-        o.append('  {  // ' + name)
-        for k in range(0, 32, 8):
-            o.append('    ' + ', '.join(vals[k:k + 8]) + ',')
-        o.append('  },')
-    o.append('};')
-    o.append('')
-    o.append('static const uint8_t rpg_map[RPG_ROOM_CNT][RPG_MAP_H][RPG_MAP_W] = {')
+        A('  { ' + ', '.join('0x%08X' % v for v in bits(rows, ink)) + ' },  // ' + name)
+    A('};')
+    A('')
+    A('static const uint8_t rpg_map[RPG_ROOM_CNT][RPG_MAP_H][RPG_MAP_W] = {')
     for i, rows in enumerate(rooms):
-        o.append('  {  // %d %s' % (i, ROOM_NAMES[i]))
+        A('  {  // %d %s' % (i, S.ROOMS[i][0]))
         for r in rows:
-            o.append('    { ' + ','.join('%2d' % TILE_IDX[MAP_CHARS[c]] for c in r) + ' },')
-        o.append('  },')
-    o.append('};')
-    o.append('')
-    o.append('static const char *const rpg_room_name[RPG_ROOM_CNT] = { ' +
-             ', '.join('"%s"' % n for n in ROOM_NAMES) + ' };')
-    o.append('static const int8_t rpg_room_link[RPG_ROOM_CNT][4] = {  // 북, 남, 서, 동')
-    for l in ROOM_LINK:
-        o.append('  { %d, %d, %d, %d },' % l)
-    o.append('};')
-    o.append('')
-    o.append('typedef struct { uint8_t room, x, y, spr, kind, val; } rpg_ent_def_t;')
-    o.append('#define RPG_ENT_NPC  0')
-    o.append('#define RPG_ENT_BUG  1')
-    o.append('static const rpg_ent_def_t rpg_ent_def[RPG_ENT_CNT] = {')
-    for (r, x, y, spr, kind, val) in ENTITIES:
-        o.append('  { %d, %d, %d, RPG_S_%s, RPG_ENT_%s, %d },' % (r, x, y, spr.upper(), kind, val))
-    o.append('};')
-    o.append('')
-    o.append('#define RPG_START_ROOM %d' % START[0])
-    o.append('#define RPG_START_X    %d' % START[1])
-    o.append('#define RPG_START_Y    %d' % START[2])
-    o.append('')
-    o.append('#endif')
+            A('    { ' + ','.join('%2d' % TILE_IDX[MAP_CHARS[c]] for c in r) + ' },')
+        A('  },')
+    A('};')
+    A('static const char *const rpg_room_name[RPG_ROOM_CNT] = { ' + ', '.join(cstr(r[0]) for r in S.ROOMS) + ' };')
+    A('static const uint8_t rpg_room_ckpt[RPG_ROOM_CNT] = { ' + ', '.join('1' if r[2] else '0' for r in S.ROOMS) + ' };')
+    A('static const int8_t rpg_room_gate[RPG_ROOM_CNT] = { ' +
+      ', '.join(str(S.FLAG_IDX[S.GATES[i]]) if i in S.GATES else '-1' for i in range(len(rooms))) + ' };')
+    A('static const int8_t rpg_room_link[RPG_ROOM_CNT][4] = {  // 북, 남, 서, 동')
+    for l in links(len(rooms)):
+        A('  { %d, %d, %d, %d },' % l)
+    A('};')
+    A('')
+    A('typedef struct { const char *name; uint8_t lo, hi; const char *msg; } rpg_skill_t;')
+    A('static const rpg_skill_t rpg_skill[RPG_SKILL_CNT] = {')
+    for n, lo, hi, m in S.SKILLS:
+        A('  { %s, %d, %d, %s },' % (cstr(n), lo, hi, cstr(m)))
+    A('};')
+    A('#define RPG_ITEM_HEAL 0')
+    A('#define RPG_ITEM_DUCK 1')
+    A('typedef struct { const char *name; uint8_t kind; uint8_t val; } rpg_item_t;')
+    A('static const rpg_item_t rpg_item[RPG_ITEM_CNT] = {')
+    for n, k, v in S.ITEMS:
+        A('  { %s, %s, %d },' % (cstr(n), 'RPG_ITEM_HEAL' if k == 'heal' else 'RPG_ITEM_DUCK', v))
+    A('};')
+    A('typedef struct { const char *name; uint8_t atk; } rpg_equip_t;')
+    A('static const rpg_equip_t rpg_equip[RPG_EQUIP_CNT] = {')
+    for n, a in S.EQUIPS:
+        A('  { %s, %d },' % (cstr(n), a))
+    A('};')
+    A('typedef struct { const char *name; uint8_t bat; uint8_t hp, atk; const char *atk_msg; int8_t weak; const char *desc; uint8_t tough; } rpg_enemy_t;')
+    A('static const rpg_enemy_t rpg_enemy[RPG_ENEMY_CNT] = {')
+    bidx = {b[0]: i for i, b in enumerate(BATTLE)}
+    for n, b, hp, atk, msg, weak, desc, tough in S.ENEMIES:
+        A('  { %s, %d, %d, %d, %s, %d, %s, %d },' % (cstr(n), bidx[b], hp, atk, cstr(msg),
+          S.SKILL_IDX[weak] if weak else -1, cstr(desc), 1 if tough else 0))
+    A('};')
+    A('')
+    # 엔티티와 주인
+    owners = []
+    for (r, x, y, spr, kind, val) in S.ENTITIES:
+        if kind != 'BUG' and val not in owners:
+            owners.append(val)
+    oidx = {n: i for i, n in enumerate(owners)}
+    # 상자: 처음 스크립트가 'nope' 로 보는 깃발 = 열림 상태
+    state = {}
+    for sc in S.SCRIPTS:
+        if sc[0].startswith('chest') and 'nope' in sc[1] and sc[0] not in state:
+            state[sc[0]] = S.FLAG_IDX[sc[1]['nope']]
+    A('#define RPG_ENT_NPC  0')
+    A('#define RPG_ENT_BUG  1')
+    A('#define RPG_ENT_OBJ  2')
+    A('typedef struct { uint8_t room, x, y; int8_t spr; uint8_t kind; uint8_t id; int8_t flag; } rpg_ent_t;')
+    A('// id: NPC·OBJ = 스크립트 주인, BUG = 적. flag: BUG = 이기면 세울 깃발, OBJ = 열림 상태 깃발 (상자)')
+    A('static const rpg_ent_t rpg_ent[RPG_ENT_CNT] = {')
+    for (r, x, y, spr, kind, val) in S.ENTITIES:
+        s_ = SPR_IDX[spr] if spr else -1
+        if kind == 'BUG':
+            en, wf = val
+            A('  { %d, %d, %d, %d, RPG_ENT_BUG, %d, %d },  // %s' % (r, x, y, s_, S.ENEMY_IDX[en],
+              S.FLAG_IDX[wf] if wf else -1, en))
+        else:
+            A('  { %d, %d, %d, %d, RPG_ENT_%s, %d, %d },  // %s' % (r, x, y, s_, kind, oidx[val],
+              state.get(val, -1), val))
+    A('};')
+    A('')
+    # 대사 블록
+    A('typedef struct { const char *who; const char *const *lines; } rpg_block_t;   // who NULL = 안내, "바람" = 초상화')
+    tcount = [0]
+    def lines_arr(ls):
+        name = 'rpg_t%d' % tcount[0]
+        tcount[0] += 1
+        A('static const char *const %s[] = { %s, NULL };' % (name, ', '.join(cstr(l) for l in ls)))
+        return name
+    def blocks_arr(blocks):
+        if not blocks:
+            return 'NULL', 0
+        names = [(who, lines_arr(ls)) for who, ls in blocks]
+        name = 'rpg_bk%d' % tcount[0]
+        tcount[0] += 1
+        A('static const rpg_block_t %s[] = { %s };' % (name, ', '.join(
+            '{ %s, %s }' % (cstr(w) if w else 'NULL', n) for w, n in names)))
+        return name, len(blocks)
+    # 문답
+    qnames = list(S.QUIZZES.keys())
+    qidx = {n: i for i, n in enumerate(qnames)}
+    qrows = []
+    for n in qnames:
+        qq, opts, ans, right, wrong = S.QUIZZES[n]
+        qrows.append((lines_arr(qq), opts, ans, lines_arr(right), lines_arr(wrong)))
+    A('typedef struct { const char *const *q; const char *opt[3]; uint8_t ans; const char *const *right; const char *const *wrong; } rpg_quiz_t;')
+    A('#define RPG_QUIZ_CNT %d' % len(qrows))
+    A('static const rpg_quiz_t rpg_quiz[RPG_QUIZ_CNT] = {')
+    for qa, opts, ans, ra, wa in qrows:
+        A('  { %s, { %s }, %d, %s, %s },' % (qa, ', '.join(cstr(x) for x in opts), ans, ra, wa))
+    A('};')
+    # 스크립트
+    srows = []
+    for owner, cond, pre, quiz, act, post in S.SCRIPTS:
+        pa, pn = blocks_arr(pre)
+        qa, qn = blocks_arr(post)
+        it = act.get('item')
+        srows.append('  { %d, %d, %d, %s, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %s, %d },' % (
+            oidx[owner],
+            S.FLAG_IDX[cond['need']] if 'need' in cond else -1,
+            S.FLAG_IDX[cond['nope']] if 'nope' in cond else -1,
+            pa, pn,
+            qidx[quiz] if quiz else -1,
+            S.FLAG_IDX[act['set']] if 'set' in act else -1,
+            S.SKILL_IDX[act['skill']] if 'skill' in act else -1,
+            S.ITEM_IDX[it[0]] if it else -1, it[1] if it else 0,
+            S.EQUIP_IDX[act['equip']] if 'equip' in act else -1,
+            S.ENEMY_IDX[act['battle']] if 'battle' in act else -1,
+            S.FLAG_IDX[act['win_set']] if 'win_set' in act else -1,
+            1 if act.get('chain') else 0, 1 if act.get('end') else 0,
+            qa, qn))
+    A('typedef struct {')
+    A('  uint8_t owner; int8_t need, nope;')
+    A('  const rpg_block_t *pre; uint8_t npre;')
+    A('  int8_t quiz, set, skill, item; uint8_t item_n; int8_t equip, battle, win_set; uint8_t chain, end;')
+    A('  const rpg_block_t *post; uint8_t npost;')
+    A('} rpg_script_t;')
+    A('#define RPG_SCRIPT_CNT %d' % len(srows))
+    A('static const rpg_script_t rpg_script[RPG_SCRIPT_CNT] = {')
+    for r in srows:
+        A(r)
+    A('};')
+    ia, inn = blocks_arr(S.INTRO)
+    ga, gn = blocks_arr(S.GATE_OPEN)
+    A('static const rpg_block_t *const rpg_intro = %s;' % ia)
+    A('#define RPG_INTRO_CNT %d' % inn)
+    A('static const rpg_block_t *const rpg_gate_open = %s;' % ga)
+    A('#define RPG_GATE_OPEN_CNT %d' % gn)
+    A('')
+    A('#define RPG_START_ROOM %d' % S.START[0])
+    A('#define RPG_START_X    %d' % S.START[1])
+    A('#define RPG_START_Y    %d' % S.START[2])
+    A('')
+    A('#endif')
 
     here = os.path.dirname(os.path.abspath(__file__))
     dst = os.path.join(here, '..', '..', 'src', 'ap', 'modules', 'game', 'rpg', 'rpg_assets.h')
     with open(dst, 'w') as f:
         f.write('\n'.join(o) + '\n')
-    print('ok: %d tiles, %d sprites, %d rooms -> %s' % (len(TILES), len(SPRITES), len(rooms), os.path.normpath(dst)))
+    print('ok: %d tiles, %d sprites, %d battle, %d rooms, %d entities, %d scripts -> %s' % (
+        len(TILES), len(SPRITES), len(BATTLE), len(rooms), len(S.ENTITIES), len(srows), os.path.normpath(dst)))
 
     if '--preview' in sys.argv:
-        # 방 미리보기 PNG (PIL)
         from PIL import Image
+        out = sys.argv[sys.argv.index('--preview') + 1]
         for i, rows in enumerate(rooms):
             im = Image.new('1', (W * 16, H * 16), 1)
             px = im.load()
@@ -1047,24 +1588,24 @@ def main():
                         for x in range(16):
                             if ink(t[y][x], x, y):
                                 px[tx * 16 + x, ty * 16 + y] = 0
-            for (r, ex, ey, spr, kind, val) in ENTITIES:
-                if r != i:
+            for (r, ex, ey, spr, kind, val) in S.ENTITIES:
+                if r != i or not spr:
                     continue
-                srows = SPRITES[SPR_IDX[spr]][1]
+                srows_ = SPRITES[SPR_IDX[spr]][1]
                 for y in range(16):
                     for x in range(16):
-                        c = srows[y][x]
+                        c = srows_[y][x]
                         if c != ' ':
                             px[ex * 16 + x, ey * 16 + y] = 0 if ink(c, x, y) else 1
-            out = sys.argv[sys.argv.index('--preview') + 1]
-            im.resize((W * 32, H * 32)).save('%s_room%d.png' % (out, i))
-        for name, rows in PORTRAITS:
-            im = Image.new('1', (32, 32), 1)
-            for y, r in enumerate(rows):
-                for x, c in enumerate(r):
-                    if ink(c, x, y):
-                        im.putpixel((x, y), 0)
-            im.resize((256, 256)).save('%s_portrait_%s.png' % (out, name))
+            im.resize((W * 32, H * 32)).save('%s_room%02d.png' % (out, i))
+        for name, rows in BATTLE:
+            im = Image.new('L', (32, 32), 200)
+            for y in range(32):
+                for x in range(32):
+                    c = rows[y][x]
+                    if c != ' ':
+                        im.putpixel((x, y), 0 if ink(c, x, y) else 255)
+            im.resize((128, 128), Image.NEAREST).save('%s_%s.png' % (out, name))
 
 
 if __name__ == '__main__':
