@@ -1,0 +1,10 @@
+identifier: nu40dk_kit/nrf52840
+name: nu40dk-kit
+vendor: baram
+type: mcu
+arch: arm
+ram: 256
+flash: 1024
+toolchain:
+  - zephyr
+supported: []

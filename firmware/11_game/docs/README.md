@@ -1,0 +1,40 @@
+# 11_game — 4.2" EPAPER 게임기
+
+NU40DK-KIT(nRF52840)에 WeAct 4.2" 흑백 EPAPER(SSD1683, 400×300)를 연결해 Game Boy 게임을 실행하는 프로젝트다. 조작은 BLE Xbox 컨트롤러와 보드 스위치 4개로 하고, 사운드는 I2S 앰프로 출력한다.
+
+![시스템 블럭도](images/system_block.svg)
+
+## 문서 목록
+
+| 문서 | 내용 |
+|---|---|
+| [01_dev_env.md](01_dev_env.md) | 개발환경, 툴 버전, 빌드·플래시 방법 |
+| [02_hardware.md](02_hardware.md) | MCU, 핀맵, EPAPER 연결, 주변장치 할당 |
+| [03_memory.md](03_memory.md) | RAM/Flash 예산, 파티션 |
+| [04_epaper.md](04_epaper.md) | SSD1683 드라이버, 고속 갱신, 디더링/회색 표현 |
+| [05_emulator.md](05_emulator.md) | 에뮬레이터 선정(Peanut-GB), ROM 로딩 구조 |
+| [06_input_ble.md](06_input_ble.md) | Xbox BLE 패드, 보드 버튼, 키 매핑 |
+| [07_audio.md](07_audio.md) | 사운드 출력 경로 |
+| [08_launcher.md](08_launcher.md) | 런처 UI(레트로 터미널), 메뉴 구조 |
+
+## 진행 현황
+
+| Phase | 내용 | 상태 |
+|---|---|---|
+| 0 | 프로젝트 골격 (10_xbox 기반, 불필요 모듈 제거) | **완료** — 부팅·CLI·SD·I2S·Xbox 패드 연결 확인 |
+| 1 | EPAPER 기본 드라이버 (SPI3, 전체 갱신, 텍스트) | 예정 |
+| 2 | 고속 갱신·회색 실험 (부분 갱신, LUT, 디더) | 예정 |
+| 3 | 에뮬레이터 코어 (Peanut-GB, ROM→Flash, 벤치마크) | 예정 |
+| 4 | 화면 연동 (라인 콜백 → 2×2 디더 → EPD) | 예정 |
+| 5 | 입력 (Xbox 패드, 보드 버튼, ble_pad 확장) | 예정 |
+| 6 | 사운드 (minigb_apu → I2S 믹서) | 예정 |
+| 7 | 런처 (레트로 터미널 UI, ROM 목록, 컨트롤러 메뉴) | 예정 |
+| 8 | (선택) 세이브 스테이트, NES, 저전력 | 예정 |
+
+각 Phase는 보드에서 CLI로 동작을 확인한 뒤 다음 단계로 넘어간다.
+
+## 변경 이력
+
+| 날짜 | 내용 |
+|---|---|
+| 2026-11-20 | 타당성 검토, 구현 계획 수립, Phase 0 골격 생성 |
