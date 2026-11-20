@@ -634,11 +634,12 @@ static bool battle(int enemy, bool *p_run)
   char               m1[64], m2[64];
 
   *p_run = false;
-  sceneSnap();
+  finishDirty();
+  dirtyClear();
   snprintf(m1, sizeof(m1), "%s 이(가) 나타났다!", en->name);
   drawBattle(en, en_hp, cur, -1, m1, en->desc);
   api->beep(440, 80);
-  transition();
+  show(APP_REFRESH_FLASH);    // 지도 → 전투: 화면 전체가 바뀌므로 짧은 깜빡임으로 이전 장면을 지운다
   waitOk();
 
   while (1)
@@ -849,11 +850,12 @@ static void runQuiz(const rpg_quiz_t *q, const char *who)
   }
 }
 
+// 전투 뒤 지도로: 짧은 깜빡임 갱신 (전투 화면이 겹쳐 남지 않게)
 static void restoreMap(void)
 {
-  sceneSnap();
+  dirtyClear();
   drawMap();
-  transition();
+  show(APP_REFRESH_FLASH);
 }
 
 // 쓰러지면 마지막 쉼터(체크포인트) 방의 서쪽 입구에서 다시
