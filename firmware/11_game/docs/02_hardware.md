@@ -66,6 +66,17 @@ nRF52840은 SPIM0/TWIM0, SPIM1/TWIM1이 같은 자원을 공유한다.
 
 EPAPER SPI는 **16MHz**로 확정했다. 32MHz에서는 무작위 점(비트 오류)이 생긴다. nRF52840 SPIM은 8/16/32MHz 단계만 지원하므로 20MHz를 요청해도 16MHz로 동작한다.
 
+SSD1683 SPI 쓰기 타이밍 (데이터시트 Table 12-1):
+
+| 항목 | 규격 | 8MHz | 16MHz | 32MHz |
+|---|---|---|---|---|
+| f<sub>SCL</sub> | 최대 20MHz | OK | OK | 초과 |
+| t<sub>SCLHIGH</sub> / t<sub>SCLLOW</sub> | 최소 25ns | 62ns | 31ns | 15.6ns (위반) |
+| t<sub>SIHLD</sub> (SCL 상승 후 데이터 유지) | 최소 40ns | 62ns | 31ns (**위반**) | 위반 |
+
+- 16MHz는 주파수는 규격 안이지만, 모드 0에서 데이터가 SCL 하강 에지에 바뀌므로 홀드 시간이 반주기(31ns)로 규격(40ns)에 못 미친다. 실측으로는 깨끗하게 동작하지만 여유가 적다.
+- 점이나 깨짐이 다시 보이면 `epd spi 8`로 내리고, DT의 `spi-max-frequency`를 8MHz로 바꾼다. 비용은 프레임당 약 8ms이다(FAST 8.4fps → 약 7.8fps).
+
 ## 확인 필요
 
 - 회로도에서 EX_P1.03/EX_P1.04 옆에 SWD 라벨이 보인다. 텍스트가 겹쳐 보이는 것인지 실제 연결인지 확인이 필요하다. nRF52840의 SWD는 전용 핀이라 겹칠 가능성은 낮다.
