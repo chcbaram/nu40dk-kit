@@ -158,7 +158,8 @@ int16_t canvasPrintf(int16_t x, int16_t y, canvas_color_t color, const char *fmt
     if (font.Code_Type == PHAN_END_CODE || font.Size_Char == 0) break;
 
     drawFont(x, y, &font, color);
-    x += font.Size_Char * 8;
+    x += (font.Size_Char > 2 ? 2 : font.Size_Char) * 8;    // UTF-8 한글은 3 바이트지만 폭은 16
+
     i += font.Size_Char;
   }
   return x;
@@ -174,7 +175,7 @@ uint16_t canvasGetStrWidth(const char *str)
   {
     hanFontLoad((char *)&str[i], &font);
     if (font.Code_Type == PHAN_END_CODE || font.Size_Char == 0) break;
-    width += font.Size_Char * 8;
+    width += (font.Size_Char > 2 ? 2 : font.Size_Char) * 8;
     i += font.Size_Char;
   }
   return width;

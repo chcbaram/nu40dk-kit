@@ -15,7 +15,10 @@
 #include "gb_rom.h"
 #include "gb_run.h"
 #include "remote/ble_pad.h"
+#include "game/app_api.h"
+#include "game/rpg/rpg.h"
 #include <zephyr/settings/settings.h>
+#include <stdarg.h>
 
 
 #define UI_COLS             50
@@ -54,6 +57,7 @@ typedef enum
   SCR_CONTROLLER,
   SCR_SETTINGS,
   SCR_INFO,
+  SCR_APPS,         // 네이티브 게임 (GAMES)
 } screen_t;
 
 typedef struct
@@ -68,7 +72,7 @@ static launcher_cfg_t cfg = {1, 80, 0};
 static const char    *screen_str[2] = {"GRAY", "DITHER"};
 
 static screen_t  screen       = SCR_MAIN;
-static int       sel[5]       = {0};
+static int       sel[6]       = {0};
 static int       scroll       = 0;
 static char      rom_list[LIST_MAX][NAME_MAX];
 static uint32_t  rom_size[LIST_MAX];
@@ -347,13 +351,14 @@ static void menuList(int col, int row, int w, const char **items, int cnt, int c
 /*---------------------------------------------------------------------------
  * 각 화면
  *-------------------------------------------------------------------------*/
-static const char *main_items[] = {"GAMES", "CONTROLLER", "SETTINGS", "INFO"};
+static const char *main_items[] = {"EMUL (Game Boy)", "GAMES", "CONTROLLER", "SETTINGS", "INFO"};
+#define MAIN_CNT 5
 
 static void drawMain(void)
 {
   drawTopBar("MAIN");
   box(1, 1, 48, 15, "MENU");
-  menuList(4, 3, 42, main_items, 4, sel[SCR_MAIN]);
+  menuList(4, 3, 42, main_items, MAIN_CNT, sel[SCR_MAIN]);
 
   text(4, 9,  false, "ROM in flash : ");
   {
@@ -398,7 +403,7 @@ static void drawGames(void)
 {
   int cur = sel[SCR_GAMES];
 
-  drawTopBar("GAMES");
+  drawTopBar("EMUL");
   box(0, 1, 28, 16, "ROMS");
   box(28, 1, 22, 16, "INFO");
 
@@ -517,6 +522,24 @@ static void drawInfo(void)
   drawBottomBar("[4]BACK");
 }
 
+// 네이티브 게임 목록 (app_api.h)
+static const app_def_t *const app_list[] = { &rpg_app };
+#define APP_CNT ((int)(sizeof(app_list) / sizeof(app_list[0])))
+
+static void drawApps(void)
+{
+  drawTopBar("GAMES");
+  box(1, 1, 48, 15, "NATIVE GAMES");
+  for (int i = 0; i < APP_CNT; i++)
+  {
+    bool cur = (i == sel[SCR_APPS]);
+    if (cur) bar(3 + i, 4, 42, true);
+    text(4, 3 + i, cur, "%s%s", cur ? " > " : "   ", app_list[i]->name);
+  }
+  text(4, 12, false, "Pad: D-pad move, A talk, B menu");
+  drawBottomBar("[1]UP [2]DOWN [3]RUN [4]BACK");
+}
+
 static void draw(void)
 {
   canvasClear(CANVAS_WHITE);
@@ -527,6 +550,7 @@ static void draw(void)
     case SCR_CONTROLLER: drawController(); break;
     case SCR_SETTINGS:   drawSettings();   break;
     case SCR_INFO:       drawInfo();       break;
+    case SCR_APPS:       drawApps();       break;
   }
   present();
 }
@@ -718,6 +742,128 @@ static void whiteScreen(void)
   need_full = true;
 }
 
+
+/*---------------------------------------------------------------------------
+ * 네이티브 앱 (app_api.h): 런처 기능을 함수 포인터로 넘긴다
+ *-------------------------------------------------------------------------*/
+static app_key_t apiReadKey(void)            { return (app_key_t)readKey(); }
+static void      apiWaitKeyRelease(void)     { waitKeyRelease(); }
+static uint8_t   apiKeyHeld(void)            { return readKeyBits(); }
+static uint8_t   app_quick_frames = 8;       // 걷기용 짧은 FAST 파형 길이 (ui quick N)
+static uint8_t   app_lut_frames   = 0;
+static void      apiPowerOff(void)           { epdPowerOff(); }
+static void      apiClear(app_color_t c)     { canvasClear(c == APP_BLACK ? CANVAS_BLACK : CANVAS_WHITE); }
+static void      apiFillRect(int16_t x, int16_t y, int16_t w, int16_t h, app_color_t c)
+{
+  canvasFillRect(x, y, w, h, c == APP_BLACK ? CANVAS_BLACK : CANVAS_WHITE);
+}
+static void      apiDrawRect(int16_t x, int16_t y, int16_t w, int16_t h, app_color_t c)
+{
+  canvasDrawRect(x, y, w, h, c == APP_BLACK ? CANVAS_BLACK : CANVAS_WHITE);
+}
+static int16_t   apiPrint(int16_t x, int16_t y, app_color_t c, const char *fmt, ...)
+{
+  char    buf[128];
+  va_list arg;
+  va_start(arg, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, arg);
+  va_end(arg);
+  return canvasPrintf(x, y, c == APP_BLACK ? CANVAS_BLACK : CANVAS_WHITE, "%s", buf);
+}
+static uint16_t  apiStrWidth(const char *str) { return canvasGetStrWidth(str); }
+static void      apiBeep(uint32_t hz, uint32_t ms)
+{
+  if (cfg.sound) i2sPlayBeep(hz, cfg.volume / 2, ms);
+}
+static uint32_t  apiMillis(void)             { return millis(); }
+static void      apiDelay(uint32_t ms)       { delay(ms); }
+static void      apiLog(const char *fmt, ...)
+{
+  char    buf[128];
+  va_list arg;
+  va_start(arg, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, arg);
+  va_end(arg);
+  logPrintf("%s", buf);
+}
+static void      apiRefresh(app_refresh_t mode)
+{
+  if (mode == APP_REFRESH_STRONG)     epdUpdateStrong();
+  else if (mode == APP_REFRESH_CLEAN) epdUpdateCold(LAUNCHER_COLD_TEMP);
+  else
+  {
+    uint8_t frames = (mode == APP_REFRESH_QUICK) ? app_quick_frames : MENU_FAST_FRAMES;
+    if (frames != app_lut_frames)
+    {
+      epdSetFastLut(frames, 0);
+      app_lut_frames = frames;
+    }
+    epdUpdate(EPD_MODE_FAST);
+  }
+}
+
+static void      apiRefreshRect(app_refresh_t mode, int16_t x, int16_t y, int16_t w, int16_t h)
+{
+  if (mode == APP_REFRESH_STRONG || mode == APP_REFRESH_CLEAN || w <= 0 || h <= 0)
+  {
+    apiRefresh(mode);
+    return;
+  }
+  if (x < 0) { w += x; x = 0; }
+  if (y < 0) { h += y; y = 0; }
+  if (x + w > CANVAS_WIDTH)  w = CANVAS_WIDTH - x;
+  if (y + h > CANVAS_HEIGHT) h = CANVAS_HEIGHT - y;
+
+  uint8_t frames = (mode == APP_REFRESH_QUICK) ? app_quick_frames : MENU_FAST_FRAMES;
+  if (frames != app_lut_frames)
+  {
+    epdSetFastLut(frames, 0);
+    app_lut_frames = frames;
+  }
+  epdUpdateWindow(EPD_MODE_FAST, x, y, w, h);
+}
+
+static void runApp(const app_def_t *app)
+{
+  static const app_api_t api =
+  {
+    .version        = APP_API_VERSION,
+    .width          = CANVAS_WIDTH,
+    .height         = CANVAS_HEIGHT,
+    .stride         = CANVAS_STRIDE,
+    .fb             = NULL,
+    .readKey        = apiReadKey,
+    .waitKeyRelease = apiWaitKeyRelease,
+    .keyHeld        = apiKeyHeld,
+    .refresh        = apiRefresh,
+    .refreshRect    = apiRefreshRect,
+    .powerOff       = apiPowerOff,
+    .clear          = apiClear,
+    .fillRect       = apiFillRect,
+    .drawRect       = apiDrawRect,
+    .print          = apiPrint,
+    .strWidth       = apiStrWidth,
+    .beep           = apiBeep,
+    .millis         = apiMillis,
+    .delay          = apiDelay,
+    .log            = apiLog,
+  };
+  app_api_t run_api = api;
+
+  run_api.fb = canvasGetBuffer();
+  logPrintf("[  ] app start: %s\n", app->name);
+  app->main(&run_api);
+  logPrintf("[  ] app end: %s\n", app->name);
+
+  epdSetFastLut(MENU_FAST_FRAMES, 0);   // 런처 메뉴 파형으로 되돌림
+  app_lut_frames = 0;
+
+  epdPowerOff();
+  epd_on      = false;
+  need_strong = true;
+  waitKeyRelease();
+}
+
 static void changeScreen(screen_t next)
 {
   screen    = next;
@@ -732,9 +878,15 @@ static bool handleKey(ui_key_t key)
   switch (screen)
   {
     case SCR_MAIN:
-      if (key == KEY_UP)   { *p_sel = (*p_sel + 3) % 4; return true; }
-      if (key == KEY_DOWN) { *p_sel = (*p_sel + 1) % 4; return true; }
-      if (key == KEY_OK)   { changeScreen((screen_t)(SCR_GAMES + *p_sel)); return true; }
+      if (key == KEY_UP)   { *p_sel = (*p_sel + MAIN_CNT - 1) % MAIN_CNT; return true; }
+      if (key == KEY_DOWN) { *p_sel = (*p_sel + 1) % MAIN_CNT; return true; }
+      if (key == KEY_OK)
+      {
+        if (*p_sel == 0)      changeScreen(SCR_GAMES);
+        else if (*p_sel == 1) changeScreen(SCR_APPS);
+        else                  changeScreen((screen_t)(SCR_CONTROLLER + *p_sel - 2));
+        return true;
+      }
       break;
 
     case SCR_GAMES:
@@ -794,6 +946,13 @@ static bool handleKey(ui_key_t key)
     case SCR_INFO:
       if (key == KEY_BACK || key == KEY_OK) { changeScreen(SCR_MAIN); return true; }
       break;
+
+    case SCR_APPS:
+      if (key == KEY_BACK) { changeScreen(SCR_MAIN); return true; }
+      if (key == KEY_UP)   { *p_sel = (*p_sel + APP_CNT - 1) % APP_CNT; return true; }
+      if (key == KEY_DOWN) { *p_sel = (*p_sel + 1) % APP_CNT; return true; }
+      if (key == KEY_OK)   { runApp(app_list[*p_sel]); return true; }
+      break;
   }
   return false;
 }
@@ -824,9 +983,30 @@ static void cliUi(cli_args_t *args)
     cliPrintf("ui mode %s\n", move_mode == 0 ? "fast" : "part");
     ret = true;
   }
+  if (args->argc >= 1 && args->isStr(0, "quick"))
+  {
+    if (args->argc >= 2) app_quick_frames = (uint8_t)constrain(args->getData(1), 4, 60);
+    cliPrintf("app quick frames %d (%d ms)\n", app_quick_frames, app_quick_frames * 8);
+    ret = true;
+  }
+  if (args->argc == 1 && args->isStr(0, "shot"))
+  {
+    // 화면 버퍼 덤프 (카메라 없이 확인): 줄마다 "S<y> <hex 50 바이트>"
+    uint8_t *fb = canvasGetBuffer();
+    for (int y = 0; y < CANVAS_HEIGHT; y++)
+    {
+      cliPrintf("S%03d ", y);
+      for (int i = 0; i < CANVAS_STRIDE; i++) cliPrintf("%02X", fb[y * CANVAS_STRIDE + i]);
+      cliPrintf("\n");
+      if ((y & 15) == 15) delay(5);
+    }
+    cliPrintf("shot end\n");
+    ret = true;
+  }
   if (!ret)
   {
     cliPrintf("ui key up|down|left|right|ok|back\n");
+    cliPrintf("ui shot\n");
     cliPrintf("ui mode fast|part\n");
   }
 }
