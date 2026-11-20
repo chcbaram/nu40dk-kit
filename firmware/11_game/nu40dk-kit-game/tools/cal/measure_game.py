@@ -54,5 +54,10 @@ bg = boxsum(np.where(use, val, 0)) / np.maximum(boxsum(use.astype(np.float32)), 
 bg = np.where(bg > 0, bg, med_w)
 ghost = np.where(W, 1 - val / bg, 0)
 g = ghost[W]
+print(f"WHITE ABS {np.abs(g).mean():.4f}")
+kmed = med.get(3, np.median(val[shade == 3]) if (shade == 3).any() else 60)
+Lm = same & (shade == 1)
+if Lm.sum() > 20:
+    print(f"L SPREAD {(np.percentile(val[Lm], 90) - np.percentile(val[Lm], 10)) / max(med_w - kmed, 1):.4f}")
 print(f"WHITE GHOST mean {np.clip(g,0,1).mean():.4f}  p95 {np.percentile(g,95):.3f}  >0.03 {100*(g>0.03).mean():.1f}%  >0.06 {100*(g>0.06).mean():.1f}%")
 Image.fromarray((255 - np.clip(ghost, 0, 1) * 255 * 6).clip(0, 255).astype(np.uint8)).resize((640, 576), Image.NEAREST).save(sys.argv[1] + '.ghost.png')
