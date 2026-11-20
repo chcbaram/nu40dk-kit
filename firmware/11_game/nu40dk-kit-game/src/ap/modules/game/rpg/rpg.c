@@ -416,6 +416,8 @@ static void drawPortrait(int16_t px, int16_t py, int p)
 static void dialogP(const char *who, int portrait, const char *const *lines)
 {
   finishDirty();              // 대화창을 그리기 전에 걸은 자리부터 마무리
+  drawMap();
+  sceneSnap();                // 첫 쪽은 지도 → 대화창을 두 번 구동 (한 번이면 상자 안에 지도가 비쳤다)
   // 대화창: 아래쪽 3 줄. 초상화는 창 왼쪽 위에 걸쳐 올리고, 이름표는 그 옆 창 테두리에 붙인다.
   const int16_t bx = 8, by = 172, bw = 384, bh = 80;
   int i = 0;
@@ -459,7 +461,8 @@ static void dialogP(const char *who, int portrait, const char *const *lines)
     if (lines[i] != NULL && lines[i][0] == 0) i++;
     api->print(bx + bw - 20, by + bh - 22, APP_BLACK, ">");
     voicePage(&lines[page], i - page);
-    show(APP_REFRESH_FAST);
+    if (page == 0) transition();
+    else           show(APP_REFRESH_FAST);
     waitOk();
     api->voiceStop();
   }
@@ -546,7 +549,7 @@ static void drawBattle(const rpg_enemy_t *en, int16_t en_hp, int cur, int bag, c
 
   // 명령 3x3 또는 가방
   api->fillRect(0, 210, api->width, api->height - 210, APP_BLACK);
-  int cnt = bag >= 0 ? RPG_ITEM_CNT + 1 : CMD_CNT;
+  int cnt = bag >= 0 ? RPG_ITEM_CNT + 1 : (bag == -2 ? 0 : CMD_CNT);   // -2 = 빈 칸 (명령 ↔ 가방 바꿀 때)
   int sel = bag >= 0 ? bag : cur;
   for (int i = 0; i < cnt; i++)
   {
@@ -600,6 +603,9 @@ static int gridMove(int cur, app_key_t key, int cnt)
 static int bagSelect(const rpg_enemy_t *en, int16_t en_hp, int cur)
 {
   int sel = 0;
+
+  drawBattle(en, en_hp, cur, -2, "무엇을 쓸까?", NULL);   // 명령 글자를 먼저 지운다
+  show(APP_REFRESH_FAST);
 
   while (1)
   {
@@ -661,7 +667,13 @@ static bool battle(int enemy, bool *p_run)
         {
           item = bagSelect(en, en_hp, cur);
           if (item >= 0) act = CMD_BAG;
-          else { drawBattle(en, en_hp, cur, -1, "무엇을 할까?", NULL); show(APP_REFRESH_FAST); }
+          else
+          {
+            drawBattle(en, en_hp, cur, -2, "무엇을 할까?", NULL);   // 가방 글자를 먼저 지운다
+            show(APP_REFRESH_FAST);
+            drawBattle(en, en_hp, cur, -1, "무엇을 할까?", NULL);
+            show(APP_REFRESH_FAST);
+          }
         }
         else
         {
@@ -818,6 +830,12 @@ static void runQuiz(const rpg_quiz_t *q, const char *who)
   finishDirty();
   while (1)
   {
+    bool open = ask;          // 처음 열 때: 지도 → 문답 상자를 두 번 구동
+    if (open)
+    {
+      drawMap();
+      sceneSnap();
+    }
     drawQuiz(q, who, cur);
     if (ask)
     {
@@ -826,7 +844,8 @@ static void runQuiz(const rpg_quiz_t *q, const char *who)
       voicePage(q->q, n);
       ask = false;
     }
-    show(APP_REFRESH_FAST);
+    if (open) transition();
+    else      show(APP_REFRESH_FAST);
     app_key_t key = waitKey();
     if (key == APP_KEY_UP)   cur = (cur + 2) % 3;
     if (key == APP_KEY_DOWN) cur = (cur + 1) % 3;
