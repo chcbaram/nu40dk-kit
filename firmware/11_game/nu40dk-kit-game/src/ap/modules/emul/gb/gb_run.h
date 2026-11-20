@@ -42,6 +42,7 @@ void     gbRunSetRetarget(uint16_t rev_pct, bool same_add);  // 회색 모드 �
 void     gbRunGetRetarget(uint16_t *p_rev_pct, bool *p_same_add);
 bool     gbRunStartPattern(uint16_t speed, uint16_t frames, uint16_t pause, uint16_t reps, uint8_t big);  // 잔상 측정용 움직이는 테스트 패턴
 bool     gbRunIsPattern(void);
+void     gbRunInkDebug(int y0, int y1, uint32_t *p_active, uint32_t *p_black, uint32_t *p_white);
 void     gbRunSetExtBusy(bool busy);   // CLI 측정 중 표시 (런처가 화면을 건드리지 않음)
 bool     gbRunIsExtBusy(void);
 uint8_t *gbRunGetScratch(uint32_t *p_size);  // 게임 정지 중 ink 마스크 버퍼 빌리기 (실행 중 NULL)

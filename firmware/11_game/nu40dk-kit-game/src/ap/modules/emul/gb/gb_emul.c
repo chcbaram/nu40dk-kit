@@ -582,6 +582,49 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  // 진단: gb inkdbg <y0> <y1>  (GB 줄 범위의 남은 카운터 픽셀, 마스크 비트)
+  if (args->argc == 3 && args->isStr(0, "inkdbg"))
+  {
+    uint32_t a, b, w;
+    gbRunInkDebug(args->getData(1), args->getData(2), &a, &b, &w);
+    cliPrintf("inkdbg %d~%d : active %d px, black mask %d bits, white mask %d bits\n", args->getData(1), args->getData(2), a, b, w);
+    ret = true;
+  }
+
+  // 구동 없는 스캔: gb calzero [n=60] [frames=4]  (RAM 두 면 0 → 아무 픽셀도 구동하지 않는 스캔 n 번)
+  if (args->argc >= 1 && args->isStr(0, "calzero"))
+  {
+    int     n      = args->argc >= 2 ? args->getData(1) : 60;
+    uint8_t frames = args->argc >= 3 ? args->getData(2) : 4;
+    gbRunStop();
+    gbRunSetExtBusy(true);
+    epdZeroRam();
+    for (int i = 0; i < n; i++)
+    {
+      static const uint8_t dummy = 0;
+      epdUpdateMask(&dummy, &dummy, 0, 0, frames);   // h = 0: RAM 은 그대로(0), 구동만
+    }
+    epdPowerOff();
+    cliPrintf("calzero done : %d scans\n", n);
+    ret = true;
+  }
+
+  // 순환 시험: gb calcycle [moves=24] [period=60]  (moves 번 색을 바꾼 뒤 기준과 같은 색으로 멈춤)
+  if (args->argc >= 1 && args->isStr(0, "calcycle"))
+  {
+    uint16_t moves  = args->argc >= 2 ? args->getData(1) : 24;
+    uint16_t period = args->argc >= 3 ? args->getData(2) : 60;
+    if (!gbRunIsExtBusy())
+    {
+      gbRunStop();
+      canvasClear(CANVAS_WHITE);
+      epdUpdateStrong();
+    }
+    gbRunSetExtBusy(false);
+    cliPrintf("calcycle : %s (moves %d, period %d)\n", gbRunStartPattern(0, period, 0, moves, 2) ? "start" : "fail", moves, period);
+    ret = true;
+  }
+
   // 측정 전 흰 화면 (기준 사진용): gb calclean [n=1]  (3색 강한 갱신 n 번)
   if (args->argc >= 1 && args->isStr(0, "calclean"))
   {

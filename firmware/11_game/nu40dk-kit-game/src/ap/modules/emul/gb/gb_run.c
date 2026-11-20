@@ -674,7 +674,7 @@ static void patRect(uint8_t *p_buf, int x, int y, int w, int h, uint8_t c)
     for (int i = 0; i < w; i++) patPixel(p_buf, x + i, y + j, c);
 }
 
-static void patternFrame(void)
+static void patternFrame(bool draw)
 {
   uint8_t *p_buf = gbGetLcdBufRW();
   // 이동(pat_frames) → 멈춤(pat_pause) 을 pat_reps 번. 이동한 프레임 수만큼 ox 증가
@@ -686,11 +686,31 @@ static void patternFrame(void)
   int      ox    = (int)(moved * pat_speed);
 
   pat_n++;
+  // 에뮬레이터처럼 화면 처리 쪽이 요청한 프레임(draw)에만 버퍼를 쓴다. 매 프레임 지우고 다시 그리면
+  // 화면 처리 스레드가 지워진 순간을 읽어 바뀌지 않은 패치를 흰색↔원래 색으로 계속 구동했다
+  if (!draw) return;
   memset(p_buf, 0, GB_LCD_HEIGHT * GB_LCD_WIDTH / 4);
   patRect(p_buf, 0,   0,   4, 4, 3);
   patRect(p_buf, 156, 0,   4, 4, 3);
   patRect(p_buf, 0,   140, 4, 4, 3);
   patRect(p_buf, 156, 140, 4, 4, 3);
+
+  if (pat_big == 2)
+  {
+    // 순환 시험 (InkBoy B REBLACK 과 같은 방식): 위 줄 = 고정 기준 K/D/L/W (처음 한 번만 그 색),
+    //   아래 줄 = 같은 자리 패치가 pat_frames 프레임마다 색을 바꾸며 pat_reps 번 오간 뒤 기준과 같은 색으로 멈춤.
+    //   패치 32x32, x = 8 + 38*i, 기준 y 24, 바뀌는 패치 y 84
+    static const uint8_t target[4] = {3, 2, 1, 0};              // K D L W
+    static const uint8_t seq[4]    = {3, 0, 2, 1};              // K W D L (큰 전환과 회색 전환을 섞음)
+    uint32_t move = pat_n / (pat_frames ? pat_frames : 1);
+    for (int i = 0; i < 4; i++)
+    {
+      uint8_t c = (move >= pat_reps) ? target[i] : seq[(move + i) % 4];
+      patRect(p_buf, 8 + 38 * i, 24, 32, 32, target[i]);
+      patRect(p_buf, 8 + 38 * i, 84, 32, 32, c);
+    }
+    return;
+  }
 
   if (pat_big)
   {
@@ -946,6 +966,23 @@ void gbRunGetRetarget(uint16_t *p_rev_pct, bool *p_same_add)
 }
 
 // 게임이 멈춰 있을 때 ink 마스크 버퍼를 다른 용도(캘리브레이션 등)로 빌려 준다
+// 진단: GB 줄 y0~y1 의 카운터가 남은 픽셀 수, 검정/흰색 마스크에 켜진 비트 수 (해당 패널 줄)
+void gbRunInkDebug(int y0, int y1, uint32_t *p_active, uint32_t *p_black, uint32_t *p_white)
+{
+  const uint8_t *p_w = inkWhiteBuf();
+  *p_active = *p_black = *p_white = 0;
+  for (int y = y0; y <= y1; y++)
+  {
+    for (int i = 0; i < GB_LCD_WIDTH / 32; i++) *p_active += __builtin_popcount(inkActive(y * (GB_LCD_WIDTH / 32) + i));
+    for (int r = 0; r < 2; r++)
+      for (int b = 0; b < EPD_STRIDE; b++)
+      {
+        *p_black += __builtin_popcount(ink_black[(y * 2 + r) * EPD_STRIDE + b]);
+        *p_white += __builtin_popcount(p_w[(y * 2 + r) * EPD_STRIDE + b]);
+      }
+  }
+}
+
 void gbRunSetExtBusy(bool busy)
 {
   ext_busy = busy;
@@ -1095,7 +1132,7 @@ void emuThread(void *arg1, void *arg2, void *arg3)
     gbCoreSetDrawNext(draw);
 
     uint32_t pre_us = micros();
-    if (pat_active) patternFrame();       // 잔상 측정용 테스트 패턴 (gb calmove)
+    if (pat_active) patternFrame(draw);   // 잔상 측정용 테스트 패턴 (gb calmove)
     else            gbCoreRunFrame();
     uint32_t exe_us = micros() - pre_us;
 
