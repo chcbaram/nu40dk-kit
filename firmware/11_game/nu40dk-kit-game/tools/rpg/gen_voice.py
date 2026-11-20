@@ -90,6 +90,7 @@ def parse_pages(src=None):
         if quiz:
             who = pre[-1][0] if pre else None
             q = S.QUIZZES[quiz]
+            out.append((who, list(q[0])))                    # 질문 (문답 상자, 쪽 나눔 없이 한 번에)
             add_blocks([(who, q[3]), (who, q[4])])
         add_blocks(post)
     return out

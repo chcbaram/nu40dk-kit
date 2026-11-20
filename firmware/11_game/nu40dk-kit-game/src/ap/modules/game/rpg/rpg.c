@@ -811,12 +811,20 @@ static void drawQuiz(const rpg_quiz_t *q, const char *who, int cur)
 
 static void runQuiz(const rpg_quiz_t *q, const char *who)
 {
-  int cur = 0;
+  int  cur = 0;
+  bool ask = true;            // 질문 음성은 처음 물을 때와 틀린 뒤 다시 물을 때
 
   finishDirty();
   while (1)
   {
     drawQuiz(q, who, cur);
+    if (ask)
+    {
+      int n = 0;
+      while (q->q[n] != NULL) n++;
+      voicePage(q->q, n);
+      ask = false;
+    }
     show(APP_REFRESH_FAST);
     app_key_t key = waitKey();
     if (key == APP_KEY_UP)   cur = (cur + 2) % 3;
@@ -825,12 +833,15 @@ static void runQuiz(const rpg_quiz_t *q, const char *who)
     {
       if (cur == q->ans)
       {
+        api->voiceStop();
         api->beep(1047, 80);
         dialogP(who, -1, q->right);
         return;
       }
+      api->voiceStop();
       api->beep(220, 80);
       dialogP(who, -1, q->wrong);
+      ask = true;
     }
   }
 }
