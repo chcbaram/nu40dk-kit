@@ -33,5 +33,10 @@ uint32_t millis(void)
   return k_uptime_get_32();
 }
 
+uint32_t micros(void)
+{
+  return k_cyc_to_us_floor32(k_cycle_get_32());
+}
+
 
 

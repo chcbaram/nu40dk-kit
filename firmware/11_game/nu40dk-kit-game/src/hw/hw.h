@@ -44,6 +44,8 @@ extern "C" {
 #include "cdc.h"
 #include "ws2812.h"
 #include "usb/usb.h"
+#include "epd.h"
+#include "canvas.h"
 
 
 bool hwInit(void);

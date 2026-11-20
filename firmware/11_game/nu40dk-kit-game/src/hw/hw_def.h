@@ -43,6 +43,12 @@
 #define      HW_LOG_BOOT_BUF_MAX    1024
 #define      HW_LOG_LIST_BUF_MAX    1024
 
+#define _USE_HW_EPD
+#define      HW_EPD_WIDTH           400
+#define      HW_EPD_HEIGHT          300
+
+#define _USE_HW_CANVAS
+
 #define _USE_HW_GPIO
 #define      HW_GPIO_MAX_CH         GPIO_PIN_MAX
 
@@ -66,6 +72,7 @@
 #define _USE_CLI_HW_FATFS           1
 #define _USE_CLI_HW_BUTTON          1
 #define _USE_CLI_HW_USB             1
+#define _USE_CLI_HW_EPD             1
 
 
 #define _HW_DEF_RTOS_THREAD_PRI_CLI           5

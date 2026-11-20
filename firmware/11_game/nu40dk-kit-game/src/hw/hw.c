@@ -28,6 +28,8 @@ bool hwInit(void)
   gpioInit();
   buttonInit();
 
+  epdInit();
+
   i2sInit();
   
   sdInit();

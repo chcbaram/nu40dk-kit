@@ -28,6 +28,16 @@ HW reset → 0x12 (SW reset) → BUSY 대기
 0x22 F7 → 0x20 → BUSY 대기   ; 전체 갱신 (내장 웨이브폼)
 ```
 
+## Phase 1 측정 결과 (2026-11-20)
+
+| 항목 | 측정값 | 비고 |
+|---|---|---|
+| 전체 갱신 (0x22=0xF7) | **BUSY 2,776ms**, 합계 2.8초 | 0x24 + 0x26 각 15KB 전송 30.8ms |
+| 부분 갱신 (0x21=0x00, 0x22=0xFC) | **BUSY 565ms, 1.66fps** | 내장 웨이브폼, 0x24 15KB 전송 15.3ms |
+| SPI | SPIM3 8MHz | 15KB 약 15ms |
+| 화면 방향 | Data entry 0x11=0x03 (X·Y 증가)에서 정상 | WeAct 예제(0x01, Y 감소)와 다르게 써도 문제없음 |
+| GB 2×2 4단계 | 육안으로 4단계 모두 구분됨 | 게임 화면 방식으로 확정 |
+
 ## 갱신 전략
 
 | 모드 | 용도 | 예상 시간 |
@@ -72,14 +82,36 @@ SPI 전송 시간은 SPIM3 8MHz 기준으로 15KB에 약 15ms, 16MHz면 약 8ms�
 
 GB 화면을 2배로 키우면 320×288이 400×300 안에 들어간다. 2×2 패턴 4단계가 GB의 4단계 회색과 1:1로 맞는다.
 
-## 계획 중인 API / CLI
+## 구현 (Phase 1)
+
+| 파일 | 역할 |
+|---|---|
+| `src/hw/driver/epd/ssd1683.c` | SPI(Zephyr `spi_dt_spec`, `epd_spi` 노드)와 BUSY/RES/DC 핀, 명령·RAM 쓰기, 윈도우 설정 |
+| `src/hw/driver/epd.c` | 패널 초기화, 전체·부분 갱신(윈도우 지원), 시간 측정, CLI `epd` |
+| `src/hw/driver/canvas.c` | 1bpp 400×300 버퍼(15KB), 점·선·박스, 8×16 영문/16×16 한글(`hangul` 폰트), Bayer 4×4, GB 2×2 패턴 |
 
 ```c
 bool epdInit(void);
-void epdClear(void);
-bool epdUpdate(const uint8_t *buf, epd_mode_t mode);              // 전체/부분
-bool epdUpdateWindow(const uint8_t *buf, int x, int y, int w, int h);
+bool epdUpdate(epd_mode_t mode);                                   // EPD_MODE_FULL / EPD_MODE_PART
+bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 bool epdIsBusy(void);
+void epdGetTime(epd_time_t *p_time);                               // spi_us, busy_ms, total_ms
+
+uint8_t *canvasGetBuffer(void);
+void     canvasClear(canvas_color_t color);
+int16_t  canvasPrintf(int16_t x, int16_t y, canvas_color_t color, const char *fmt, ...);
+void     canvasDrawGray(int16_t x, int16_t y, uint8_t gray);      // Bayer 4x4
+void     canvasDrawGb2x2(int16_t x, int16_t y, uint8_t shade);     // GB 4단계
 ```
 
-CLI: `epd init | clear | test | text | time | mode | lut | ghost | bench`
+| CLI | 동작 |
+|---|---|
+| `epd info` | 상태, SPI 속도, 마지막 갱신 시간 |
+| `epd clear [full\|part]` | 흰 화면 |
+| `epd test 0~3 [full\|part]` | 0 체커, 1 Bayer 그라데이션, 2 GB 4단계, 3 텍스트 |
+| `epd text <str>` | 문자열 출력 |
+| `epd spi <MHz>` | SPI 클럭 변경 |
+| `epd bench <n> [full\|part]` | 연속 갱신 fps 측정 |
+| `epd sleep` | 딥슬립 |
+
+부분 갱신 순서: 0x24에 새 이미지 → 0x21=0x00 → 0x22=0xFC → 0x20 → BUSY 대기 → 0x26에 같은 이미지(다음 차분 기준).
