@@ -551,6 +551,32 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  // 경로별 보정: gb route [from to arr value]  (shade 0 흰 ~ 3 검정, arr 1 = 어두운 쪽으로 와서 도착)
+  //   gb route set <24 개 값>  (from, to(from 제외), arr 순서)
+  if (args->argc >= 1 && args->isStr(0, "route"))
+  {
+    if (args->argc == 5)
+    {
+      gbRunSetRoute(args->getData(1), args->getData(2), args->getData(3), (int8_t)atoi(args->getStr(4)));
+    }
+    else if (args->argc == 26 && args->isStr(1, "set"))
+    {
+      int i = 2;
+      for (int f = 0; f < 4; f++)
+        for (int t = 0; t < 4; t++)
+          if (t != f)
+            for (int a = 0; a < 2; a++) gbRunSetRoute(f, t, a, (int8_t)atoi(args->getStr(i++)));
+    }
+    for (int f = 0; f < 4; f++)
+    {
+      cliPrintf("%c:", "WLDK"[f]);
+      for (int t = 0; t < 4; t++)
+        if (t != f) cliPrintf("  ->%c %+d/%+d", "WLDK"[t], gbRunGetRoute(f, t, 0), gbRunGetRoute(f, t, 1));
+      cliPrintf("\n");
+    }
+    ret = true;
+  }
+
   if (args->argc >= 1 && args->isStr(0, "histgray"))
   {
     if (args->argc >= 2) gbRunSetHistGray(args->getData(1));

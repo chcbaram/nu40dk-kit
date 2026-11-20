@@ -152,7 +152,17 @@ static const uint8_t    ink_dwell_bonus[4][8] =               // [출발 색][�
 static uint16_t         ink_hist_pct = 100;                   // 되돌아갈 때 받은 펄스 비율 %
 static uint8_t          ink_hist_add = 1;
 static uint8_t          ink_prewhite = 3;                     // 전체 갱신 뒤 흰 픽셀 흰색 펄스 수 (gb prewhite). 흰 자국 0.027 → 0.007
-static uint16_t         ink_hist_gray = 60;                   // 회색으로 되돌아갈 때 받은 펄스 비율 % (gb hist ... gray)                     // 되돌아갈 때 추가 펄스 (관성 상쇄)
+static uint16_t         ink_hist_gray = 60;
+// 경로별 보정 [출발][목표][도착 방향: 0 = 밝은 쪽으로 와서(흰색 쪽 구동 뒤), 1 = 어두운 쪽으로 와서] → 펄스 가감 (gb route)
+//   Transition test 측정-보정 반복(tools/cal/route_iter.py) 3 회차 값: 사각형 오차 0.166 → 0.070, 지나간 자리 0.142 → 0.070
+static int8_t           ink_route[4][4][2] =
+{
+  //        →W        →L        →D        →K
+  { {0, 0}, {0, 0},  {0, 0},  {1, 0} },   // W  (흰→검: 밝은 쪽에서 와서 +1)
+  { {0, 0}, {0, 0},  {0, 2},  {-2,-1} },  // L  (연→진 +2, 연→검 -2/-1. 연→흰 -1 은 흰 바탕 잔상이 늘어 0)
+  { {0, 0}, {0, 0},  {0, 0},  {-2,-1} },  // D  (진→검 -2/-1)
+  { {0, 0}, {0, 0},  {0,-1},  {0, 0} },   // K  (검→진 -1)
+};                   // 회색으로 되돌아갈 때 받은 펄스 비율 % (gb hist ... gray)                     // 되돌아갈 때 추가 펄스 (관성 상쇄)
 static uint16_t         ink_rev_pct  = 0;                     // 되돌아갈 때 펄스 비율 % (0 = 보정 안 함). gb retarget
 static bool             ink_same_add = false;                 // 같은 방향으로 더 갈 때 남은 펄스 더하기
 static uint8_t          gray_frames  = 4;                     // 회색 모드 스캔 1 회 프레임 수 (32ms)
@@ -419,6 +429,8 @@ static void inkPlan(const uint8_t *p_new)
               // 흰색으로 갈 때만 (caldwell 은 흰색 도달 기준 측정. 회색으로 갈 때 더하면 회색이 하얗게 넘침)
               if (n == 0 && ink_dwell_pct > 0)
                 dose += (ink_dwell_bonus[o][dv] * ink_dwell_pct + 50) / 100;
+              // 경로별 보정: o 에 어느 쪽에서 왔는가(마지막 구동 방향)에 따라 o→n 펄스 가감
+              dose += ink_route[o][n][(ink_dir[w] & bit) ? 1 : 0];
               hs = o;
               dv = 0;
             }
@@ -437,6 +449,7 @@ static void inkPlan(const uint8_t *p_new)
                 // 회색은 밝아지는 쪽이 어두워지는 쪽보다 펄스당 많이 움직여(응답 곡선) 같은 수로 되돌리면 넘친다
                 dose     = (n == 0) ? (dv * ink_hist_pct + 99) / 100 + ink_hist_add
                                     : (dv * ink_hist_gray + 50) / 100;
+                dose    += ink_route[o][n][go_dark ? 1 : 0];
                 new_dark = !go_dark;
                 dv       = 0;
               }
@@ -1069,6 +1082,16 @@ void gbRunSetPrewhite(uint8_t n)
 uint8_t gbRunGetPrewhite(void)
 {
   return ink_prewhite;
+}
+
+void gbRunSetRoute(uint8_t from, uint8_t to, uint8_t arr, int8_t v)
+{
+  if (from < 4 && to < 4 && arr < 2) ink_route[from][to][arr] = v;
+}
+
+int8_t gbRunGetRoute(uint8_t from, uint8_t to, uint8_t arr)
+{
+  return (from < 4 && to < 4 && arr < 2) ? ink_route[from][to][arr] : 0;
 }
 
 void gbRunSetHistGray(uint16_t pct)

@@ -34,6 +34,8 @@ void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h);
 bool gbRunIsPaused(void);
 void     gbRunSetPrewhite(uint8_t n);       // 전체 갱신 뒤 흰 픽셀 흰색 펄스 수
 uint8_t  gbRunGetPrewhite(void);
+void     gbRunSetRoute(uint8_t from, uint8_t to, uint8_t arr, int8_t v);   // 경로별 보정 (펄스 가감)
+int8_t   gbRunGetRoute(uint8_t from, uint8_t to, uint8_t arr);
 void     gbRunSetHistGray(uint16_t pct);    // 회색으로 되돌아갈 때 비율
 uint16_t gbRunGetHistGray(void);
 void     gbRunSetDwell(uint16_t pct);       // 머문 시간 보너스 비율 (이력 보정 켬일 때)
