@@ -23,7 +23,7 @@
 #define IDLE_CLEAN_MS 5000
 #define IDLE_OFF_MS   3000
 #define HOLD_WALK_MS  350                       // 이만큼 누르고 있어야 이어 걷는다 (톡 누르면 한 칸)
-#define WALK_STEPS    2                         // 한 칸 = 16 px x 2 (4 단계는 단계마다 이전 그림이 비쳐 깜빡였다)
+#define WALK_STEPS    1                         // 한 칸에 한 번 그린다 (반 칸 그림을 넣으면 한 번 눌러 두 번 움직이는 것처럼 보였다)
 
 enum { DIR_DOWN = 0, DIR_UP, DIR_LEFT, DIR_RIGHT };
 
@@ -875,7 +875,7 @@ static bool move(int dir)
       g.ox = dx[dir] * (TILE / WALK_STEPS) * k;
       g.oy = dy[dir] * (TILE / WALK_STEPS) * k;
     }
-    g.step = (uint8_t)(k & 1);
+    g.step = (uint8_t)((g.step + 1) & 1);   // 칸마다 다리 모양을 바꾼다
     quickFrame(rx, ry, rw, rh);
     if (k >= WALK_STEPS - 1 && heldDir() != dir) held = false;   // 마지막 쯤 키를 뗐으면 도착 후 멈춘다
   }
