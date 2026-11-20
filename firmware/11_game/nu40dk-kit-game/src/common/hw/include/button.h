@@ -27,6 +27,7 @@ typedef struct
 
 bool     buttonInit(void);
 bool     buttonGetPressed(uint8_t ch);
+uint8_t  buttonGetPressLatch(uint32_t *p_ms);    // 입력 콜백이 받은 눌림 (읽으면 지움)
 uint32_t buttonGetData(void);
 
 uint32_t buttonGetPressedTime(uint8_t ch);

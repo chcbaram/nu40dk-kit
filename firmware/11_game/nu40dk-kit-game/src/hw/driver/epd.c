@@ -265,7 +265,10 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
   }
   else
   {
-    ssd1683WriteRam(SSD1683_RAM_BW, x, y, w, h, p_fb, EPD_STRIDE);
+    // BW RAM 은 영역과 상관없이 전체를 다시 쓴다. SSD168x 는 갱신 뒤 BW 와 RED 를 맞바꾸는 것으로 보여
+    // (이전 이미지가 BW 에 남음), 영역만 쓰면 영역 밖에 이전 화면(닫은 대화창 등)이 남아 다음 갱신에서
+    // 그쪽으로 구동되었다. RED 는 갱신 뒤 아래에서 영역만 맞춘다 (맞바꿈으로 이미 새 이미지).
+    ssd1683WriteRam(SSD1683_RAM_BW, 0, 0, EPD_WIDTH, EPD_HEIGHT, p_fb, EPD_STRIDE);
     epd_time.spi_us = micros() - pre_us;
 
     data[0] = 0x00; data[1] = 0x00;           // RED RAM 을 이전 이미지로 사용 (차분 갱신)

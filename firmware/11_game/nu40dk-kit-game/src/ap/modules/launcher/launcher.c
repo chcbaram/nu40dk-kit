@@ -32,7 +32,8 @@
 #define LAUNCHER_COLD_TEMP  10        // 화면 전환 갱신에 쓸 온도 (°C)
 #define FAST_PER_FULL       10        // 부분 갱신 N 번마다 FULL 로 정리 (흰 배경에 점이 쌓이기 전에)
 #define IDLE_CLEAN_MS       5000      // 부분 갱신 뒤 입력이 없으면 전체 갱신으로 정리
-#define IDLE_POWER_OFF_MS   3000      // 입력이 없으면 EPD 아날로그 전원 끄기
+#define IDLE_POWER_OFF_MS   60000     // 입력이 없으면 EPD 아날로그 전원 끄기 (3초였을 때 다음 입력마다 부스터 기동만큼 늦었다)
+#define KEY_EVENT_MAX_AGE   1500      // 이보다 오래된 눌림 이벤트는 버린다 (긴 갱신 중 눌린 키가 한참 뒤에 적용되지 않게)
 #define REPEAT_DELAY_MS     400
 #define REPEAT_RATE_MS      120
 
@@ -139,40 +140,81 @@ static uint8_t padKeyBits(const xbox_hid_report_t *p_pad)
   return bits;
 }
 
-// 현재 눌린 키. p_latched 가 있으면 화면 갱신 중 눌렸다 뗀 패드 키(래치)를 따로 돌려준다
-static uint8_t readKeyBitsEx(uint8_t *p_latched)
+// 현재 눌린 키 (보드 버튼 + 패드 현재 상태). 자동 반복과 "누르고 있는지" 판단에 쓴다
+static uint8_t readKeyBits(void)
 {
   xbox_hid_report_t pad;
   uint8_t           bits = 0;
-  uint8_t           latched = 0;
 
   if (buttonGetPressed(_DEF_CH1)) bits |= (1 << KEY_UP);
   if (buttonGetPressed(_DEF_CH2)) bits |= (1 << KEY_DOWN);
   if (buttonGetPressed(_DEF_CH3)) bits |= (1 << KEY_OK);
   if (buttonGetPressed(_DEF_CH4)) bits |= (1 << KEY_BACK);
 
-  if (blePadIsConnected())
-  {
-    if (blePadGetInfo(&pad)) bits |= padKeyBits(&pad);
-    if (blePadGetInfoLatched(BLE_PAD_LATCH_LAUNCHER, &pad)) latched = padKeyBits(&pad);
-  }
-  if (p_latched != NULL) *p_latched = latched;
-  return bits | (p_latched == NULL ? latched : 0);
+  if (blePadIsConnected() && blePadGetInfo(&pad)) bits |= padKeyBits(&pad);
+  return bits;
 }
 
-static uint8_t readKeyBits(void)
+static ui_key_t padEventKey(uint16_t k)
 {
-  return readKeyBitsEx(NULL);
+  if (k & BLE_PAD_K_UP)    return KEY_UP;
+  if (k & BLE_PAD_K_DOWN)  return KEY_DOWN;
+  if (k & BLE_PAD_K_LEFT)  return KEY_LEFT;
+  if (k & BLE_PAD_K_RIGHT) return KEY_RIGHT;
+  if (k & (BLE_PAD_K_A | BLE_PAD_K_MENU)) return KEY_OK;
+  if (k & (BLE_PAD_K_B | BLE_PAD_K_XBOX)) return KEY_BACK;
+  return KEY_NONE;
 }
 
-// 눌림 엣지 + 위/아래/좌/우 자동 반복
-//   엣지는 (현재 | 래치) 로 찾아 갱신 중 짧게 누른 키도 받는다.
-//   자동 반복과 이전 상태는 현재 상태만 쓴다. 래치를 "누르고 있음"으로 보면 갱신(0.6초) 직후
-//   반복 조건(400ms)을 넘어 D-pad 한 번에 두 칸 움직였다.
+// 쌓인 눌림 이벤트 하나 (패드 이벤트 큐, 보드 버튼 래치). 오래된 것은 버린다
+static uint8_t btn_pending = 0;
+static bool    key_log     = false;           // ui keylog on : 키 이벤트 로그 (씹힘·두 번 입력 확인용)               // 보드 버튼 래치에서 꺼냈지만 아직 안 쓴 비트
+
+static ui_key_t readKeyEvent(void)
+{
+  uint16_t k;
+  uint32_t ms;
+
+  while (blePadPopEvent(BLE_PAD_LATCH_LAUNCHER, &k, &ms))
+  {
+    if (millis() - ms > KEY_EVENT_MAX_AGE) continue;
+    ui_key_t key = padEventKey(k);
+    if (key_log) logPrintf("[KEY] pad evt 0x%03X age %u ms -> %d (bounce %u)\n", k, millis() - ms, key, blePadGetBounceCount());
+    if (key != KEY_NONE) return key;
+  }
+
+  uint32_t bms;
+  uint8_t  b = buttonGetPressLatch(&bms);
+  if (b && millis() - bms <= KEY_EVENT_MAX_AGE) btn_pending |= b;
+  static const ui_key_t btn_key[4] = {KEY_UP, KEY_DOWN, KEY_OK, KEY_BACK};
+  for (int i = 0; i < 4; i++)
+  {
+    if (btn_pending & (1 << i))
+    {
+      btn_pending &= ~(1 << i);
+      return btn_key[i];
+    }
+  }
+  return KEY_NONE;
+}
+
+static void flushKeyEvents(void)
+{
+  blePadFlushEvents(BLE_PAD_LATCH_LAUNCHER);
+  buttonGetPressLatch(NULL);
+  btn_pending = 0;
+}
+
+// 눌림 이벤트 + 위/아래/좌/우 자동 반복
+//   눌림은 이벤트로 받는다 (화면 갱신 중 여러 번 누른 것도 횟수대로, 스틱·보드 버튼 포함).
+//   자동 반복은 현재 누르고 있는 상태로 판단한다.
 static volatile ui_key_t inject_key = KEY_NONE;   // CLI 'ui key' 로 넣은 키 (시험용)
 static uint8_t           move_mode  = 0;           // 메뉴 이동 갱신: 0 = FAST 파형, 1 = 공장 부분 갱신 (ui mode)
 #define MENU_FAST_FRAMES 45                         // FAST 파형 길이 (8ms 프레임). 카메라 비교: 10 은 지나간 줄에 회색 바,
                                                     //   45(0.41초) 는 깨끗함, 공장 부분 갱신 0.6초
+
+static uint32_t press_ms  = 0;
+static uint32_t repeat_ms = 0;
 
 static ui_key_t readKey(void)
 {
@@ -183,45 +225,40 @@ static ui_key_t readKey(void)
     return k;
   }
 
-  static uint8_t  pre_bits = 0xFF;      // 시작 시 이미 눌린 키는 무시
-  static uint32_t press_ms = 0;
-  static uint32_t repeat_ms = 0;
-  uint8_t         latched;
-  uint8_t         bits = readKeyBitsEx(&latched);
-  uint8_t         down = (bits | latched) & ~pre_bits;
-  ui_key_t        key  = KEY_NONE;
-
-  if (pre_bits == 0xFF) down = 0;
-
-  for (int k = KEY_UP; k <= KEY_BACK; k++)
-  {
-    if (down & (1 << k)) { key = (ui_key_t)k; break; }
-  }
-
+  ui_key_t key = readKeyEvent();
   if (key != KEY_NONE)
   {
     press_ms  = millis();
     repeat_ms = press_ms;
+    return key;
   }
-  else if (bits & ((1 << KEY_UP) | (1 << KEY_DOWN) | (1 << KEY_LEFT) | (1 << KEY_RIGHT)))
+
+  uint8_t bits = readKeyBits();
+  if (bits & ((1 << KEY_UP) | (1 << KEY_DOWN) | (1 << KEY_LEFT) | (1 << KEY_RIGHT)))
   {
     if (millis() - press_ms >= REPEAT_DELAY_MS && millis() - repeat_ms >= REPEAT_RATE_MS)
     {
       repeat_ms = millis();
       for (int k = KEY_UP; k <= KEY_RIGHT; k++)
-        if (bits & (1 << k)) { key = (ui_key_t)k; break; }
+        if (bits & (1 << k))
+        {
+          if (key_log) logPrintf("[KEY] repeat %d (held %u ms)\n", k, millis() - press_ms);
+          return (ui_key_t)k;
+        }
     }
   }
-
-  pre_bits = bits;
-  return key;
+  else
+  {
+    press_ms = millis();      // 뗐으면 반복 타이머 초기화
+  }
+  return KEY_NONE;
 }
 
 // 모든 키를 뗄 때까지 대기 (게임 → 메뉴 전환 시 길게 누른 BTN4 등이 바로 입력되지 않도록)
 static void waitKeyRelease(void)
 {
   for (int i = 0; i < 300 && readKeyBits() != 0; i++) delay(10);
-  readKey();
+  flushKeyEvents();
 }
 
 
@@ -1023,6 +1060,13 @@ static void cliUi(cli_args_t *args)
     cliPrintf("ui mode %s\n", move_mode == 0 ? "fast" : "part");
     ret = true;
   }
+  if (args->argc == 2 && args->isStr(0, "keylog"))
+  {
+    key_log = args->isStr(1, "on");
+    blePadSetLog(key_log);
+    cliPrintf("keylog %s\n", key_log ? "on" : "off");
+    ret = true;
+  }
   if (args->argc >= 1 && args->isStr(0, "quick"))
   {
     if (args->argc >= 2) app_quick_frames = (uint8_t)constrain(args->getData(1), 4, 60);
@@ -1086,6 +1130,7 @@ void launcherMain(void)
     }
     if (gbRunIsRunning())
     {
+      flushKeyEvents();                   // 게임 중 패드 입력은 런처 큐에 쌓아 두지 않는다 (메뉴에서 뒤늦게 적용 방지)
       // 게임 중: 메뉴 요청만 처리
       if (gbRunGetMenuRequest())
       {
@@ -1102,10 +1147,18 @@ void launcherMain(void)
     }
 
     ui_key_t key = readKey();
-    if (key != KEY_NONE && handleKey(key))
+    if (key != KEY_NONE)
     {
+      bool     changed = handleKey(key);
+      screen_t scr     = screen;
+
+      // 갱신 중 쌓인 키를 더 처리하고 한 번만 그린다 (빠르게 여러 번 누르면 그만큼 이동)
+      while (!gbRunIsRunning() && screen == scr && (key = readKeyEvent()) != KEY_NONE)
+      {
+        changed |= handleKey(key);
+      }
       if (gbRunIsRunning()) continue;     // 게임 시작됨
-      draw();
+      if (changed) draw();
     }
 
     // 상단 바의 패드 상태는 5 초마다 갱신 (변화가 있을 때만)

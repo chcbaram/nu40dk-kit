@@ -66,6 +66,42 @@ static uint16_t        handle_2a4b            = 0;
 static uint16_t        xbox_report_val_handle = 0;
 static uint8_t           latch_btn[BLE_PAD_LATCH_MAX][2];   // 보고서 13, 14 바이트 (버튼) OR
 static uint8_t           latch_dpad[BLE_PAD_LATCH_MAX];
+
+// 눌림 이벤트 큐: 화면 갱신(0.4~1.3초) 중 여러 번 누른 키도 횟수대로, 시간과 함께 넘긴다
+#define EVT_Q_MAX 8
+typedef struct { uint16_t keys; uint32_t ms; } pad_evt_t;
+static pad_evt_t evt_q[BLE_PAD_LATCH_MAX][EVT_Q_MAX];
+static uint8_t   evt_head[BLE_PAD_LATCH_MAX];
+static uint8_t   evt_tail[BLE_PAD_LATCH_MAX];
+static uint16_t  evt_prev_keys = 0;
+static uint32_t  evt_release_ms[16];          // 키별 마지막으로 뗀 시각 (떨림 판정)
+static uint32_t  evt_bounce_cnt = 0;
+static bool      evt_log = false;              // 보고서 로그 (ui keylog on)
+#define EVT_BOUNCE_MS 100                     // 뗀 뒤 이 안에 다시 눌리면 D-pad 접점 떨림으로 보고 무시
+
+// 스틱은 히스테리시스: 기울일 때 12000/53000, 돌아올 때 20000/45000 (기준값 근처 떨림으로 여러 번 눌리지 않게)
+static uint16_t padVirtualKeys(const xbox_hid_report_t *p, uint16_t prev)
+{
+  uint16_t k = 0;
+  uint8_t  d = p->dpad;
+
+  if (d == 1 || d == 2 || d == 8) k |= BLE_PAD_K_UP;
+  if (d == 4 || d == 5 || d == 6) k |= BLE_PAD_K_DOWN;
+  if (d == 6 || d == 7 || d == 8) k |= BLE_PAD_K_LEFT;
+  if (d == 2 || d == 3 || d == 4) k |= BLE_PAD_K_RIGHT;
+  if (p->left_stick_y < ((prev & BLE_PAD_K_UP)    ? 20000 : 12000)) k |= BLE_PAD_K_UP;
+  if (p->left_stick_y > ((prev & BLE_PAD_K_DOWN)  ? 45000 : 53000)) k |= BLE_PAD_K_DOWN;
+  if (p->left_stick_x < ((prev & BLE_PAD_K_LEFT)  ? 20000 : 12000)) k |= BLE_PAD_K_LEFT;
+  if (p->left_stick_x > ((prev & BLE_PAD_K_RIGHT) ? 45000 : 53000)) k |= BLE_PAD_K_RIGHT;
+  if (p->btn_a)    k |= BLE_PAD_K_A;
+  if (p->btn_b)    k |= BLE_PAD_K_B;
+  if (p->btn_x)    k |= BLE_PAD_K_X;
+  if (p->btn_y)    k |= BLE_PAD_K_Y;
+  if (p->btn_view) k |= BLE_PAD_K_VIEW;
+  if (p->btn_menu) k |= BLE_PAD_K_MENU;
+  if (p->btn_xbox) k |= BLE_PAD_K_XBOX;
+  return k;
+}
 static bool            is_subscribed          = false;
 static bt_addr_le_t    bonded_pad_addr;
 static bool            has_bonded_pad = false;
@@ -403,6 +439,40 @@ static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_par
       latch_btn[i][1] |= p_raw[14];
       if (xbox_report.dpad != 0) latch_dpad[i] = xbox_report.dpad;
     }
+    {
+      uint16_t cur  = padVirtualKeys(&xbox_report, evt_prev_keys);
+      if (evt_log && cur != evt_prev_keys)
+      {
+        const uint8_t *r = (const uint8_t *)data;
+        logPrintf("[PAD] %u ms h%d len %d keys 0x%03X -> 0x%03X | %02X %02X %02X %02X | %02X %02X %02X %02X\n",
+                  millis(), params->value_handle, length, evt_prev_keys, cur,
+                  r[0], r[1], r[2], r[3], r[12], r[13], r[14], length > 15 ? r[15] : 0);
+      }
+      uint16_t down = cur & ~evt_prev_keys;
+      uint16_t up   = evt_prev_keys & ~cur;
+      uint32_t now  = millis();
+      evt_prev_keys = cur;
+      for (int b = 0; b < 16; b++)
+      {
+        if (up & (1 << b)) evt_release_ms[b] = now;
+        if ((down & (1 << b)) && evt_release_ms[b] != 0 && now - evt_release_ms[b] < EVT_BOUNCE_MS)
+        {
+          down &= ~(1 << b);                    // 방금 뗀 키가 다시 눌림 = 떨림
+          evt_bounce_cnt++;
+        }
+      }
+      if (down)
+      {
+        for (int i = 0; i < BLE_PAD_LATCH_MAX; i++)
+        {
+          uint8_t next = (evt_head[i] + 1) % EVT_Q_MAX;
+          if (next == evt_tail[i]) evt_tail[i] = (evt_tail[i] + 1) % EVT_Q_MAX;   // 가득 차면 가장 오래된 것 버림
+          evt_q[i][evt_head[i]].keys = down;
+          evt_q[i][evt_head[i]].ms   = now;
+          evt_head[i] = next;
+        }
+      }
+    }
     unLock();
     rx_cnt++;
   }
@@ -723,6 +793,41 @@ int8_t blePadGetRssi(void)
 const char *blePadGetName(void)
 {
   return pad_name;
+}
+
+bool blePadPopEvent(uint8_t user, uint16_t *p_keys, uint32_t *p_ms)
+{
+  bool ret = false;
+
+  if (user >= BLE_PAD_LATCH_MAX) return false;
+  lock();
+  if (evt_tail[user] != evt_head[user])
+  {
+    *p_keys = evt_q[user][evt_tail[user]].keys;
+    *p_ms   = evt_q[user][evt_tail[user]].ms;
+    evt_tail[user] = (evt_tail[user] + 1) % EVT_Q_MAX;
+    ret = true;
+  }
+  unLock();
+  return ret;
+}
+
+void blePadSetLog(bool on)
+{
+  evt_log = on;
+}
+
+uint32_t blePadGetBounceCount(void)
+{
+  return evt_bounce_cnt;
+}
+
+void blePadFlushEvents(uint8_t user)
+{
+  if (user >= BLE_PAD_LATCH_MAX) return;
+  lock();
+  evt_tail[user] = evt_head[user];
+  unLock();
 }
 
 // 현재 보고서 + 마지막 호출 이후 한 번이라도 눌린 버튼 (user 별로 따로 래치)

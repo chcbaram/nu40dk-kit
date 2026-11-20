@@ -22,6 +22,7 @@
 #define CLEAN_AFTER   120                       // FAST 갱신이 이만큼 쌓이면 멈췄을 때 전체 갱신
 #define IDLE_CLEAN_MS 5000
 #define IDLE_OFF_MS   3000
+#define HOLD_WALK_MS  350                       // 이만큼 누르고 있어야 이어 걷는다 (톡 누르면 한 칸)
 #define WALK_STEPS    2                         // 한 칸 = 16 px x 2 (4 단계는 단계마다 이전 그림이 비쳐 깜빡였다)
 
 enum { DIR_DOWN = 0, DIR_UP, DIR_LEFT, DIR_RIGHT };
@@ -1004,15 +1005,19 @@ static void rpgMain(const app_api_t *p_api)
       if (key >= APP_KEY_UP && key <= APP_KEY_RIGHT)
       {
         static const uint8_t key_dir[5] = { 0, DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT };
-        bool cont = move(key_dir[key]);
-        // 누르고 있는 동안 쉬지 않고 이어 걷기 (키 자동 반복의 첫 지연 없이)
+        uint32_t t0   = api->millis();
+        api->log("[RPG] key %d -> move\n", key);
+        bool     cont = move(key_dir[key]);
+        // 누르고 있으면 이어 걷기. 한 칸(약 0.25초) 걷는 동안 톡 누른 키가 아직 눌려 있어 두 칸 가는 일이
+        // 없도록, 처음 누른 뒤 HOLD_WALK_MS 이상 누르고 있을 때만 이어 간다
         while (cont)
         {
           int d = heldDir();
           if (d < 0) break;
+          if (api->millis() - t0 < HOLD_WALK_MS) { api->delay(10); continue; }
+          api->log("[RPG] keep walking (held %u ms)\n", api->millis() - t0);
           cont = move(d);
         }
-        api->readKey();     // 키 상태 다시 맞춤 (뗀 뒤 한 걸음 더 가지 않게)
         finishDirty();      // 멈추면 걸은 자리를 정상 펄스로 마무리
       }
       else if (key == APP_KEY_OK)

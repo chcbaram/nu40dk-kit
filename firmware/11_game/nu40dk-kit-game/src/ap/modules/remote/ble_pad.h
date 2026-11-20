@@ -46,6 +46,19 @@ typedef struct __attribute__((packed))
 #define BLE_PAD_LATCH_GAME      1
 #define BLE_PAD_LATCH_MAX       2
 
+// 눌림 이벤트 (가상 키 비트). 방향은 D-pad 와 왼쪽 스틱을 합친 것
+#define BLE_PAD_K_UP      0x0001
+#define BLE_PAD_K_DOWN    0x0002
+#define BLE_PAD_K_LEFT    0x0004
+#define BLE_PAD_K_RIGHT   0x0008
+#define BLE_PAD_K_A       0x0010
+#define BLE_PAD_K_B       0x0020
+#define BLE_PAD_K_X       0x0040
+#define BLE_PAD_K_Y       0x0080
+#define BLE_PAD_K_VIEW    0x0100
+#define BLE_PAD_K_MENU    0x0200
+#define BLE_PAD_K_XBOX    0x0400
+
 
 typedef enum
 {
@@ -60,6 +73,10 @@ typedef enum
 bool            blePadIsConnected(void);
 bool            blePadGetInfo(xbox_hid_report_t *p_report);
 bool            blePadGetInfoLatched(uint8_t user, xbox_hid_report_t *p_report);
+bool            blePadPopEvent(uint8_t user, uint16_t *p_keys, uint32_t *p_ms);  // 새로 눌린 키 (보고서 단위, 시간 포함)
+void            blePadFlushEvents(uint8_t user);
+uint32_t        blePadGetBounceCount(void);
+void            blePadSetLog(bool on);        // 보고서가 바뀔 때마다 로그   // 떨림으로 무시한 눌림 수
 ble_pad_state_t blePadGetState(void);
 const char     *blePadGetStateStr(void);
 void            blePadScanStart(void);

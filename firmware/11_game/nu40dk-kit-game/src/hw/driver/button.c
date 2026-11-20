@@ -28,6 +28,8 @@ static bool buttonGetPin(uint8_t ch);
 static void buttonInputCB(struct input_event *evt, void *user_data);
 
 
+static volatile uint8_t  press_latch = 0;      // 입력 콜백에서 눌림 이벤트 (화면 갱신 중 짧게 누른 버튼도 받기)
+static volatile uint32_t press_ms    = 0;
 static bool   is_log         = false;
 static bool   is_log_pressed = false;
 static int8_t log_keycode    = -1;
@@ -73,6 +75,11 @@ static void buttonInputCB(struct input_event *evt, void *user_data)
   {
     return;
   }
+  if (evt->value && evt->code < BUTTON_MAX_CH)
+  {
+    press_latch |= (1 << evt->code);
+    press_ms     = millis();
+  }
 
   if (is_log)
   {
@@ -84,6 +91,17 @@ static void buttonInputCB(struct input_event *evt, void *user_data)
               evt->value ? "pressed" : "released",
               millis());
   }
+}
+
+// 마지막 호출 이후 눌린 버튼 비트 (읽으면 지운다), p_ms: 마지막 눌림 시각
+uint8_t buttonGetPressLatch(uint32_t *p_ms)
+{
+  unsigned int key = irq_lock();
+  uint8_t      ret = press_latch;
+  press_latch = 0;
+  if (p_ms != NULL) *p_ms = press_ms;
+  irq_unlock(key);
+  return ret;
 }
 
 bool buttonGetPin(uint8_t ch)
