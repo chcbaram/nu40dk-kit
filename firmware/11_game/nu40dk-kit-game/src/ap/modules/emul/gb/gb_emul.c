@@ -690,6 +690,22 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  // Transition test: gb caltrans [passes=3] [shift=0]  (12 가지 전환, 띠 순서 회전)
+  if (args->argc >= 1 && args->isStr(0, "caltrans"))
+  {
+    uint16_t passes = args->argc >= 2 ? args->getData(1) : 3;
+    uint16_t shift  = args->argc >= 3 ? args->getData(2) : 0;
+    if (!gbRunIsExtBusy())
+    {
+      gbRunStop();
+      canvasClear(CANVAS_WHITE);
+      epdUpdateStrong();
+    }
+    gbRunSetExtBusy(false);
+    cliPrintf("caltrans : %s (passes %d, shift %d)\n", gbRunStartPattern(shift, passes, 0, 1, 5) ? "start" : "fail", passes, shift);
+    ret = true;
+  }
+
   // 측정 전 흰 화면 (기준 사진용): gb calclean [n=1]  (3색 강한 갱신 n 번)
   if (args->argc >= 1 && args->isStr(0, "calclean"))
   {

@@ -793,6 +793,29 @@ static void patternFrame(bool draw)
 
   if (pat_big == 4) return;                           // 모서리 표시만 (위치 맞춤용)
 
+  if (pat_big == 5)
+  {
+    // Transition test (InkBoy 방식): 띠 4 개(바탕 K/D/L/W, 높이 33, y 6~137) x 줄 3 개(높이 9, 띠 안 3/13/23).
+    //   줄마다 바탕과 다른 색의 12px 사각형이 5 초(300 프레임) 동안 x 0 → 148 로 지나가고 1 초 멈춤, pat_frames 번 반복 뒤
+    //   오른쪽 끝에서 멈춤. pat_speed = 띠 순서 회전 (같은 자리에 패널 기억이 쌓이지 않게)
+    uint32_t pass = pat_n / 360, t = pat_n % 360;
+    int      x    = (pass >= pat_frames) ? 148 : (t < 300 ? (int)(t * 148 / 300) : 148);
+    for (int b = 0; b < 4; b++)
+    {
+      uint8_t bg = (uint8_t)(3 - ((b + pat_speed) & 3));        // 기본 순서 K D L W
+      int     y0 = 6 + b * 33;
+      patRect(p_buf, 0, y0, GB_LCD_WIDTH, 33, bg);
+      int lane = 0;
+      for (uint8_t c = 0; c < 4; c++)
+      {
+        if (c == bg) continue;
+        patRect(p_buf, x, y0 + 3 + lane * 10, 12, 9, c);
+        lane++;
+      }
+    }
+    return;
+  }
+
   if (pat_big == 2)
   {
     // 순환 시험 (InkBoy B REBLACK 과 같은 방식): 위 줄 = 고정 기준 K/D/L/W (처음 한 번만 그 색),
