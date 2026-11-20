@@ -222,6 +222,6 @@ zephyr_udc0: &usbd {
   epd_spi: epd@0 {
     compatible = "vnd,spi-device";
     reg = <0>;
-    spi-max-frequency = <DT_FREQ_M(16)>;   /* 32MHz 는 패널 데이터 깨짐 */
+    spi-max-frequency = <DT_FREQ_M(8)>;    /* 16MHz: 게임 중 화면 아래쪽 누락(SPIM3 errata 198 / 홀드 시간 위반), 32MHz: 비트 오류 */
   };
 };

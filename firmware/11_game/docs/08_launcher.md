@@ -13,7 +13,7 @@
 | ROM 실행 | `gbRomLoad()` (진행 막대 0.7초마다) → 세이브 읽기 → `gbRunStartEx(false)` |
 | 게임 메뉴 | RESUME / SAVE & QUIT / RESET / QUIT (NO SAVE). 게임 화면 위에 상자로 그림 |
 | 세이브 | 배터리 백업 카트리지만 `/saves/<ROM 이름>.sav` (`gbGetSaveSize()`, `gbSaveRead/Write()`) |
-| 설정 | Zephyr settings `game/cfg`: 사운드, 볼륨, 화면 품질(FAST 펄스 10/7/5/3) |
+| 설정 | Zephyr settings `game/cfg`: 사운드, 볼륨, **게임 화면 GRAY / DITHER** (Phase 8) |
 
 ### Phase 7 에서 발견한 문제
 

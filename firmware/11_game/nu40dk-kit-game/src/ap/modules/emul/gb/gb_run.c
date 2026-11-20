@@ -105,15 +105,17 @@ static uint8_t          diff_nib[256];                        // 2bpp 바이트 
  *   gray_dose[이전][새] : 펄스 수 (InkBoy 기본 표)
  *   ink_dir             : 1 = 검정 방향 구동 (비트 슬라이스, GB 픽셀당 1bit)
  */
-static volatile bool    ink_gray     = false;
-static uint8_t          gray_frames  = 2;                     // 회색 모드 스캔 1 회 프레임 수 (16ms)
+static volatile bool    ink_gray     = true;
+static uint8_t          gray_frames  = 4;                     // 회색 모드 스캔 1 회 프레임 수 (32ms)
+                                                              //   스캔당 고정 비용(SPI 15ms + 방전 16ms)이 커서, 펄스를 길게·횟수를 적게 하면
+                                                              //   한 번 바뀌는 데 걸리는 시간이 짧아져 움직임 잔상이 준다 (16ms x 12 → 32ms x 6)
 static uint8_t          gray_dose[4][4] =
 {
-  //  W  L  D  K   (새)      InkBoy 기본 표에서 검정 쪽을 늘림 (우리 패널은 검정이 옅게 나옴)
-  {   0, 2, 4,12 },   // W (이전)
-  {   5, 0, 1, 8 },   // L
-  {   6, 1, 0, 6 },   // D
-  {   7, 4, 2, 0 },   // K
+  //  W  L  D  K   (새)      32ms 펄스 기준. 검정 쪽을 InkBoy 표보다 늘리고 흰색 방향도 같은 비율로 맞춤
+  {   0, 1, 2, 6 },   // W (이전)        (흰색 방향을 약하게 두면 검었던 자리가 회색 잔상으로 남음)
+  {   4, 0, 1, 4 },   // L
+  {   5, 1, 0, 3 },   // D
+  {   6, 3, 2, 0 },   // K
 };
 static uint32_t         ink_dir[INK_WORDS];
 

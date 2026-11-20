@@ -58,13 +58,12 @@ typedef struct
 {
   uint8_t sound;          // 0/1
   uint8_t volume;         // 0~100
-  uint8_t quality;        // 0: 화질(10), 1: 균형(7), 2: 속도(5), 3: 최고속(3)
+  uint8_t screen;         // 게임 화면: 0 GRAY (회색 펄스), 1 DITHER (2x2 디더)
 } launcher_cfg_t;
 
 
 static launcher_cfg_t cfg = {1, 80, 0};
-static const uint8_t  quality_pulse[4] = {10, 7, 5, 3};
-static const char    *quality_str[4]   = {"QUALITY (10)", "BALANCED (7)", "SPEED (5)", "FASTEST (3)"};
+static const char    *screen_str[2] = {"GRAY", "DITHER"};
 
 static screen_t  screen       = SCR_MAIN;
 static int       sel[5]       = {0};
@@ -101,12 +100,11 @@ SETTINGS_STATIC_HANDLER_DEFINE(game, "game", NULL, cfgSet, NULL, NULL);
 static void cfgApply(void)
 {
   cfg.volume  = MIN(cfg.volume, 100);
-  cfg.quality = MIN(cfg.quality, 3);
+  cfg.screen  = MIN(cfg.screen, 1);
   gbRunSetSound(cfg.sound);
   i2sSetVolume(cfg.volume);
-  // hold = 0: 변하지 않은 픽셀은 구동하지 않는다. hold 구동은 정지 화면에도 같은 방향 전압(DC)을
-  // 초당 수 회씩 계속 걸어 패널에 전하가 쌓이고 회색 배경/이전 화면 겹침이 생겼다 (Phase 7 에서 확인)
-  epdSetFastLut(quality_pulse[cfg.quality], 0);
+  gbRunSetDispMode(1);                      // ink 모드 (픽셀별 펄스 카운터)
+  gbRunSetGray(cfg.screen == 0);
 }
 
 static void cfgSave(void)
@@ -443,15 +441,15 @@ static void drawSettings(void)
 
   snprintf(items[0], 40, "SOUND    : %s", cfg.sound ? "ON" : "OFF");
   snprintf(items[1], 40, "VOLUME   : %d", cfg.volume);
-  snprintf(items[2], 40, "DISPLAY  : %s", quality_str[cfg.quality]);
+  snprintf(items[2], 40, "SCREEN   : %s", screen_str[cfg.screen]);
   snprintf(items[3], 40, "CLEAN SCREEN");
   for (int i = 0; i < 4; i++) p_items[i] = items[i];
 
   drawTopBar("SETTINGS");
   box(1, 1, 48, 15, "SETTINGS");
   menuList(4, 3, 42, p_items, 4, sel[SCR_SETTINGS]);
-  text(4, 9,  false, "DISPLAY: game screen pulse length");
-  text(4, 10, false, "  QUALITY = darker, SPEED = smoother");
+  text(4, 9,  false, "SCREEN: game screen drawing");
+  text(4, 10, false, "  GRAY = smooth shades, DITHER = dots");
   text(4, 12, false, "LEFT/RIGHT or OK to change");
   drawBottomBar("[1]UP [2]DOWN [3]CHANGE [4]BACK");
 }
@@ -716,7 +714,7 @@ static bool handleKey(ui_key_t key)
                   i2sSetVolume(cfg.volume);
                   i2sPlayBeep(1000, 100, 60);
                   break;
-          case 2: cfg.quality = (cfg.quality + (dir > 0 ? 1 : 3)) % 4; break;
+          case 2: cfg.screen = !cfg.screen; break;
           case 3:
             drawMessage("SETTINGS", "cleaning screen...");
             epdClean(2);

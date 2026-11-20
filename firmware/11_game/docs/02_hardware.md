@@ -64,7 +64,8 @@ nRF52840은 SPIM0/TWIM0, SPIM1/TWIM1이 같은 자원을 공유한다.
 | SPIM2 | 8MHz | 미사용 |
 | SPIM3 | **32MHz** | EPAPER |
 
-EPAPER SPI는 **16MHz**로 확정했다. 32MHz에서는 무작위 점(비트 오류)이 생긴다. nRF52840 SPIM은 8/16/32MHz 단계만 지원하므로 20MHz를 요청해도 16MHz로 동작한다.
+EPAPER SPI는 **8MHz** 로 확정했다 (Phase 8). 16MHz 는 정지 화면에서는 괜찮았지만 게임 중(에뮬레이터가 RAM 을 계속 쓰는 동안) 화면 아래쪽 일부가 갱신되지 않았다. SPIM3 errata 198 또는 16MHz 홀드 시간 위반으로 본다.
+(이전 기록) EPAPER SPI는 16MHz로 정했었다. 32MHz에서는 무작위 점(비트 오류)이 생긴다. nRF52840 SPIM은 8/16/32MHz 단계만 지원하므로 20MHz를 요청해도 16MHz로 동작한다.
 
 SSD1683 SPI 쓰기 타이밍 (데이터시트 Table 12-1):
 
