@@ -141,13 +141,13 @@ static uint8_t          ink_settle[4] = {0, 0, 0, 0};        // 머물던 픽셀
 static uint8_t          ink_thin     = 0;                     // 1px 선이었던 픽셀 추가 펄스 (edge 에 더해). gb thin. 선 잔상 0.012 → 0.007, 8 은 흰 선
 static uint8_t          ink_edge     = 0;                     // 테두리였던 픽셀 추가 펄스 (settle 과 함께). gb edge. 테두리 잔상 0.029 → 0.007
 static bool             ink_hist_on  = true;                  // 이력 보정 (gb hist)
-static uint16_t         ink_dwell_pct = 50;                   // 머문 시간 보너스 비율 % (gb dwell)
-static const uint8_t    ink_dwell_bonus[4][8] =               // [출발 색][머문 시간 0.5 초 단위] → 추가 펄스
-{
+static uint16_t         ink_dwell_pct = 100;                  // 머문 시간 보너스 비율 % (gb dwell)
+static const uint8_t    ink_dwell_bonus[4][8] =               // [출발 색][머문 시간 1.5 초 단위] → 추가 펄스
+{                                                             // 0, 1.5, 3, 4.5, 6, 7.5, 9, 10.5 초 이상
   {0, 0, 0, 0, 0, 0, 0, 0},   // W
-  {0, 0, 0, 1, 1, 1, 1, 1},   // L
-  {0, 0, 1, 1, 1, 2, 2, 2},   // D
-  {0, 1, 2, 2, 3, 3, 3, 4},   // K   (caldwell: 0 초 기준 +2 @1 초, +3 @3 초, +5 @10 초)
+  {0, 1, 1, 1, 1, 2, 2, 2},   // L
+  {0, 1, 2, 2, 2, 3, 3, 3},   // D
+  {0, 2, 3, 3, 4, 4, 5, 5},   // K   (caldwell: 0 초 기준 1 초 +2, 3 초 +3, 10 초 +5)
 };
 static uint16_t         ink_hist_pct = 100;                   // 되돌아갈 때 받은 펄스 비율 %
 static uint8_t          ink_hist_add = 1;
@@ -413,7 +413,7 @@ static void inkPlan(const uint8_t *p_new)
 
             if (r == 0)
             {
-              // 머물던 픽셀: dv = 머문 시간 (0.5 초 단위, 최대 7). 밝은 쪽으로 떠날 때 머문 만큼 펄스 추가
+              // 머물던 픽셀: dv = 머문 시간 (1.5 초 단위, 최대 7 = 10.5 초). 밝은 쪽으로 떠날 때 머문 만큼 펄스 추가
               //   카메라 (caldwell): 검정에 0 초 5, 1 초 7, 3 초 8, 10 초 10 펄스 필요
               // 흰색으로 갈 때만 (caldwell 은 흰색 도달 기준 측정. 회색으로 갈 때 더하면 회색이 하얗게 넘침)
               if (n == 0 && ink_dwell_pct > 0)
@@ -1412,8 +1412,9 @@ static void dispInkMode(void)
     return;
   }
 
-  // 머문 시간: 0.5 초마다 도착해 있는(카운터 0) 픽셀의 dv + 1 (7 에서 포화). 이동 중 픽셀은 dv = 받은 펄스
-  if (ink_hist_on && ink_gray && millis() - dwell_ms >= 500)
+  // 머문 시간: 1.5 초마다 도착해 있는(카운터 0) 픽셀의 dv + 1 (7 = 10.5 초에서 포화). 이동 중 픽셀은 dv = 받은 펄스
+  //   게임 배경(산·구름·블록)은 10 초 이상 머물다 스크롤로 떠나는 경우가 많다 (0.5 초 단위는 3.5 초에서 포화했음)
+  if (ink_hist_on && ink_gray && millis() - dwell_ms >= 1500)
   {
     dwell_ms = millis();
     for (int w = 0; w < INK_WORDS; w++)
