@@ -93,6 +93,7 @@ static uint8_t          ink_frames   = 3;                     // 스캔 1 회 �
 static uint32_t         ink_frame_ms = 100;
 static uint8_t          ink_fr       = 0x05;                  // 커스텀 LUT 프레임 속도 125Hz (50Hz 는 체감 차이 없이 스캔만 느려짐)                   // 새 GB 프레임을 받는 최소 간격
 static uint8_t          ink_shade[GB_LCD_HEIGHT][GB_LCD_WIDTH / 4];   // 현재 목표 (2bpp)
+static uint8_t          ink_base[GB_LCD_HEIGHT][GB_LCD_WIDTH / 4];    // 바뀌기 직전 목표 (2bpp): 이 패턴과 다른 디더 점만 구동
 static uint32_t         ink_cnt[INK_CNT_BITS][INK_WORDS];
 static uint8_t          ink_black[GB_SCR_H * EPD_STRIDE];     // 검정 구동 마스크 (게임 영역 줄, 전체 폭)
 static uint8_t          expand4[16];                          // 4 픽셀 니블 → 8 화면 픽셀 바이트
@@ -214,9 +215,15 @@ static void inkPlan(const uint8_t *p_new)
     }
 
     uint32_t changed = 0;
+    uint8_t *p_base  = &ink_base[0][0] + (p_old - &ink_shade[0][0]);
     for (int b = 0; b < 8; b++)
     {
-      changed |= (uint32_t)diff_nib[p_new[b] ^ p_old[b]] << (b * 4);
+      uint8_t d = diff_nib[p_new[b] ^ p_old[b]];
+      changed |= (uint32_t)d << (b * 4);
+
+      // 바뀐 픽셀의 기준 = 바뀌기 직전 목표. 블록 안에서 기준 패턴과 새 패턴이 다른 점만 구동한다
+      uint8_t m = expand4[d];
+      p_base[b] = (p_base[b] & ~m) | (p_old[b] & m);
     }
     for (int k = 0; k < INK_CNT_BITS; k++)
     {
@@ -245,6 +252,7 @@ static uint32_t inkBuildMask(uint8_t *p_white)
     int            y    = w / (GB_LCD_WIDTH / 32);
     int            gx0  = (w % (GB_LCD_WIDTH / 32)) * 8;
     const uint8_t *p_sh = &ink_shade[y][gx0];
+    const uint8_t *p_bs = &ink_base[y][gx0];
     uint8_t       *pb0  = &ink_black[(y * 2) * EPD_STRIDE + GB_SCR_X / 8 + gx0];
     uint8_t       *pw0  = &p_white[(y * 2) * EPD_STRIDE + GB_SCR_X / 8 + gx0];
 
@@ -266,12 +274,15 @@ static uint32_t inkBuildMask(uint8_t *p_white)
       }
 
       uint8_t v   = p_sh[g];
+      uint8_t bv  = p_bs[g];
       uint8_t act = expand4[nib];
       uint8_t t0  = dither_lut[0][v];       // 1 = 흰색 목표
       uint8_t t1  = dither_lut[1][v];
+      uint8_t d0  = act & (t0 ^ dither_lut[0][bv]);   // 패턴이 바뀐 점만 (블록의 나머지 점은 과구동 방지)
+      uint8_t d1  = act & (t1 ^ dither_lut[1][bv]);
 
-      pw0[g]               = t0 & act;  pb0[g]               = ~t0 & act;
-      pw0[g + EPD_STRIDE]  = t1 & act;  pb0[g + EPD_STRIDE]  = ~t1 & act;
+      pw0[g]               = t0 & d0;  pb0[g]               = ~t0 & d0;
+      pw0[g + EPD_STRIDE]  = t1 & d1;  pb0[g + EPD_STRIDE]  = ~t1 & d1;
     }
   }
   return pending;
@@ -765,6 +776,7 @@ static void dispInkMode(void)
     {
       drawGameCanvas(gbGetLcdBuf());
       memcpy(ink_shade, gbGetLcdBuf(), sizeof(ink_shade));
+      memcpy(ink_base, ink_shade, sizeof(ink_base));
       epdUpdate(EPD_MODE_FULL);
     }
     frame_ready = false;
