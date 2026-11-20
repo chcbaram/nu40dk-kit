@@ -153,3 +153,19 @@ InkBoy 와의 화질 차이는 패널 해상도(184ppi, GB 1픽셀 = 패널 1픽
 | 마스크 생성 추가 최적화 (32bit 단위 쓰기, 바뀐 줄만) | 스캔당 약 3ms 절약 |
 | 스레드 스택 실측 후 축소 | 약 12KB RAM |
 | 에뮬 CPU (Walnut 메모리 접근 테이블화) | 무거운 장면 속도 |
+
+
+## 9. 보드 변경 검토: NU87-TinyDK (RTL8720DF) — 보류 (2026-11-20)
+
+| 항목 | NU40DK (nRF52840) | NU87 (RTL8720DF) |
+|---|---|---|
+| CPU | M4F 64MHz 싱글 | **M33 200MHz** (+ M23 20MHz) |
+| RAM | 256KB (96% 사용) | 앱 456KB (+ BT 미사용 시 64KB) |
+| Flash | 1MB | 4MB (DSPI XIP) |
+| SPI | SPIM2 8MHz (SPIM3 errata 198) | SPI0 50MHz, SPI1 25MHz |
+| I2S | MAX98357 | 있음 (PB19 SD_TX0, PB20 CLK, PB21 WS). QFN48 은 내장 아날로그 출력 없음 → 외부 앰프 |
+| 무선 | BLE (Zephyr) | BLE 5.0 + WiFi (Realtek 스택) |
+
+- 기대 효과: 에뮬 CPU 약 1/3, SPI 20MHz(SSD1683 최대)로 두 면 전송 약 9ms → 스캔 초당 20~28회 + 에뮬 100% 유지, RAM 여유로 픽셀 단위 카운터·도달 수준 추정 가능.
+- 걸리는 점: I2S 와 SPI0 핀 공유 → EPD 는 SPI1(PA12/14/15, RGB LED 버퍼 입력과 공유). 제어선은 PB1/PB2/PB18 등. 보드에 SD·버튼 4개·앰프 없음. Realtek SDK(FreeRTOS) 로 이식, **Xbox BLE 패드(central + HID GATT 클라이언트)를 Realtek 스택으로 새로 구현**해야 함.
+- 근거: `NU87-TinyDK/firmware/docs/01-hardware.md`, `hardware/ameba_datasheet_rtl872xd_v4.8.pdf` (SPI0 50MHz / SPI1 25MHz, I2S 샘플레이트 표).
