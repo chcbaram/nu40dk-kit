@@ -3,7 +3,7 @@
 
 /*
  * 에뮬레이터 코어 공통 인터페이스
- *   코어 폴더(core_walnut)가 이 함수들을 구현한다.
+ *   코어 폴더(core/walnut)가 이 함수들을 구현한다.
  */
 #include <stdint.h>
 #include <stdbool.h>

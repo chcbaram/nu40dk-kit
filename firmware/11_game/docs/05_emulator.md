@@ -83,7 +83,8 @@ src/ap/modules/emul/
 │   ├── gb_core.h       코어 인터페이스 (load / run_frame / joypad / frame_skip / 라인 콜백)
 │   ├── gb_emul.c/h     CLI, LCD 2bpp 버퍼, bench
 │   └── gb_rom.c/h      SD /roms → Flash rom_storage 복사, 목록
-└── core_walnut/        Walnut-CGB (walnut_cgb.h, LICENSE, core_walnut.c)
+└── core/               에뮬레이터 코어 (gb_core.h 구현)
+    └── walnut/         Walnut-CGB (walnut_cgb.h, LICENSE, core_walnut.c)
 ```
 
 ## CLI

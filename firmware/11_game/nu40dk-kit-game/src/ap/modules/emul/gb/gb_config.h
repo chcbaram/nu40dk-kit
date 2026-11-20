@@ -2,7 +2,7 @@
 #define GB_CONFIG_H_
 
 
-// 에뮬레이터 코어: core_walnut (Walnut-CGB, MIT)
+// 에뮬레이터 코어: core/walnut (Walnut-CGB, MIT)
 //   Peanut-GB 와 속도 동일, gnuboy 는 이식 시험 중 폴트로 제외 (docs/05_emulator.md)
 
 // 1 이면 GBC 지원 (RAM +32KB, 메모리 접근마다 CGB 분기로 느려짐)
