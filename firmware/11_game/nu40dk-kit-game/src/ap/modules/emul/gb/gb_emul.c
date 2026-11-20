@@ -16,7 +16,7 @@
 
 
 // PC 샘플링 프로파일러 (gb bench <n> prof): TIMER4 인터럽트에서 끊긴 스레드의 PC 를 모은다
-#define PROF_MAX  512
+#define PROF_MAX  256
 static uint32_t          prof_pc[PROF_MAX];
 static uint32_t          prof_lr[PROF_MAX];      // 호출한 쪽 (leaf 함수의 호출자 확인용)
 static volatile uint32_t prof_cnt = 0;
@@ -284,7 +284,7 @@ void cliGb(cli_args_t *args)
     bool     bench_audio = false;
     bool     bench_prof  = false;
     uint32_t audio_sum = 0;
-    static int16_t bench_audio_buf[400];       // 11025Hz 스테레오 1 프레임 368 샘플
+    static int16_t bench_audio_buf[768];       // 22050Hz 스테레오 1 프레임 738 샘플
 
     gbRunStop();
     lcd_enable = true;

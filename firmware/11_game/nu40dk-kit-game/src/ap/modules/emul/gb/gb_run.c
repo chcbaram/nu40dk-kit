@@ -59,8 +59,8 @@ static volatile bool menu_req     = false;   // 메뉴 요청 (런처가 읽고 
 static gb_run_stat_t stat;
 
 #define GB_AUDIO_CH         0         // 믹서 채널 (효과음은 빈 채널 사용)
-#define GB_AUDIO_MAX        640       // 1 프레임 샘플 수 상한 (11025Hz: 184 x 2 = 368)
-#define GB_AUDIO_RATE       11025     // minigb_apu AUDIO_SAMPLE_RATE 와 같아야 함 (CMakeLists.txt)
+#define GB_AUDIO_MAX        768       // 1 프레임 샘플 수 상한 (22050Hz: 369 x 2 = 738)
+#define GB_AUDIO_RATE       22050     // minigb_apu AUDIO_SAMPLE_RATE 와 같아야 함 (CMakeLists.txt)
 #define SYS_AUDIO_RATE      16000     // 게임 밖 기본 I2S 주파수
 static int16_t       audio_buf[GB_AUDIO_MAX];
 static volatile bool sound_enable = true;
