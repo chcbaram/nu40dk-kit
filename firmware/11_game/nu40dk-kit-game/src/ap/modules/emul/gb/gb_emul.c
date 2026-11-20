@@ -543,6 +543,13 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  if (args->argc >= 1 && args->isStr(0, "edge"))
+  {
+    if (args->argc >= 2) gbRunSetEdge(args->getData(1));
+    cliPrintf("edge : %d\n", gbRunGetEdge());
+    ret = true;
+  }
+
   // 머물던 픽셀이 흰색으로 갈 때 추가 펄스: gb settle <L> <D> <K>
   if (args->argc >= 1 && args->isStr(0, "settle"))
   {

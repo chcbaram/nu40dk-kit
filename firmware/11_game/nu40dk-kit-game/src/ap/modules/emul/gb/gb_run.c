@@ -122,8 +122,9 @@ static uint32_t         ink_quiet_px  = 120;                  // 프레임당 �
 static uint32_t         ink_quiet_act = 3000;                 // 직전 정리 뒤 바뀐 픽셀 합이 이 이상일 때만
 static uint32_t         quiet_ms      = 0;
 static uint32_t         quiet_act     = 0;
-static uint8_t          ink_settle[4] = {0, 1, 2, 3};        // 머물던 픽셀이 흰색으로 갈 때 추가 펄스 [-, L, D, K]. gb settle
-                                                              // gb calmove 측정: 멈췄던 자리 잔상 0.029 → 0.010, 과구동 0.009
+static uint8_t          ink_settle[4] = {0, 1, 2, 4};        // 머물던 픽셀이 흰색으로 갈 때 추가 펄스 [-, L, D, K]. gb settle
+                                                              // gb calmove 측정 (edge 2 와 함께): 멈췄던 자리 잔상 0.026 → 0.006 (잡음 수준), 과구동 없음
+static uint8_t          ink_edge     = 2;                     // 테두리였던 픽셀 추가 펄스 (settle 과 함께). gb edge. 테두리 잔상 0.029 → 0.007
 static uint16_t         ink_rev_pct  = 0;                     // 되돌아갈 때 펄스 비율 % (0 = 보정 안 함). gb retarget
 static bool             ink_same_add = false;                 // 같은 방향으로 더 갈 때 남은 펄스 더하기
 static uint8_t          gray_frames  = 4;                     // 회색 모드 스캔 1 회 프레임 수 (32ms)
@@ -288,6 +289,15 @@ static uint32_t inkChangedPixels(const uint8_t *p_new)
   return cnt;
 }
 
+// 가장자리 판단용: 이전 목표의 윗줄·현재 줄 복사 (inkPlan 이 ink_shade 를 줄 안에서 덮어쓰므로)
+static uint8_t plan_prev[GB_LCD_WIDTH / 4];
+static uint8_t plan_cur[GB_LCD_WIDTH / 4];
+
+static inline uint8_t shadeAt(const uint8_t *p_row, int x)
+{
+  return (p_row[x >> 2] >> (6 - 2 * (x & 3))) & 3;
+}
+
 static void inkPlan(const uint8_t *p_new)
 {
   uint8_t *p_old = &ink_shade[0][0];
@@ -295,6 +305,12 @@ static void inkPlan(const uint8_t *p_new)
   for (int w = 0; w < INK_WORDS; w++, p_new += 8, p_old += 8)
   {
     uint32_t n0, n1, o0, o1;
+
+    if ((w % 5) == 0)                       // 줄 시작: 이전 목표 줄 보관 (한 줄 = 5 워드)
+    {
+      memcpy(plan_prev, plan_cur, sizeof(plan_prev));
+      memcpy(plan_cur, &ink_shade[w / 5][0], sizeof(plan_cur));
+    }
 
     memcpy(&n0, p_new, 4); memcpy(&n1, p_new + 4, 4);
     memcpy(&o0, p_old, 4); memcpy(&o1, p_old + 4, 4);
@@ -328,7 +344,23 @@ static void inkPlan(const uint8_t *p_new)
             bool settled = true;
             for (int k = 0; k < INK_CNT_BITS; k++)
               if (ink_cnt[k][w] & bit) { settled = false; break; }
-            if (settled) dose += ink_settle[o];
+            if (settled)
+            {
+              dose += ink_settle[o];
+
+              // 가장자리 보너스: 이웃(상하좌우)이 원래 더 밝았던 픽셀 = 물체의 테두리였던 픽셀.
+              //   구동하지 않는 이웃 쪽으로 전기장이 새어 테두리가 덜 돌아온다 (카메라: 테두리 잔상이 안쪽의 2~3배)
+              if (ink_edge > 0)
+              {
+                int x = (w % 5) * 32 + b * 4 + p;
+                int y = w / 5;
+                if ((x > 0                 && shadeAt(plan_cur, x - 1) < o) ||
+                    (x < GB_LCD_WIDTH - 1  && shadeAt(plan_cur, x + 1) < o) ||
+                    (y > 0                 && shadeAt(plan_prev, x) < o) ||
+                    (y < GB_LCD_HEIGHT - 1 && shadeAt(&ink_shade[y + 1][0], x) < o))
+                  dose += ink_edge;
+              }
+            }
             if (dose > 15) dose = 15;
           }
 
@@ -817,6 +849,16 @@ void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h)
   *p_y = GB_SCR_Y;
   *p_w = GB_SCR_W;
   *p_h = GB_SCR_H;
+}
+
+void gbRunSetEdge(uint8_t n)
+{
+  ink_edge = n;
+}
+
+uint8_t gbRunGetEdge(void)
+{
+  return ink_edge;
 }
 
 void gbRunSetSettle(uint8_t l, uint8_t d, uint8_t k)

@@ -72,5 +72,17 @@ else:
         print(f"{f'stop@{stop} line':22s} mean {np.mean(line):.3f}")
         stops.append(float(np.mean(line)))
 print(f"STOP GHOST {np.mean(stops):.3f}")
+if BIG:
+    edges, inners = [], []
+    for stop in (40, 80):
+        x0, y0 = 60 + stop, 98
+        box = res[y0:y0 + 24, x0:min(x0 + 24, 158)]
+        edges.append(np.concatenate([box[:2].ravel(), box[-2:].ravel(), box[2:-2, :2].ravel()]).mean()); inners.append(box[4:-4, 4:-4].mean())
+        cl = res[24:40, 4 + stop:44 + stop]
+        edges.append(np.concatenate([cl[:1].ravel(), cl[-1:].ravel(), cl[:, :1].ravel(), cl[:, -1:].ravel()]).mean()); inners.append(cl[3:-3, 3:-3].mean())
+    print(f"EDGE {np.mean(edges):.3f}  INNER {np.mean(inners):.3f}")
+    over = np.clip(ratio - 1, 0, 1)
+    ov = [over[98:122, 60 + st:min(84 + st, 158)].mean() for st in (40, 80)] + [over[24:40, 4 + st:44 + st].mean() for st in (40, 80)]
+    print(f"OVER-WHITE {np.mean(ov):.3f}  (control {over[124:138, 6:150].mean():.3f})")
 print(f"GHOST SCORE {(m + c + b) / 3:.3f}")
 Image.fromarray((255 - res * 255 * 4).clip(0, 255).astype(np.uint8)).resize((640, 576), Image.NEAREST).save(sys.argv[1] + '.residue.png')
