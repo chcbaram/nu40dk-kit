@@ -49,6 +49,7 @@ void epdRecover(const char *p_reason);   // BUSY 에 갇혔을 때 하드웨어 
 bool epdUpdateStrong(void);     // 3색 웨이브폼 전체 갱신 (잔상 제거, 약 2.8초)
 void epdPowerOff(void);
 void epdSleep(void);
+bool epdWake(void);              // 딥슬립 중이면 리셋 + 재초기화 (갱신 함수들이 자동 호출)
 
 #endif
 

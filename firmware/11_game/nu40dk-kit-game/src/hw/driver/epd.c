@@ -37,6 +37,8 @@ static bool       lut_vendor_ld  = false;
 
 static const char *mode_str[EPD_MODE_MAX] = {"full", "part", "fast"};
 static uint32_t   busy_err_cnt   = 0;       // BUSY 제한시간 초과 → 자동 복구 횟수
+static bool       is_sleep       = false;   // 딥슬립 중 (갱신 요청이 오면 자동으로 깨운다)
+static bool       analog_on      = false;   // 아날로그 전원이 켜져 있을 수 있음 (0xFC/0xCC/0x8C 후)
 static uint8_t    last_ctrl      = 0;       // 마지막으로 보낸 0x22 값 (원인 추적용)
 
 // FAST 모드에서 바꾼 부스터 소프트 스타트를 기본값(POR)으로 복구
@@ -177,7 +179,7 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
   uint32_t pre_ms;
   bool     ret;
 
-  if (!is_init) return false;
+  if (!epdWake()) return false;
 
   // 이전 동작이 끝나지 않았으면 잠시 기다리고, 그래도 BUSY 면 복구
   if (ssd1683IsBusy() && !ssd1683WaitBusy(3000))
@@ -216,6 +218,7 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
     ssd1683WriteCmdData(0x21, data, 2);
     last_ctrl = full_ctrl;
     ssd1683Activate(full_ctrl);
+    analog_on = (full_ctrl & 0x02) == 0;      // 0xF7/0xFF 는 끝에 아날로그를 끈다
     fast_ready     = false;                   // OTP LUT 가 다시 로드됨
     fast_analog_on = false;
     lut_hold       = 0xFF;
@@ -237,12 +240,14 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
       // 아날로그가 이미 켜져 있으면 0x8C (클럭 + 흑백 표시만) 로 부스터 기동 시간을 생략
       last_ctrl = fast_analog_on ? 0x8C : 0xCC;
       ssd1683Activate(last_ctrl);
+      analog_on = true;
       fast_analog_on = true;
     }
     else
     {
       last_ctrl = part_ctrl;
       ssd1683Activate(part_ctrl);
+      analog_on = (part_ctrl & 0x02) == 0;
       if (part_ctrl & 0x10) fast_ready = false; // LUT 로드 비트가 있으면 커스텀 LUT 가 덮어써짐
     }
 
@@ -280,7 +285,7 @@ bool epdUpdateMask(const uint8_t *p_black, const uint8_t *p_white, uint16_t y, u
   uint32_t pre_ms = millis();
   bool     ret;
 
-  if (!is_init) return false;
+  if (!epdWake()) return false;
   if (ssd1683IsBusy() && !ssd1683WaitBusy(3000))
   {
     epdRecover("busy before mask");
@@ -302,6 +307,7 @@ bool epdUpdateMask(const uint8_t *p_black, const uint8_t *p_white, uint16_t y, u
   last_ctrl = fast_analog_on ? 0x8C : 0xCC;
   ssd1683Activate(last_ctrl);
   fast_analog_on = true;
+  analog_on      = true;
 
   uint32_t busy_ms = millis();
   ret = ssd1683WaitBusy(EPD_PART_TIMEOUT_MS);
@@ -415,7 +421,7 @@ bool epdShake(uint8_t cycles, uint8_t frames)
   uint32_t       pre_ms = millis();
   bool           ret;
 
-  if (!is_init) return false;
+  if (!epdWake()) return false;
   if (ssd1683IsBusy()) ssd1683WaitBusy(3000);
 
   frames = MIN(frames, 63);
@@ -441,6 +447,7 @@ bool epdShake(uint8_t cycles, uint8_t frames)
   ssd1683WriteCmdData(0x21, d, 2);
   last_ctrl = 0xCF;
   ssd1683Activate(0xCF);                              // 로드 없이 흑백 모드 구동 후 전원 끔
+  analog_on = false;
   ret = ssd1683WaitBusy(120000);
 
   fast_ready     = false;                             // 커스텀 LUT 가 바뀜
@@ -482,7 +489,13 @@ void epdSetFastLut(uint8_t frames, uint8_t hold)
 // 아날로그 전원 끄기 (FAST 모드 사용 후 대기 상태로 둘 때)
 void epdPowerOff(void)
 {
+  if (!is_init || is_sleep) return;
   if (ssd1683IsBusy()) ssd1683WaitBusy(3000);
+  if (!analog_on)                             // 이미 꺼져 있으면 0x03 을 보내지 않는다 (BUSY 가 풀리지 않는 경우가 있었음)
+  {
+    fast_analog_on = false;
+    return;
+  }
   last_ctrl = 0x03;
   ssd1683Activate(0x03);
   if (!ssd1683WaitBusy(500))
@@ -490,13 +503,34 @@ void epdPowerOff(void)
     epdRecover("power off");
   }
   fast_analog_on = false;
+  analog_on      = false;
 }
 
 void epdSleep(void)
 {
   epdPowerOff();
   ssd1683DeepSleep();
-  is_init = false;
+  is_sleep = true;
+}
+
+// 딥슬립 중이면 하드웨어 리셋 + 재초기화로 깨운다. 반환: 갱신 가능 여부
+bool epdWake(void)
+{
+  if (!is_init) return false;
+  if (!is_sleep) return true;
+
+  is_sleep       = false;
+  fast_ready     = false;
+  fast_analog_on = false;
+  analog_on      = false;
+  lut_hold       = 0xFF;
+  if (!epdInitPanel())
+  {
+    logPrintf("[E_] epd wake fail\n");
+    return false;
+  }
+  logPrintf("[OK] epd wake from deep sleep\n");
+  return true;
 }
 
 
@@ -579,7 +613,7 @@ void cliEpd(cli_args_t *args)
     epd_time_t t;
 
     epdGetTime(&t);
-    cliPrintf("init    : %s\n", is_init ? "OK" : "Fail");
+    cliPrintf("init    : %s%s\n", is_init ? "OK" : "Fail", is_sleep ? " (deep sleep)" : "");
     cliPrintf("size    : %d x %d\n", EPD_WIDTH, EPD_HEIGHT);
     cliPrintf("spi     : %d Hz\n", ssd1683GetSpiFreq());
     cliPrintf("busy    : %d\n", epdIsBusy());
@@ -593,7 +627,9 @@ void cliEpd(cli_args_t *args)
 
   if (args->argc == 1 && args->isStr(0, "init"))
   {
-    is_init = ssd1683Init() && epdInitPanel();
+    is_init  = ssd1683Init() && epdInitPanel();
+    is_sleep = false;
+    fast_ready = false; fast_analog_on = false; analog_on = false; lut_hold = 0xFF;
     cliPrintf("epd init : %s\n", is_init ? "OK" : "Fail");
     ret = true;
   }
@@ -686,7 +722,7 @@ void cliEpd(cli_args_t *args)
     int cnt = args->argc >= 2 ? args->getData(1) : 2;
 
     epdClean(cnt);
-    cliPrintf("clean %d done\n", cnt);
+    cliPrintf("clean %d done (last busy %d ms)\n", cnt, epd_time.busy_ms);
     ret = true;
   }
 
@@ -774,7 +810,7 @@ void cliEpd(cli_args_t *args)
   if (args->argc == 1 && args->isStr(0, "sleep"))
   {
     epdSleep();
-    cliPrintf("epd deep sleep (epd init 으로 복귀)\n");
+    cliPrintf("epd deep sleep (다음 갱신 명령이나 epd init 으로 자동 복귀)\n");
     ret = true;
   }
 
