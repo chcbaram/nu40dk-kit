@@ -53,6 +53,8 @@ static struct bt_conn *ble_pad_conn;
 
 static struct k_work_delayable ble_pad_discover_delay_work;
 static struct k_work_delayable ble_pad_activation_work; 
+static struct k_work_delayable ble_pad_scan_work;         // 스캔 재시작 (BT 콜백 안에서 delay 하지 않도록)
+static struct k_work_delayable ble_pad_battery_work;      // 배터리 주기 읽기
 
 static struct bt_gatt_discover_params  discover_params;
 static struct bt_gatt_subscribe_params sub_params_pool[MAX_SUBS];
@@ -65,12 +67,18 @@ static uint16_t        xbox_report_val_handle = 0;
 static bool            is_subscribed          = false;
 static bt_addr_le_t    bonded_pad_addr;
 static bool            has_bonded_pad = false;
-static struct bt_conn *ble_pad_conn;
 static volatile bool   is_connecting_or_connected = false;
 static bool            is_connected               = false;
 static bool            is_init                    = false;
 static uint16_t        rx_cnt                     = 0;
 static struct k_timer  keepalive_timer;
+static volatile bool   scan_enable                = true;   // 자동 스캔 허용 (런처에서 끌 수 있음)
+static volatile bool   is_scanning                = false;
+static uint16_t        handle_battery             = 0;      // Battery Level (0x2A19)
+static volatile int8_t battery_level              = -1;     // 0~100, 모르면 -1
+static volatile int8_t pad_rssi                   = 0;
+static char            pad_name[32]               = "";
+static struct bt_gatt_read_params battery_read_params;
 
 static xbox_hid_report_t xbox_report;
 
@@ -99,6 +107,37 @@ static const struct bt_le_scan_param ble_pad_scan_param = {
   .interval = BT_GAP_SCAN_FAST_INTERVAL, // 60ms
   .window   = BT_GAP_SCAN_FAST_INTERVAL, // 💡 30ms -> 60ms로 확장 (100% 무손실 캐치)
 };
+
+static void blePadScanStartNow(void)
+{
+  if (!scan_enable || is_connecting_or_connected || ble_pad_conn != NULL)
+  {
+    return;
+  }
+
+  int err = bt_le_scan_start(&ble_pad_scan_param, NULL);
+  if (err == 0 || err == -EALREADY)
+  {
+    is_scanning = true;
+    logPrintf("[SCAN] Scanning started. Waiting for Xbox Controller...\n");
+  }
+  else
+  {
+    logPrintf("[WARN] Scan start failed (err %d), retry...\n", err);
+    k_work_reschedule(&ble_pad_scan_work, K_MSEC(500));
+  }
+}
+
+static void blePadScanWorker(struct k_work *work)
+{
+  blePadScanStartNow();
+}
+
+// BT 콜백에서 호출: 지연 후 스캔 재시작 (이전 연결 정리 시간 확보)
+static void blePadScanRestartLater(uint32_t ms)
+{
+  k_work_reschedule(&ble_pad_scan_work, K_MSEC(ms));
+}
 
 bool init(void)
 {
@@ -175,7 +214,10 @@ static void blePadScanRecvCb(const struct bt_le_scan_recv_info *info, struct net
   {
     // 중복 진입 방지를 위해 플래시 속도로 스캔 중지 및 플래그 락(Lock)
     bt_le_scan_stop();
+    is_scanning = false;
     is_connecting_or_connected = true; 
+    pad_rssi = info->rssi;
+    if (strcmp(name, "No Name") != 0) snprintf(pad_name, sizeof(pad_name), "%s", name);
     logPrintf("[..] Stopping scan and connecting to target...\n");
 
     static struct bt_le_conn_param init_fast_param = {
@@ -197,8 +239,7 @@ static void blePadScanRecvCb(const struct bt_le_scan_recv_info *info, struct net
         ble_pad_conn = NULL;
       }
       
-      delay(200); // 이전 상태가 정리될 충분한 시간 부여
-      bt_le_scan_start(&ble_pad_scan_param, NULL);
+      blePadScanRestartLater(200); // 이전 상태가 정리될 시간 부여 (콜백 안에서 delay 하지 않음)
     }
   }
 }
@@ -218,8 +259,7 @@ static void blePadConnected(struct bt_conn *conn, uint8_t err)
     }
 
     // 완전히 해제될 시간을 충분히 벌어준 뒤 스캔 재시작 (-22 에러 원천 차단)
-    delay(300);
-    bt_le_scan_start(&ble_pad_scan_param, NULL);
+    blePadScanRestartLater(300);
     return;
   }
 
@@ -245,7 +285,10 @@ static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
   is_connected               = false;
   is_connecting_or_connected = false;
   is_subscribed              = false;
+  battery_level              = -1;
+  handle_battery             = 0;
   k_work_cancel_delayable(&ble_pad_activation_work);
+  k_work_cancel_delayable(&ble_pad_battery_work);
 
   logPrintf("[  ] is_connected : false\n");
 
@@ -258,18 +301,8 @@ static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
   has_bonded_pad = false;
   bt_foreach_bond(BT_ID_DEFAULT, blePadCountBondedCb, NULL);
 
-  // 💡 delay(200) 대신 시스템을 정지시키지 않는 delay 사용 필수
-  delay(300);
-
-  int err = bt_le_scan_start(&ble_pad_scan_param, NULL);
-  if (err && err != -EALREADY)
-  {
-    logPrintf("[WARN] Scan start failed (err %d), retrying...\n", err);
-  }
-  else
-  {
-    logPrintf("[SCAN] Scanning restarted. Waiting for Xbox Controller power-on...\n");
-  }
+  // BT 콜백 안에서 delay 하지 않고 지연 작업으로 스캔 재시작
+  blePadScanRestartLater(300);
 }
 
 static void blePadSecurityChanged(struct bt_conn *conn, bt_security_t level, enum bt_security_err err)
@@ -334,6 +367,13 @@ static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_par
     return BT_GATT_ITER_CONTINUE;
   }
 
+  // 배터리 알림
+  if (handle_battery != 0 && params->value_handle == handle_battery)
+  {
+    battery_level = ((const uint8_t *)data)[0];
+    return BT_GATT_ITER_CONTINUE;
+  }
+
   // 실제 입력 데이터가 들어오는 유효 handle 및 길이 조건 체크
   if (params->value_handle >= 30 && length >= 14)
   {
@@ -382,6 +422,13 @@ static uint8_t blePadDiscoverCharacteristicCb(struct bt_conn *conn, const struct
     {      
       handle_2a4c = chrc->value_handle;
       logPrintf("[OK] Found Real 0x2A4C Handle via Characteristic Scan: %d\n", handle_2a4c);
+    }
+
+    // 3. Battery Level (0x2A19)
+    if (uuid16 == 0x2A19)
+    {
+      handle_battery = chrc->value_handle;
+      logPrintf("[OK] Found Battery Level Handle: %d\n", handle_battery);
     }
 
     // 2. HID Report Map (0x2A4B) 탐색
@@ -447,6 +494,31 @@ static uint8_t blePadDiscoverDescriptorCb(struct bt_conn *conn, const struct bt_
   return BT_GATT_ITER_CONTINUE;
 }
 
+static uint8_t blePadBatteryReadCb(struct bt_conn *conn, uint8_t err,
+                                   struct bt_gatt_read_params *params,
+                                   const void *data, uint16_t length)
+{
+  if (!err && data && length >= 1)
+  {
+    battery_level = ((const uint8_t *)data)[0];
+  }
+  return BT_GATT_ITER_STOP;
+}
+
+// 연결 후 배터리를 읽고 60 초마다 다시 읽는다 (알림이 오면 그때도 갱신)
+static void blePadBatteryWorker(struct k_work *work)
+{
+  if (!ble_pad_conn || !is_connected || handle_battery == 0) return;
+
+  battery_read_params.func          = blePadBatteryReadCb;
+  battery_read_params.handle_count  = 1;
+  battery_read_params.single.handle = handle_battery;
+  battery_read_params.single.offset = 0;
+  bt_gatt_read(ble_pad_conn, &battery_read_params);
+
+  k_work_reschedule(&ble_pad_battery_work, K_SECONDS(60));
+}
+
 static uint8_t blePadReportMapReadCb(struct bt_conn *conn, uint8_t err,
                                      struct bt_gatt_read_params *params,
                                      const void *data, uint16_t length)
@@ -461,6 +533,7 @@ static uint8_t blePadReportMapReadCb(struct bt_conn *conn, uint8_t err,
 
     is_connected = true;
     logPrintf("[  ] is_connected : true\n");
+    k_work_reschedule(&ble_pad_battery_work, K_MSEC(500));
 
     // k_timer_start(&keepalive_timer, K_MSEC(1000), K_MSEC(5000)); 
   }
@@ -520,6 +593,7 @@ static void blePadDiscoverDelayWorker(struct k_work *work)
   if (!ble_pad_conn) return;
 
   handle_2a4c            = 0;
+  handle_battery         = 0;
   xbox_report_val_handle = 0;
   allocated_subs         = 0;
 
@@ -549,12 +623,85 @@ void blePadKeepAliveExpiryFn(struct k_timer *timer_id)
   }
 }
 
-bool bldPadIsConnected(void)
+bool blePadIsConnected(void)
 {
   return is_connected;
 }
 
-bool bldPadGetInfo(xbox_hid_report_t *p_report)
+ble_pad_state_t blePadGetState(void)
+{
+  if (!is_init)                    return BLE_PAD_STATE_OFF;
+  if (is_connected)                return BLE_PAD_STATE_CONNECTED;
+  if (is_connecting_or_connected)  return BLE_PAD_STATE_CONNECTING;
+  if (is_scanning)                 return BLE_PAD_STATE_SCANNING;
+  return BLE_PAD_STATE_IDLE;
+}
+
+const char *blePadGetStateStr(void)
+{
+  static const char *str[] = {"off", "idle", "scanning", "connecting", "connected"};
+  return str[blePadGetState()];
+}
+
+// 스캔 허용. 연결이 끊기면 자동으로 다시 스캔한다
+void blePadScanStart(void)
+{
+  scan_enable = true;
+  k_work_reschedule(&ble_pad_scan_work, K_NO_WAIT);
+}
+
+// 스캔 중지. 연결이 끊겨도 다시 스캔하지 않는다
+void blePadScanStop(void)
+{
+  scan_enable = false;
+  k_work_cancel_delayable(&ble_pad_scan_work);
+  bt_le_scan_stop();
+  is_scanning = false;
+}
+
+bool blePadIsScanEnabled(void)
+{
+  return scan_enable;
+}
+
+void blePadDisconnect(void)
+{
+  if (ble_pad_conn)
+  {
+    bt_conn_disconnect(ble_pad_conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+  }
+}
+
+// 모든 페어링 정보 삭제 (연결 중이면 끊는다). 이후 패드를 페어링 모드로 두면 다시 연결된다
+void blePadClearBonds(void)
+{
+  blePadDisconnect();
+  bt_unpair(BT_ID_DEFAULT, NULL);
+  has_bonded_pad = false;
+  pad_name[0]    = 0;
+}
+
+bool blePadHasBond(void)
+{
+  return has_bonded_pad;
+}
+
+int8_t blePadGetBattery(void)
+{
+  return battery_level;
+}
+
+int8_t blePadGetRssi(void)
+{
+  return pad_rssi;
+}
+
+const char *blePadGetName(void)
+{
+  return pad_name;
+}
+
+bool blePadGetInfo(xbox_hid_report_t *p_report)
 {
   lock();
   if (is_connected)
@@ -593,23 +740,20 @@ bool blePadInit(void)
 
   k_work_init_delayable(&ble_pad_discover_delay_work, blePadDiscoverDelayWorker);
   k_work_init_delayable(&ble_pad_activation_work, blePadActivationWorker); 
+  k_work_init_delayable(&ble_pad_scan_work, blePadScanWorker);
+  k_work_init_delayable(&ble_pad_battery_work, blePadBatteryWorker);
 
   has_bonded_pad = false;
   bt_foreach_bond(BT_ID_DEFAULT, blePadCountBondedCb, NULL);
 
   delay(100);
 
-  err = bt_le_scan_start(&ble_pad_scan_param, NULL);
-  if (!err)
-  {
-    logPrintf("[SYS] Scanning Started. Waiting for Pad...\n");
-  }
+  is_init = true;
+  blePadScanStartNow();
 
-#if CLI_USE(HW_SD)
+#ifdef _USE_HW_CLI
   cliAdd("blepad", cliCmd);
 #endif
-
-  is_init = (err == 0);
 
   return is_init;
 }
@@ -628,7 +772,7 @@ void blePadThread(void const *arg)
 
 #ifdef _USE_HW_CLI
 
-static uint16_t bldPadReportLog(xbox_hid_report_t *joy)
+static uint16_t blePadReportLog(xbox_hid_report_t *joy)
 {
   // D-Pad 문자열 변환 (우측 잔상 방지를 위해 고정 10칸 정렬)
   const char *dpad_str = "RELEASE   ";
@@ -694,11 +838,6 @@ static uint16_t bldPadReportLog(xbox_hid_report_t *joy)
     return 10;
 }
 
-static void blePadClearAllBondsCb(const struct bt_bond_info *info, void *user_data)
-{
-    bt_unpair(BT_ID_DEFAULT, &info->addr);
-}
-
 void cliCmd(cli_args_t *args)
 {
   bool ret = false;
@@ -706,42 +845,41 @@ void cliCmd(cli_args_t *args)
 
   if (args->argc == 1 && args->isStr(0, "info"))
   {
+    char addr_str[BT_ADDR_LE_STR_LEN] = "-";
+
+    if (has_bonded_pad) bt_addr_le_to_str(&bonded_pad_addr, addr_str, sizeof(addr_str));
     cliPrintf("is_init      : %d\n", is_init);
     cliPrintf("is_connected : %d\n", is_connected);
     cliPrintf("is_connecting_or_connected : %d\n", is_connecting_or_connected);
+    cliPrintf("state        : %s\n", blePadGetStateStr());
+    cliPrintf("scan enable  : %d\n", scan_enable);
+    cliPrintf("bonded       : %d %s\n", has_bonded_pad, addr_str);
+    cliPrintf("name         : %s\n", pad_name);
+    cliPrintf("rssi         : %d dBm\n", pad_rssi);
+    cliPrintf("battery      : %d %%\n", battery_level);
+    cliPrintf("rx count     : %d\n", rx_cnt);
+    ret = true;
+  }
+
+  if (args->argc == 2 && args->isStr(0, "scan"))
+  {
+    if (args->isStr(1, "on"))  blePadScanStart();
+    if (args->isStr(1, "off")) blePadScanStop();
+    cliPrintf("scan %s\n", scan_enable ? "on" : "off");
+    ret = true;
+  }
+
+  if (args->argc == 1 && args->isStr(0, "disc"))
+  {
+    blePadDisconnect();
+    cliPrintf("disconnect\n");
     ret = true;
   }
 
   if (args->argc == 1 && args->isStr(0, "clear"))
   {
-    // bt_unpair(BT_ID_DEFAULT, BT_ADDR_LE_ANY);
-
-    // cliPrintf("All bonding information cleared!\n");
-    // if (IS_ENABLED(CONFIG_SETTINGS))
-    // {
-    //   settings_save();
-    // }
-    // if (ble_pad_conn)
-    // {
-    //   cliPrintf("Disconnecting active link first...\n");
-    //   bt_conn_disconnect(ble_pad_conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
-    //   delay(500); // 연결이 완전히 끊어질 시간 제공
-    // }
-
-    // cliPrintf("Flushing all bond identities...\n");
-    // // 주소 순회 삭제 방식 적용
-    // bt_foreach_bond(BT_ID_DEFAULT, blePadClearAllBondsCb, NULL);
-
-    // delay(200); // 스택 처리 대기
-
-    // #if IS_ENABLED(CONFIG_SETTINGS)
-    // settings_save();
-    // #endif
-
-    // cliPrintf("Done. Rebooting system for clean state...\n");
-    // delay(100);
-    // sys_reboot(SYS_REBOOT_COLD); // 깔끔하게 보드 리셋
-
+    blePadClearBonds();
+    cliPrintf("all bonds cleared. put the pad in pairing mode to connect again\n");
     ret = true;
   }
 
@@ -764,9 +902,9 @@ void cliCmd(cli_args_t *args)
       hid_report = xbox_report;
       unLock();
 
-      cliPrintf("is_connected : %d\n", is_connected);
+      cliPrintf("is_connected : %d, battery %d %%\n", is_connected, battery_level);
       
-      line = bldPadReportLog(&hid_report);
+      line = blePadReportLog(&hid_report);
       line++;
 
       delay(100);
@@ -780,6 +918,8 @@ void cliCmd(cli_args_t *args)
   if (ret != true)
   {
     cliPrintf("blepad info\n");
+    cliPrintf("blepad scan on|off\n");
+    cliPrintf("blepad disc\n");
     cliPrintf("blepad clear\n");
     cliPrintf("blepad reset\n");
     cliPrintf("blepad show\n");

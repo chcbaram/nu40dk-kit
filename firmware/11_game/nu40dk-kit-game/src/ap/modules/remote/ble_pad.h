@@ -42,7 +42,28 @@ typedef struct __attribute__((packed))
 } xbox_hid_report_t;
 
 
-bool bldPadIsConnected(void);
-bool bldPadGetInfo(xbox_hid_report_t *p_report);
+typedef enum
+{
+  BLE_PAD_STATE_OFF = 0,      // BT 초기화 전
+  BLE_PAD_STATE_IDLE,         // 스캔 안 함
+  BLE_PAD_STATE_SCANNING,     // 패드 찾는 중
+  BLE_PAD_STATE_CONNECTING,   // 연결/보안/GATT 탐색 중
+  BLE_PAD_STATE_CONNECTED,    // 입력 수신 가능
+} ble_pad_state_t;
+
+
+bool            blePadIsConnected(void);
+bool            blePadGetInfo(xbox_hid_report_t *p_report);
+ble_pad_state_t blePadGetState(void);
+const char     *blePadGetStateStr(void);
+void            blePadScanStart(void);
+void            blePadScanStop(void);
+bool            blePadIsScanEnabled(void);
+void            blePadDisconnect(void);
+void            blePadClearBonds(void);
+bool            blePadHasBond(void);
+int8_t          blePadGetBattery(void);   // 0~100 %, 모르면 -1
+int8_t          blePadGetRssi(void);      // 연결 시점의 RSSI
+const char     *blePadGetName(void);
 
 #endif

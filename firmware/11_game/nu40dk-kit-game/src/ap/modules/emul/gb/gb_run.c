@@ -51,6 +51,11 @@ static volatile bool is_run       = false;
 static volatile bool disp_ready   = false;   // 디스플레이가 새 프레임을 기다림
 static volatile bool frame_ready  = false;   // lcd_buf 에 새 프레임이 있음
 static volatile bool req_full     = false;   // 다음 표시를 전체 갱신으로
+static volatile bool is_pause     = false;   // 일시정지 (메뉴)
+static volatile bool req_pause_draw = false; // 디스플레이에 PAUSE 표시 요청
+static volatile bool menu_req     = false;   // 메뉴 요청 (런처가 읽고 지움)
+
+#define MENU_LONG_PRESS_MS  1000            // 보드 BTN4 길게 누르면 메뉴
 
 static gb_run_stat_t stat;
 
@@ -105,19 +110,46 @@ static void convertFrame(void)
   }
 }
 
-static uint8_t readInput(void)
+/*
+ * 입력 매핑 (Phase 5)
+ *
+ *   Game Boy   | Xbox 패드               | 보드 버튼
+ *   -----------+------------------------+-----------
+ *   방향       | D-pad, 왼쪽 스틱          | -
+ *   A          | A, Y                   | BTN3
+ *   B          | B, X                   | BTN4 (짧게)
+ *   Select     | View                   | BTN2
+ *   Start      | Menu                   | BTN1
+ *   메뉴/일시정지 | Xbox 버튼               | BTN4 1초 이상
+ *
+ *   p_menu : 메뉴 버튼이 새로 눌렸으면 true (엣지)
+ */
+static uint8_t readInput(bool *p_menu)
 {
+  static bool     pre_menu = false;
+  static uint32_t btn4_time = 0;            // BTN4 눌리기 시작한 시각 (0 = 안 눌림)
   xbox_hid_report_t pad;
-  uint8_t           joy = 0;
+  uint8_t           joy  = 0;
+  bool              menu = false;
 
-  // 보드 버튼 (임시 매핑, Phase 5 에서 정리)
   if (buttonGetPressed(_DEF_CH1)) joy |= GB_JOY_START;
   if (buttonGetPressed(_DEF_CH2)) joy |= GB_JOY_SELECT;
   if (buttonGetPressed(_DEF_CH3)) joy |= GB_JOY_A;
-  if (buttonGetPressed(_DEF_CH4)) joy |= GB_JOY_B;
-
-  if (bldPadIsConnected() && bldPadGetInfo(&pad))
+  if (buttonGetPressed(_DEF_CH4))
   {
+    if (btn4_time == 0) btn4_time = millis() | 1;
+    if (millis() - btn4_time >= MENU_LONG_PRESS_MS) menu = true;
+    else                                            joy |= GB_JOY_B;
+  }
+  else
+  {
+    btn4_time = 0;
+  }
+
+  if (blePadIsConnected() && blePadGetInfo(&pad))
+  {
+    if (pad.btn_xbox) menu = true;
+
     // D-pad hat: 1 북, 2 북동, 3 동, 4 남동, 5 남, 6 남서, 7 서, 8 북서
     switch (pad.dpad)
     {
@@ -143,7 +175,23 @@ static uint8_t readInput(void)
     if (pad.btn_view) joy |= GB_JOY_SELECT;
     if (pad.btn_menu) joy |= GB_JOY_START;
   }
+
+  *p_menu  = menu && !pre_menu;
+  pre_menu = menu;
   return joy;
+}
+
+static void drawPause(void)
+{
+  const int w = 160, h = 48;
+  const int x = GB_SCR_X + (GB_SCR_W - w) / 2;
+  const int y = GB_SCR_Y + (GB_SCR_H - h) / 2;
+
+  canvasFillRect(x, y, w, h, CANVAS_WHITE);
+  canvasDrawRect(x, y, w, h, CANVAS_BLACK);
+  canvasDrawRect(x + 2, y + 2, w - 4, h - 4, CANVAS_BLACK);
+  canvasPrintf(x + (w - canvasGetStrWidth("PAUSE")) / 2, y + 8, CANVAS_BLACK, "PAUSE");
+  canvasPrintf(x + (w - canvasGetStrWidth("XBOX: resume")) / 2, y + 26, CANVAS_BLACK, "XBOX: resume");
 }
 
 
@@ -171,6 +219,8 @@ bool gbRunStart(void)
   if (!gbLoad()) return false;
 
   memset(&stat, 0, sizeof(stat));
+  is_pause    = false;
+  menu_req    = false;
   frame_ready = false;
   disp_ready  = true;
   req_full    = true;
@@ -192,6 +242,31 @@ void gbRunStop(void)
 bool gbRunIsRunning(void)
 {
   return is_run;
+}
+
+void gbRunSetPause(bool pause)
+{
+  if (!is_run || is_pause == pause) return;
+
+  is_pause = pause;
+  if (pause)
+  {
+    req_pause_draw = true;
+    k_sem_give(&frame_sem);
+  }
+}
+
+bool gbRunIsPaused(void)
+{
+  return is_pause;
+}
+
+// 메뉴 버튼이 눌렸는지 (읽으면 지워짐). 런처가 게임 메뉴를 띄울 때 사용
+bool gbRunGetMenuRequest(void)
+{
+  bool ret = menu_req;
+  menu_req = false;
+  return ret;
 }
 
 void gbRunRequestFull(void)
@@ -220,10 +295,26 @@ void emuThread(void *arg1, void *arg2, void *arg3)
       continue;
     }
 
+    bool    menu;
+    uint8_t joy = readInput(&menu);
+
+    if (menu)
+    {
+      // 메뉴 버튼: 일시정지 토글 (런처가 붙으면 런처가 menu_req 를 받아 게임 메뉴를 띄운다)
+      menu_req = true;
+      gbRunSetPause(!is_pause);
+    }
+    if (is_pause)
+    {
+      k_sleep(K_MSEC(20));
+      next_us = micros();
+      continue;
+    }
+
     // 디스플레이가 기다리고 있고 이전 프레임을 다 가져갔으면 이번 프레임을 렌더링
     bool draw = disp_ready && !frame_ready;
 
-    gbCoreSetJoypad(readInput());
+    gbCoreSetJoypad(joy);
     gbCoreSetDrawNext(draw);
 
     uint32_t pre_us = micros();
@@ -263,6 +354,15 @@ void dispThread(void *arg1, void *arg2, void *arg3)
   {
     k_sem_take(&frame_sem, K_FOREVER);
     if (!is_run) continue;
+
+    if (req_pause_draw)
+    {
+      req_pause_draw = false;
+      for (int i = 0; i < 50 && !disp_ready; i++) k_sleep(K_MSEC(10));   // 진행 중 갱신 대기
+      drawPause();
+      epdUpdateWindow(EPD_MODE_FAST, GB_SCR_X, GB_SCR_Y, GB_SCR_W, GB_SCR_H);
+      if (!frame_ready) continue;
+    }
 
     if (req_full)
     {

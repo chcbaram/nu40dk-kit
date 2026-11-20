@@ -16,6 +16,9 @@ typedef struct
 bool gbRunStart(void);      // Flash 의 ROM 으로 실행 시작
 void gbRunStop(void);
 bool gbRunIsRunning(void);
+void gbRunSetPause(bool pause);
+bool gbRunIsPaused(void);
+bool gbRunGetMenuRequest(void);   // 메뉴 버튼(Xbox / BTN4 길게) 눌림 여부, 읽으면 지워짐
 void gbRunRequestFull(void);
 void gbRunGetStat(gb_run_stat_t *p_stat);
 
