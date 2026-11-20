@@ -35,7 +35,9 @@ bool hwInit(void)
   sdInit();
   fatfsInit();
   
+#ifdef _USE_HW_USB
   usbInit();
+#endif
   
   return true;
 }

@@ -57,7 +57,9 @@ static uint8_t            console_rx_buf[UART_RX_BUF_LENGTH];
 const static uart_hw_t uart_hw_tbl[UART_MAX_CH] =
 {
   {HW_TYPE_CONSOLE, DEVICE_DT_GET(DT_NODELABEL(uart0)),   "console      ", false},
+#ifdef _USE_HW_CDC
   {HW_TYPE_UART,    DEVICE_DT_GET(DT_NODELABEL(usb_cdc)), "usb cdc      ", false},
+#endif
 };
 
 

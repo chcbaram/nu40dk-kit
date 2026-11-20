@@ -16,14 +16,15 @@
 #define _USE_HW_SD
 #define _USE_HW_FATFS
 #define _USE_HW_FILES
-#define _USE_HW_CDC
-#define _USE_HW_USB
+// USB CDC 제거 (RAM 약 6.7KB 확보, 회색 모드 픽셀별 이력 모델용). CLI 는 UART0 (ST-LINK VCP)
+// #define _USE_HW_CDC
+// #define _USE_HW_USB
 
 #define _USE_HW_LED
 #define      HW_LED_MAX_CH          1
 
 #define _USE_HW_UART
-#define      HW_UART_MAX_CH         2
+#define      HW_UART_MAX_CH         1
 #define      HW_UART_CH_SWD         _DEF_UART1
 #define      HW_UART_CH_CLI         HW_UART_CH_SWD
 #define      HW_UART_CH_USB         _DEF_UART2
