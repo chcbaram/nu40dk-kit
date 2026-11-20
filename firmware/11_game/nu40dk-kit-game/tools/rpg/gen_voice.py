@@ -21,9 +21,23 @@ import audioop
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, '..', '..', 'src', 'ap', 'modules', 'game', 'rpg', 'rpg.c')
 
-# 화자 -> macOS 음성
+# 화자 -> Microsoft 신경망 음성 (edge-tts): (음성, 빠르기, 음높이)
+#   한국어 음성이 셋뿐이라 빠르기·음높이로 캐릭터를 나눈다
+EDGE = {
+    None:            ('ko-KR-SunHiNeural',  '+0%',  '+0Hz'),
+    '마을 사람':      ('ko-KR-SunHiNeural',  '+5%',  '+15Hz'),
+    '배터리 은둔자':  ('ko-KR-SunHiNeural',  '-10%', '-20Hz'),
+    '바람':          ('ko-KR-InJoonNeural', '+5%',  '+5Hz'),
+    '선배 개발자':    ('ko-KR-InJoonNeural', '+5%',  '+0Hz'),
+    '데이터시트 현자': ('ko-KR-InJoonNeural', '-10%', '-20Hz'),
+    '스케줄러 수도승': ('ko-KR-InJoonNeural', '-15%', '-5Hz'),
+    'DMA 장인':      ('ko-KR-HyunsuMultilingualNeural', '+5%',  '+0Hz'),
+    '인터럽트 장인':  ('ko-KR-HyunsuMultilingualNeural', '-10%', '-15Hz'),
+    '펌웨어 고수':    ('ko-KR-HyunsuMultilingualNeural', '-15%', '-25Hz'),
+}
+# 맥 say 음성 (--say 로 쓸 때)
 VOICES = {
-    None: 'Yuna',              # 안내, 표지판, 상자
+    None: 'Yuna',
     '바람': 'Eddy (한국어(한국))',
     '선배 개발자': 'Reed (한국어(한국))',
     '인터럽트 장인': 'Grandpa (한국어(한국))',
@@ -119,6 +133,25 @@ def convert_rec(src, dst):
     return trim_write(data, dst)
 
 
+def make_wav_edge(who, text, dst):
+    voice, rate, pitch = EDGE.get(who, EDGE[None])
+    with tempfile.TemporaryDirectory() as td:
+        mp3 = os.path.join(td, 'a.mp3')
+        for attempt in range(3):
+            r = subprocess.run([sys.executable, '-m', 'edge_tts', '--voice', voice, '--rate=' + rate,
+                                '--pitch=' + pitch, '--text', text, '--write-media', mp3],
+                               capture_output=True)
+            if r.returncode == 0 and os.path.exists(mp3) and os.path.getsize(mp3) > 0:
+                break
+        else:
+            raise RuntimeError('edge-tts failed: ' + r.stderr.decode(errors='ignore')[-200:])
+        raw = os.path.join(td, 'a.wav')
+        subprocess.run(['afconvert', '-f', 'WAVE', '-d', 'LEI16@%d' % RATE, '-c', '1', mp3, raw], check=True)
+        with wave.open(raw) as rd:
+            data = rd.readframes(rd.getnframes())
+    return trim_write(data, dst)
+
+
 def make_wav(voice, text, dst):
     with tempfile.TemporaryDirectory() as td:
         aiff = os.path.join(td, 'a.aiff')
@@ -150,7 +183,8 @@ def make_wav(voice, text, dst):
 
 
 def main():
-    out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, 'out', 'rpg', 'v')
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    out = args[0] if args else os.path.join(HERE, 'out', 'rpg', 'v')
     os.makedirs(out, exist_ok=True)
     pages = parse_pages()
     rec_dir = os.path.join(HERE, 'voice_rec')       # 직접 녹음한 파일: voice_rec/<CRC>.(wav|m4a|aiff)
@@ -174,7 +208,10 @@ def main():
         if rec:
             sec = convert_rec(rec, dst)
         else:
-            sec = make_wav(VOICES.get(who, 'Yuna'), speak_text(page), dst)
+            if '--say' in sys.argv:
+                sec = make_wav(VOICES.get(who, 'Yuna'), speak_text(page), dst)
+            else:
+                sec = make_wav_edge(who, speak_text(page), dst)
         total_s += sec
         total_b += os.path.getsize(dst)
         n += 1
