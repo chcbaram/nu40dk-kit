@@ -402,6 +402,61 @@ bool epdUpdateStrong(void)
   return ret;
 }
 
+/*
+ * DC 균형 흔들기 (잔상 제거)
+ *   모든 픽셀(LUTWW/BW/WB/BB 동일)에 VSH1(+15V) frames 프레임, VSL(-15V) frames 프레임을 한 사이클로
+ *   cycles 번 반복한다. 양 방향 시간이 같아 새로운 DC 가 쌓이지 않고, 갇힌 입자를 흔들어 풀어 준다.
+ *   마지막에 3색 웨이브폼 전체 갱신으로 흰 화면을 만든다.
+ */
+bool epdShake(uint8_t cycles, uint8_t frames)
+{
+  const uint16_t ofs_tbl[4] = {42, 84, 126, 168};    // LUTWW, LUTBW, LUTWB, LUTBB
+  uint8_t        d[4];
+  uint32_t       pre_ms = millis();
+  bool           ret;
+
+  if (!is_init) return false;
+  if (ssd1683IsBusy()) ssd1683WaitBusy(3000);
+
+  frames = MIN(frames, 63);
+  memset(lut_buf, 0, sizeof(lut_buf));
+  lut_buf[0] = cycles;                                // LUTC: VCOM DC, 같은 길이
+  lut_buf[1] = frames;
+  lut_buf[2] = frames;
+  lut_buf[5] = 1;
+  for (int i = 0; i < 4; i++)
+  {
+    uint8_t *p = &lut_buf[ofs_tbl[i]];
+    p[0] = cycles;                                    // RP: 사이클 반복
+    p[1] = (0x01 << 6) | frames;                      // A: VSH1
+    p[2] = (0x02 << 6) | frames;                      // B: VSL
+    p[5] = 1;                                         // SR AB
+  }
+  lut_buf[224] = 0x05;                                // FR 125Hz
+  epdWriteLut();
+
+  d[0] = 0x8B; d[1] = 0x9C; d[2] = 0x96; d[3] = 0x0F; // 소프트 스타트 기본값
+  ssd1683WriteCmdData(0x0C, d, 4);
+  d[0] = 0x00; d[1] = 0x00;
+  ssd1683WriteCmdData(0x21, d, 2);
+  last_ctrl = 0xCF;
+  ssd1683Activate(0xCF);                              // 로드 없이 흑백 모드 구동 후 전원 끔
+  ret = ssd1683WaitBusy(120000);
+
+  fast_ready     = false;                             // 커스텀 LUT 가 바뀜
+  fast_analog_on = false;
+  lut_hold       = 0xFF;
+  if (!ret)
+  {
+    epdRecover("shake");
+    return false;
+  }
+  logPrintf("[OK] epd shake %d cycles, %d ms\n", cycles, millis() - pre_ms);
+
+  canvasClear(CANVAS_WHITE);
+  return epdUpdateStrong();
+}
+
 // 검정/흰색 전체 갱신을 3색 웨이브폼(가장 강함)으로 반복해 잔상·잔류 입자 정리
 void epdClean(int count)
 {
@@ -649,6 +704,19 @@ void cliEpd(cli_args_t *args)
     ret = true;
   }
 
+  // epd shake [cycles frames] : DC 균형 흔들기로 잔상 제거 (1 사이클 = frames x 2 x 8ms)
+  if (args->argc >= 1 && args->isStr(0, "shake"))
+  {
+    uint8_t  cycles = args->argc >= 2 ? args->getData(1) : 50;
+    uint8_t  frames = args->argc >= 3 ? args->getData(2) : 8;
+    uint32_t pre_ms = millis();
+
+    cliPrintf("shake %d cycles x %d frames (about %d s)\n", cycles, frames, cycles * frames * 2 * 8 / 1000);
+    bool ok = epdShake(cycles, frames);
+    cliPrintf("shake %s, %d ms\n", ok ? "OK" : "Fail", millis() - pre_ms);
+    ret = true;
+  }
+
   if (args->argc == 1 && args->isStr(0, "off"))
   {
     epdPowerOff();
@@ -721,6 +789,7 @@ void cliEpd(cli_args_t *args)
     cliPrintf("epd bench <count> [full|part|fast]\n");
     cliPrintf("epd fast <frames> <hold>\n");
     cliPrintf("epd off\n");
+    cliPrintf("epd shake [cycles frames]\n");
     cliPrintf("epd opt [fr_hex vendor]\n");
     cliPrintf("epd ctrl [full|part] <hex>\n");
     cliPrintf("epd temp <C>\n");

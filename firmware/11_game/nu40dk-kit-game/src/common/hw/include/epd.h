@@ -42,6 +42,7 @@ void epdGetTime(epd_time_t *p_time);
 void epdSetFastLut(uint8_t frames, uint8_t hold);
 bool epdUpdateMask(const uint8_t *p_black, const uint8_t *p_white, uint16_t y, uint16_t h, uint8_t frames);
 void epdClean(int count);
+bool epdShake(uint8_t cycles, uint8_t frames);   // DC 균형 흔들기 (잔상 제거)
 void epdSetLutOption(uint8_t fr, bool vendor);     // 커스텀 LUT 프레임 속도(0x02 50Hz, 0x05 125Hz), 제조사 전압
 void epdGetLutOption(uint8_t *p_fr, bool *p_vendor);
 void epdRecover(const char *p_reason);   // BUSY 에 갇혔을 때 하드웨어 리셋 + 재초기화
