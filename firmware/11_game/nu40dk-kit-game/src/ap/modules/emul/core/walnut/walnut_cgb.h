@@ -2691,6 +2691,25 @@ static int compare_sprites(const struct sprite_data *const sd1, const struct spr
 #endif
 
 
+/* [nu40dk-kit] DMG 배경 4 픽셀 표: 인덱스 = t1 니블 | (t2 니블 << 4), 바이트 0 = 왼쪽 픽셀 */
+static uint32_t wgb_bg_lut[256];
+static uint32_t wgb_bg_lut_pal = 0xFFFFFFFF;   /* 표를 만든 bg_palette[4] (팔레트는 0~3 이라 이 값은 나올 수 없음) */
+
+static void wgb_bg_lut_build(struct gb_s *gb, uint32_t pal)
+{
+	for(uint_fast16_t i = 0; i < 256; i++)
+	{
+		uint32_t v = 0;
+		for(uint_fast8_t j = 0; j < 4; j++)
+		{
+			uint8_t c = ((i >> (3 - j)) & 1) | (((i >> (7 - j)) & 1) << 1);
+			v |= (uint32_t)gb->display.bg_palette[c] << (8 * j);
+		}
+		wgb_bg_lut[i] = v;
+	}
+	wgb_bg_lut_pal = pal;
+}
+
 WGB_HOT void __gb_draw_line(struct gb_s *gb)
 {
 	/* [nu40dk-kit] pixels 초기화(memset 160B)를 프레임 스킵 판단 뒤로 옮김.
@@ -2731,6 +2750,39 @@ WGB_HOT void __gb_draw_line(struct gb_s *gb)
 		}
 	}
 
+#if !WALNUT_FULL_GBC_SUPPORT
+	/* [nu40dk-kit] DMG 배경: 타일 단위로 그린다. 타일 한 줄(t1, t2)의 4 픽셀을 팔레트까지 적용한
+	 * 32비트 값으로 바꾸는 표(wgb_bg_lut)를 써서 타일당 표 조회 2번, 32비트 쓰기 2번.
+	 * 스크롤 어긋남(SCX & 7)은 168 픽셀을 그린 뒤 위치를 맞춰 복사한다. */
+	if(gb->hram_io[IO_LCDC] & LCDC_BG_ENABLE)
+	{
+		uint32_t line32[(LCD_WIDTH + 8) / 4];
+		uint32_t      pal;
+		const uint8_t bg_y   = hram_io_ly + gb->hram_io[IO_SCY];
+		const uint8_t scx    = gb->hram_io[IO_SCX];
+		const uint16_t bg_map = ((gb->hram_io[IO_LCDC] & LCDC_BG_MAP) ? VRAM_BMAP_2 : VRAM_BMAP_1)
+					+ (bg_y >> 3) * 0x20;
+		const uint8_t py2    = (bg_y & 0x07) * 2;
+		const bool    tsel   = (gb->hram_io[IO_LCDC] & LCDC_TILE_SELECT) != 0;
+
+		memcpy(&pal, gb->display.bg_palette, 4);
+		if(pal != wgb_bg_lut_pal)
+			wgb_bg_lut_build(gb, pal);
+
+		for(uint_fast8_t t = 0; t < (LCD_WIDTH + 8) / 8; t++)
+		{
+			uint8_t  idx  = gb->vram[bg_map + (((scx >> 3) + t) & 0x1F)];
+			uint16_t tile = tsel ? (VRAM_TILES_1 + idx * 0x10)
+					     : (VRAM_TILES_2 + ((idx + 0x80) & 0xFF) * 0x10);
+			uint8_t  t1   = gb->vram[tile + py2];
+			uint8_t  t2   = gb->vram[tile + py2 + 1];
+
+			line32[t * 2 + 0] = wgb_bg_lut[(t1 >> 4)   | (t2 & 0xF0)];
+			line32[t * 2 + 1] = wgb_bg_lut[(t1 & 0x0F) | ((t2 & 0x0F) << 4)];
+		}
+		memcpy(pixels, (const uint8_t *)line32 + (scx & 7), LCD_WIDTH);
+	}
+#else
 	/* If background is enabled, draw it. */
 #if WALNUT_FULL_GBC_SUPPORT
 	if(cgbMode || gb->hram_io[IO_LCDC] & LCDC_BG_ENABLE)
@@ -2883,6 +2935,8 @@ WGB_HOT void __gb_draw_line(struct gb_s *gb)
 			px++;
 		}
 	}
+
+#endif
 
 	/* draw window */
 	if(gb->hram_io[IO_LCDC] & LCDC_WINDOW_ENABLE

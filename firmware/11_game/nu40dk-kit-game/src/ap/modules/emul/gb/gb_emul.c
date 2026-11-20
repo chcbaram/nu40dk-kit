@@ -89,10 +89,13 @@ static void lcdLineCb(uint8_t line, const uint8_t *pixels)
 
   if (!lcd_enable) return;
 
+  // 4 픽셀(바이트)을 32비트로 읽어 곱셈 한 번으로 2비트 4개를 한 바이트에 모은다
+  //   ((b0 << 6) | (b1 << 4) | (b2 << 2) | b3) = ((v & 0x03030303) * 0x40100401) >> 24
   for (int x = 0; x < GB_LCD_WIDTH; x += 4)
   {
-    p_dst[x >> 2] = ((pixels[x + 0] & 3) << 6) | ((pixels[x + 1] & 3) << 4) |
-                    ((pixels[x + 2] & 3) << 2) | ((pixels[x + 3] & 3) << 0);
+    uint32_t v;
+    memcpy(&v, &pixels[x], 4);
+    p_dst[x >> 2] = (uint8_t)(((v & 0x03030303UL) * 0x40100401UL) >> 24);
   }
 }
 
