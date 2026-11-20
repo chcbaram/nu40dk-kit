@@ -115,43 +115,67 @@ static void showRect(app_refresh_t mode, int16_t x, int16_t y, int16_t w, int16_
   epd_on  = true;
 }
 
-// 정착 갱신용 기준 화면: 마지막으로 정상 세기 펄스로 그린 지도 영역 (0 ~ MAP_PX_H 줄)
-static bool base_valid = false;
+// 덜 구동된 픽셀 지도: 걷기(짧은 펄스)로 바뀐 픽셀을 표시해 두었다가, 멈추거나 장면이 바뀌기 전에
+// 그 픽셀만 지금 목표 색으로 정상 길이 펄스를 준다. 지나갔다가 원래 그림으로 돌아온 픽셀(캐릭터가 지나간
+// 풀밭)은 "이전 = 새 그림"이라 차분 갱신으로는 다시 구동되지 않아 옅은 캐릭터로 남았다.
+//   지도 영역 0 ~ MAP_PX_H 줄, 비트 1 = 덜 구동. 버퍼는 api->scratch.
+static void    drawMap(void);
+static bool    dirty_any = false;
+static uint8_t rect_prev[512];                // 걷기 갱신 영역 (최대 64x64 → 8 x 64 바이트)
 
-static void baseSave(void)
+static uint8_t *dirtyMap(void)
 {
-  if (api->scratch == NULL || api->scratch_size < (uint32_t)MAP_PX_H * api->stride) return;
-  memcpy(api->scratch, api->fb, (uint32_t)MAP_PX_H * api->stride);
-  base_valid = true;
+  uint32_t need = (uint32_t)MAP_PX_H * api->stride;
+  return (api->scratch != NULL && api->scratch_size >= need) ? api->scratch : NULL;
 }
 
-// 기준 화면 → 지금 화면으로 바뀐 픽셀을 정상 길이 펄스로 한 번 더 구동 (깜빡임 없음)
-static void settle(void)
+static void dirtyClear(void)
 {
-  if (!base_valid) return;
-  if (memcmp(api->scratch, api->fb, (uint32_t)MAP_PX_H * api->stride) != 0)
+  uint8_t *d = dirtyMap();
+  if (d != NULL) memset(d, 0, (uint32_t)MAP_PX_H * api->stride);
+  dirty_any = false;
+}
+
+// 짧은 펄스로 한 장면: 그리기 전 영역을 기억했다가 바뀐 픽셀을 지도에 표시하고 영역만 갱신
+static void quickFrame(int16_t x, int16_t y, int16_t w, int16_t h)
+{
+  uint8_t *d  = dirtyMap();
+  int16_t  bx = x >> 3;
+  int16_t  bw = w >> 3;
+
+  if (d != NULL && bw * h <= (int)sizeof(rect_prev) && y + h <= MAP_PX_H)
   {
-    api->refreshFrom(api->scratch, 0, MAP_PX_H);
-    fast_cnt++;
-    last_ms = api->millis();
-    epd_on  = true;
+    for (int r = 0; r < h; r++) memcpy(&rect_prev[r * bw], &api->fb[(y + r) * api->stride + bx], bw);
+    drawMap();
+    for (int r = 0; r < h; r++)
+    {
+      uint8_t *pd = &d[(y + r) * api->stride + bx];
+      uint8_t *pf = &api->fb[(y + r) * api->stride + bx];
+      for (int c = 0; c < bw; c++) pd[c] |= rect_prev[r * bw + c] ^ pf[c];
+    }
+    dirty_any = true;
   }
-  baseSave();
+  else
+  {
+    drawMap();
+  }
+  showRect(APP_REFRESH_QUICK, x, y, w, h);
 }
 
-static void show(app_refresh_t mode);
-
-// 장면 전환 (방 이동·전투): 깜빡이는 전체 갱신(2.8초) 대신 FAST 를 두 번 (약 0.8초).
-//   강한 갱신 뒤에는 펄스 세기가 유지되므로 FAST 두 번이면 이전 화면이 거의 지워진다.
-static void transition(void)
+// 덜 구동된 픽셀만 정상 길이 펄스로 마무리 (깜빡임 없음, 바뀌지 않은 픽셀은 건드리지 않음)
+//   이전 이미지 = 지금 화면에서 표시된 픽셀만 반전 → 그 픽셀만 지금 목표 색 쪽으로 구동된다
+static void finishDirty(void)
 {
-  api->refresh(APP_REFRESH_FAST);
-  if (base_valid) settle();                 // 기준(이전 화면) → 새 화면을 한 번 더
-  else            api->refresh(APP_REFRESH_FAST);
-  baseSave();
-  fast_cnt += 2;
+  uint8_t *d = dirtyMap();
+  uint32_t n = (uint32_t)MAP_PX_H * api->stride;
+
+  if (d == NULL || !dirty_any) return;
+  for (uint32_t i = 0; i < n; i++) d[i] ^= api->fb[i];
+  api->refreshFrom(d, 0, MAP_PX_H);
+  fast_cnt++;
   last_ms = api->millis();
   epd_on  = true;
+  dirtyClear();
 }
 
 static void show(app_refresh_t mode)
@@ -161,7 +185,32 @@ static void show(app_refresh_t mode)
   else                          fast_cnt = 0;
   last_ms = api->millis();
   epd_on  = true;
-  baseSave();
+}
+
+// 장면 전환 (대화창 닫기·방 이동·전투): 깜빡이는 전체 갱신 대신 FAST 를 두 번.
+//   한 번이면 큰 영역(대화창 등)이 덜 지워져, 다음 걷기 갱신 때 이전 장면이 다시 떠올랐다 (카메라).
+//   sceneSnap() 으로 새 장면을 그리기 전 화면을 기억해 두고, 같은 전환(이전 → 새)을 한 번 더 구동한다.
+static bool snap_valid = false;
+
+static void sceneSnap(void)
+{
+  uint8_t *d = dirtyMap();
+  if (d == NULL) return;
+  memcpy(d, api->fb, (uint32_t)MAP_PX_H * api->stride);   // 덜 구동 표시는 버림 (두 번 구동이 덮는다)
+  dirty_any  = false;
+  snap_valid = true;
+}
+
+static void transition(void)
+{
+  show(APP_REFRESH_FAST);
+  if (snap_valid)
+  {
+    api->refreshFrom(dirtyMap(), 0, MAP_PX_H);
+    fast_cnt++;
+  }
+  snap_valid = false;
+  dirtyClear();
 }
 
 // 입력이 없을 때 할 일: 잔상 정리, 전원 끄기
@@ -356,6 +405,7 @@ static void drawPortrait(int16_t px, int16_t py, int p)
 // portrait >= 0 이면 왼쪽에 초상화
 static void dialogP(const char *who, int portrait, const char *const *lines)
 {
+  finishDirty();              // 대화창을 그리기 전에 걸은 자리부터 마무리
   // 대화창: 아래쪽 3 줄. 초상화는 창 왼쪽 위에 걸쳐 올리고, 이름표는 그 옆 창 테두리에 붙인다.
   const int16_t bx = 8, by = 172, bw = 384, bh = 80;
   int i = 0;
@@ -400,10 +450,9 @@ static void dialogP(const char *who, int portrait, const char *const *lines)
     waitOk();
     api->voiceStop();
   }
-  // 대화창 닫기: 대화창 → 지도 전환을 두 번 구동 (한 번이면 큰 상자 자리에 흔적이 남았다)
+  sceneSnap();                // 대화창 → 지도를 두 번 구동
   drawMap();
-  api->refresh(APP_REFRESH_FAST);
-  settle();
+  transition();
 }
 
 static void dialog(const char *who, const char *const *lines)
@@ -479,6 +528,7 @@ static bool battle(int enemy, bool *p_run)
   bool           boss = (enemy == BOSS_ENEMY);
 
   *p_run = false;
+  sceneSnap();
   snprintf(m1, sizeof(m1), "%s 이(가) 나타났다!", en->name);
   drawBattle(en, en_hp, cur, m1, boss ? "printf 로는 잡기 어려워 보인다..." : NULL);
   api->beep(440, 80);
@@ -642,6 +692,7 @@ static void talkNpc(int val)
     if (battle(BOSS_ENEMY, &run))
     {
       g.cleared = true;
+      sceneSnap();
       drawMap();
       transition();
       static const char *const e[] = {
@@ -657,6 +708,7 @@ static void talkNpc(int val)
     {
       g.room = RPG_START_ROOM; g.x = RPG_START_X; g.y = RPG_START_Y; g.dir = DIR_DOWN;
       g.hp = g.hp_max;
+      sceneSnap();
       drawMap();
       transition();
     }
@@ -731,6 +783,7 @@ static void examine(int x, int y)
  *-------------------------------------------------------------------------*/
 static void enterRoom(void)
 {
+  sceneSnap();
   drawMap();
   transition();
 }
@@ -797,8 +850,7 @@ static bool move(int dir)
   if (e >= 0 || !rpg_tile_walk[tileAt(g.room, nx, ny)])
   {
     // 막힘: 방향만 바꾼다
-    drawMap();
-    showRect(APP_REFRESH_QUICK, MAP_X0 + g.x * TILE, g.y * TILE, TILE, TILE);
+    quickFrame(MAP_X0 + g.x * TILE, g.y * TILE, TILE, TILE);
     return false;
   }
 
@@ -823,8 +875,7 @@ static bool move(int dir)
       g.oy = dy[dir] * (TILE / WALK_STEPS) * k;
     }
     g.step = (uint8_t)(k & 1);
-    drawMap();
-    showRect(APP_REFRESH_QUICK, rx, ry, rw, rh);
+    quickFrame(rx, ry, rw, rh);
     if (k >= WALK_STEPS - 1 && heldDir() != dir) held = false;   // 마지막 쯤 키를 뗐으면 도착 후 멈춘다
   }
   return held;
@@ -962,7 +1013,7 @@ static void rpgMain(const app_api_t *p_api)
           cont = move(d);
         }
         api->readKey();     // 키 상태 다시 맞춤 (뗀 뒤 한 걸음 더 가지 않게)
-        settle();           // 멈추면 걸은 자리를 정상 펄스로 정리
+        finishDirty();      // 멈추면 걸은 자리를 정상 펄스로 마무리
       }
       else if (key == APP_KEY_OK)
       {
