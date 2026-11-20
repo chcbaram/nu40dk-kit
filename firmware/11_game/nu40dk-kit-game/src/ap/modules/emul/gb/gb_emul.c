@@ -644,6 +644,36 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  // 게임 정지/재개 (측정용): gb pause 1|0
+  if (args->argc == 2 && args->isStr(0, "pause"))
+  {
+    gbRunSetPause(args->getData(1) != 0);
+    cliPrintf("pause %d\n", gbRunIsPaused());
+    ret = true;
+  }
+
+  // GB 화면 버퍼 출력 (측정용): gb lcddump  → 144 줄, 줄마다 40 바이트 hex (2bpp, MSB 가 왼쪽 픽셀)
+  if (args->argc == 1 && args->isStr(0, "lcddump"))
+  {
+    const uint8_t *p_buf = gbGetLcdBuf();
+    char           line[GB_LCD_WIDTH / 4 * 2 + 1];
+    for (int y = 0; y < GB_LCD_HEIGHT; y++)
+    {
+      for (int i = 0; i < GB_LCD_WIDTH / 4; i++)
+      {
+        static const char hex[] = "0123456789ABCDEF";
+        uint8_t v = p_buf[y * (GB_LCD_WIDTH / 4) + i];
+        line[i * 2 + 0] = hex[v >> 4];
+        line[i * 2 + 1] = hex[v & 0xF];
+      }
+      line[sizeof(line) - 1] = 0;
+      cliPrintf("L%03d %s\n", y, line);
+      if ((y & 15) == 15) delay(5);
+    }
+    cliPrintf("lcddump end\n");
+    ret = true;
+  }
+
   // 순환 시험: gb calcycle [moves=24] [period=60]  (moves 번 색을 바꾼 뒤 기준과 같은 색으로 멈춤)
   if (args->argc >= 1 && args->isStr(0, "calcycle"))
   {

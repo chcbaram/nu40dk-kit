@@ -791,6 +791,8 @@ static void patternFrame(bool draw)
   patRect(p_buf, 0,   140, 4, 4, 3);
   patRect(p_buf, 156, 140, 4, 4, 3);
 
+  if (pat_big == 4) return;                           // 모서리 표시만 (위치 맞춤용)
+
   if (pat_big == 2)
   {
     // 순환 시험 (InkBoy B REBLACK 과 같은 방식): 위 줄 = 고정 기준 K/D/L/W (처음 한 번만 그 색),
