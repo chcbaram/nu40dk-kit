@@ -64,7 +64,7 @@ nRF52840은 SPIM0/TWIM0, SPIM1/TWIM1이 같은 자원을 공유한다.
 | SPIM2 | 8MHz | 미사용 |
 | SPIM3 | **32MHz** | EPAPER |
 
-SSD1683의 쓰기 클럭은 데이터시트상 최대 20MHz 안팎이다(Phase 1에서 확인). 처음에는 8MHz로 시작하고 단계적으로 올려 본다.
+EPAPER SPI는 **16MHz**로 확정했다. 32MHz에서는 무작위 점(비트 오류)이 생긴다. nRF52840 SPIM은 8/16/32MHz 단계만 지원하므로 20MHz를 요청해도 16MHz로 동작한다.
 
 ## 확인 필요
 

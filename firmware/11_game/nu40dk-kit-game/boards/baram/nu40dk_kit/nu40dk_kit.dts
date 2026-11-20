@@ -213,6 +213,7 @@ zephyr_udc0: &usbd {
 /* 4.2" EPAPER (SSD1683), SPIM3 */
 &spi3 {
   status = "okay";
+  max-frequency = <DT_FREQ_M(32)>;
   cs-gpios = <&gpio1 3 GPIO_ACTIVE_LOW>;
   pinctrl-0 = <&spi3_default>;
   pinctrl-1 = <&spi3_sleep>;
@@ -221,6 +222,6 @@ zephyr_udc0: &usbd {
   epd_spi: epd@0 {
     compatible = "vnd,spi-device";
     reg = <0>;
-    spi-max-frequency = <DT_FREQ_M(8)>;
+    spi-max-frequency = <DT_FREQ_M(16)>;   /* 32MHz 는 패널 데이터 깨짐 */
   };
 };

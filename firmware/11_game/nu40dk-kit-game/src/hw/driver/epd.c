@@ -5,6 +5,7 @@
 #include "epd/ssd1683.h"
 #include "canvas.h"
 #include "cli.h"
+#include <stdlib.h>
 
 
 #define EPD_FULL_TIMEOUT_MS     5000
@@ -17,8 +18,27 @@ static void cliEpd(cli_args_t *args);
 
 static bool       is_init = false;
 static epd_time_t epd_time;
+static uint8_t    full_ctrl = 0xFF;     // 0x22 값: 0xFF 흑백 모드 전체 (0.67s), 0xF7 3색 모드 전체 (2.8s)
+static uint8_t    part_ctrl = 0xFC;     // 0x22 값: 0xFC 온도/LUT 로드 후 흑백 표시
+static uint8_t    lut_buf[227];         // 0x32 커스텀 LUT (흑백 모드 형식)
 
-static const char *mode_str[EPD_MODE_MAX] = {"full", "part"};
+// FAST 모드 (Phase 2 실험으로 정한 값)
+static bool       fast_ready     = false;   // 커스텀 LUT/전압 설정 완료 여부 (OTP LUT 로드 시 해제)
+static bool       fast_analog_on = false;   // 아날로그 전원 유지 중이면 0x8C 로 갱신
+static uint8_t    fast_frames    = 10;      // 전환 펄스 길이 (프레임, 8ms @125Hz)
+static uint8_t    fast_hold      = 10;      // 유지 픽셀 구동 길이
+
+static const char *mode_str[EPD_MODE_MAX] = {"full", "part", "fast"};
+
+// FAST 모드에서 바꾼 부스터 소프트 스타트를 기본값(POR)으로 복구
+static void epdRestoreSoftStart(void)
+{
+  const uint8_t d[4] = {0x8B, 0x9C, 0x96, 0x0F};
+  ssd1683WriteCmdData(0x0C, d, 4);
+}
+
+void epdBuildLut(uint8_t frames, uint8_t vs_black, uint8_t vs_white, uint8_t fr, uint8_t hold);
+void epdWriteLut(void);
 
 
 
@@ -115,6 +135,26 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
   pre_ms = millis();
   pre_us = micros();
 
+  if (mode == EPD_MODE_FAST && !fast_ready)
+  {
+    uint8_t d[4];
+
+    // 커스텀 LUT: 전환 fast_frames, 유지 fast_hold, 흰→검 VSH1, 검→흰 VSL, FR 125Hz
+    //   전압(0x04)과 EOPT(0x3F)는 OTP 값을 그대로 사용한다.
+    //   (VSH1/VSL ±17V, EOPT 0x07 실험 후 패널에 점이 남는 현상이 있어 제외)
+    epdBuildLut(fast_frames, 1, 2, 0x05, fast_hold);
+    epdWriteLut();
+    d[0] = 0x8B; d[1] = 0x9C; d[2] = 0x96; d[3] = 0x00;   // 부스터 소프트 스타트 90ms → 30ms
+    ssd1683WriteCmdData(0x0C, d, 4);
+    fast_ready     = true;
+    fast_analog_on = false;
+  }
+
+  if (mode != EPD_MODE_FAST && fast_ready)
+  {
+    epdRestoreSoftStart();
+  }
+
   if (mode == EPD_MODE_FULL)
   {
     ssd1683WriteRam(SSD1683_RAM_BW,  x, y, w, h, p_fb, EPD_STRIDE);
@@ -123,7 +163,9 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
 
     data[0] = 0x40; data[1] = 0x00;
     ssd1683WriteCmdData(0x21, data, 2);
-    ssd1683Activate(0xF7);
+    ssd1683Activate(full_ctrl);
+    fast_ready     = false;                   // OTP LUT 가 다시 로드됨
+    fast_analog_on = false;
 
     uint32_t busy_ms = millis();
     ret = ssd1683WaitBusy(EPD_FULL_TIMEOUT_MS);
@@ -136,7 +178,18 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
 
     data[0] = 0x00; data[1] = 0x00;           // RED RAM 을 이전 이미지로 사용 (차분 갱신)
     ssd1683WriteCmdData(0x21, data, 2);
-    ssd1683Activate(0xFC);
+
+    if (mode == EPD_MODE_FAST)
+    {
+      // 아날로그가 이미 켜져 있으면 0x8C (클럭 + 흑백 표시만) 로 부스터 기동 시간을 생략
+      ssd1683Activate(fast_analog_on ? 0x8C : 0xCC);
+      fast_analog_on = true;
+    }
+    else
+    {
+      ssd1683Activate(part_ctrl);
+      if (part_ctrl & 0x10) fast_ready = false; // LUT 로드 비트가 있으면 커스텀 LUT 가 덮어써짐
+    }
 
     uint32_t busy_ms = millis();
     ret = ssd1683WaitBusy(EPD_PART_TIMEOUT_MS);
@@ -162,8 +215,80 @@ void epdGetTime(epd_time_t *p_time)
   *p_time = epd_time;
 }
 
+// 온도 레지스터를 강제로 쓰고 흑백 모드 LUT 만 OTP 에서 로드 (0x22=0x99).
+// 이후 part_ctrl 을 0xCF/0xCC (LUT 로드 없음) 로 쓰면 이 온도의 웨이브폼이 사용된다.
+//
+uint32_t epdLoadLutByTemp(int8_t temp)
+{
+  uint8_t  data = (uint8_t)temp;
+  uint32_t pre_time = millis();
+
+  ssd1683WriteCmdData(0x1A, &data, 1);
+  ssd1683Activate(0x99);
+  ssd1683WaitBusy(1000);
+  return millis() - pre_time;
+}
+
+// 흑백 모드 커스텀 LUT (227 바이트, 데이터시트 Figure 6-7)
+//   LUTC 0, LUTWW 42, LUTBW 84, LUTWB 126, LUTBB 168 (각 6 그룹 x 7 바이트)
+//   그룹: [RP][VS|TP A][VS|TP B][VS|TP C][VS|TP D][SR AB][SR CD]
+//   VS: 00 VSS, 01 VSH1, 10 VSL, 11 VSH2
+//   R RAM(이전) / BW RAM(새): 1,0 → LUTBW (흰→검), 0,1 → LUTWB (검→흰)
+//
+void epdBuildLut(uint8_t frames, uint8_t vs_black, uint8_t vs_white, uint8_t fr, uint8_t hold)
+{
+  const uint16_t ofs_c  = 0;
+  const uint16_t ofs_ww = 42;
+  const uint16_t ofs_bw = 84;
+  const uint16_t ofs_wb = 126;
+  const uint16_t ofs_bb = 168;
+  uint8_t tp = frames > 63 ? 63 : frames;
+
+  memset(lut_buf, 0, sizeof(lut_buf));
+
+  const uint16_t ofs_tbl[5] = {ofs_c, ofs_ww, ofs_bw, ofs_wb, ofs_bb};
+  // hold: 색이 그대로인 픽셀(WW, BB)도 목표색 방향으로 함께 구동해 잔상(덜 지워진 회색)을 정리
+  //   hold = 0 → 구동 안 함, n → n 프레임 구동 (TP 는 frames 와 같은 phase 에서 병렬)
+  const uint8_t  vs_tbl[5]  = {0, hold ? vs_white : 0, vs_black, vs_white, hold ? vs_black : 0};
+  const uint8_t  tp_tbl[5]  = {tp, hold ? (hold > tp ? tp : hold) : tp, tp, tp, hold ? (hold > tp ? tp : hold) : tp};
+
+  for (int i = 0; i < 5; i++)
+  {
+    uint8_t *p = &lut_buf[ofs_tbl[i]];
+
+    p[0] = 1;                                   // RP group0 = 1
+    p[1] = ((vs_tbl[i] & 0x03) << 6) | tp_tbl[i]; // phase A
+    p[5] = 1;                                   // SR AB = 1
+    p[6] = 0;                                   // SR CD = 0 (skip)
+  }
+  lut_buf[224] = fr;                            // FR
+  lut_buf[225] = 0;                             // XON
+  lut_buf[226] = 0;
+}
+
+void epdWriteLut(void)
+{
+  ssd1683WriteCmdData(0x32, lut_buf, sizeof(lut_buf));
+}
+
+void epdSetFastLut(uint8_t frames, uint8_t hold)
+{
+  fast_frames = frames;
+  fast_hold   = hold;
+  fast_ready  = false;
+}
+
+// 아날로그 전원 끄기 (FAST 모드 사용 후 대기 상태로 둘 때)
+void epdPowerOff(void)
+{
+  ssd1683Activate(0x03);
+  ssd1683WaitBusy(500);
+  fast_analog_on = false;
+}
+
 void epdSleep(void)
 {
+  epdPowerOff();
   ssd1683DeepSleep();
   is_init = false;
 }
@@ -226,6 +351,7 @@ static epd_mode_t getMode(cli_args_t *args, uint8_t index, epd_mode_t def)
 {
   if (args->argc > index && args->isStr(index, "part")) return EPD_MODE_PART;
   if (args->argc > index && args->isStr(index, "full")) return EPD_MODE_FULL;
+  if (args->argc > index && args->isStr(index, "fast")) return EPD_MODE_FAST;
   return def;
 }
 
@@ -252,6 +378,8 @@ void cliEpd(cli_args_t *args)
     cliPrintf("spi     : %d Hz\n", ssd1683GetSpiFreq());
     cliPrintf("busy    : %d\n", epdIsBusy());
     cliPrintf("count   : %d\n", t.count);
+    cliPrintf("ctrl    : full 0x%02X, part 0x%02X\n", full_ctrl, part_ctrl);
+    cliPrintf("fast    : frames %d, hold %d, ready %d, analog %d\n", fast_frames, fast_hold, fast_ready, fast_analog_on);
     cliPrintf("last    : spi %d us, busy %d ms, total %d ms\n", t.spi_us, t.busy_ms, t.total_ms);
     ret = true;
   }
@@ -329,6 +457,95 @@ void cliEpd(cli_args_t *args)
     ret = true;
   }
 
+  if (args->argc == 3 && args->isStr(0, "ctrl"))
+  {
+    uint8_t value = (uint8_t)strtoul(args->getStr(2), NULL, 16);
+
+    if (args->isStr(1, "full")) full_ctrl = value;
+    if (args->isStr(1, "part")) part_ctrl = value;
+    cliPrintf("ctrl full 0x%02X, part 0x%02X\n", full_ctrl, part_ctrl);
+    ret = true;
+  }
+  if (args->argc == 3 && args->isStr(0, "fast"))
+  {
+    epdSetFastLut(args->getData(1), args->getData(2));
+    cliPrintf("fast lut : frames %d, hold %d\n", fast_frames, fast_hold);
+    ret = true;
+  }
+
+  // epd clean [count] : 검정/흰색 전체 갱신을 번갈아 반복해 잔상·잔류 입자 정리 (3색 웨이브폼)
+  if (args->argc >= 1 && args->isStr(0, "clean"))
+  {
+    int     cnt  = args->argc >= 2 ? args->getData(1) : 2;
+    uint8_t ctrl = full_ctrl;
+
+    full_ctrl = 0xF7;
+    for (int i = 0; i < cnt; i++)
+    {
+      canvasClear(CANVAS_BLACK);
+      epdUpdate(EPD_MODE_FULL);
+      canvasClear(CANVAS_WHITE);
+      epdUpdate(EPD_MODE_FULL);
+      cliPrintf("clean %d/%d\n", i + 1, cnt);
+    }
+    full_ctrl = ctrl;
+    ret = true;
+  }
+
+  if (args->argc == 1 && args->isStr(0, "off"))
+  {
+    epdPowerOff();
+    cliPrintf("epd analog off\n");
+    ret = true;
+  }
+
+  if (args->argc == 1 && args->isStr(0, "ctrl"))
+  {
+    cliPrintf("ctrl full 0x%02X, part 0x%02X\n", full_ctrl, part_ctrl);
+    ret = true;
+  }
+
+  if (args->argc == 2 && args->isStr(0, "temp"))
+  {
+    int8_t   temp = (int8_t)args->getData(1);
+    uint32_t ms   = epdLoadLutByTemp(temp);
+
+    cliPrintf("temp %d C, LUT load %d ms (part ctrl 을 CF 또는 CC 로 설정)\n", temp, ms);
+    ret = true;
+  }
+
+  // epd lut <frames> [hold vs_black vs_white fr(hex)]
+  if (args->argc >= 2 && args->isStr(0, "lut"))
+  {
+    uint8_t frames   = args->getData(1);
+    uint8_t hold     = args->argc >= 3 ? args->getData(2) : 0;
+    uint8_t vs_black = args->argc >= 4 ? args->getData(3) : 1;
+    uint8_t vs_white = args->argc >= 5 ? args->getData(4) : 2;
+    uint8_t fr       = args->argc >= 6 ? (uint8_t)strtoul(args->getStr(5), NULL, 16) : 0x55;
+
+    epdBuildLut(frames, vs_black, vs_white, fr, hold);
+    epdWriteLut();
+    cliPrintf("lut : frames %d, hold %d, vs_black %d, vs_white %d, fr 0x%02X (part ctrl 을 CF 또는 CC 로 설정)\n",
+              frames, hold, vs_black, vs_white, fr);
+    ret = true;
+  }
+
+  // epd cmd <cmd_hex> [data_hex ...] : 레지스터 직접 쓰기 (실험용)
+  if (args->argc >= 2 && args->isStr(0, "cmd"))
+  {
+    uint8_t cmd = (uint8_t)strtoul(args->getStr(1), NULL, 16);
+    uint8_t data[16];
+    uint8_t len = 0;
+
+    for (int i = 2; i < args->argc && len < sizeof(data); i++)
+    {
+      data[len++] = (uint8_t)strtoul(args->getStr(i), NULL, 16);
+    }
+    ssd1683WriteCmdData(cmd, data, len);
+    cliPrintf("cmd 0x%02X, len %d\n", cmd, len);
+    ret = true;
+  }
+
   if (args->argc == 1 && args->isStr(0, "sleep"))
   {
     epdSleep();
@@ -340,11 +557,17 @@ void cliEpd(cli_args_t *args)
   {
     cliPrintf("epd info\n");
     cliPrintf("epd init\n");
-    cliPrintf("epd clear [full|part]\n");
-    cliPrintf("epd test 0~3 [full|part]   0:checker 1:gray 2:gb 3:text\n");
+    cliPrintf("epd clear [full|part|fast]\n");
+    cliPrintf("epd test 0~3 [full|part|fast]   0:checker 1:gray 2:gb 3:text\n");
     cliPrintf("epd text <str>\n");
     cliPrintf("epd spi <MHz>\n");
-    cliPrintf("epd bench <count> [full|part]\n");
+    cliPrintf("epd bench <count> [full|part|fast]\n");
+    cliPrintf("epd fast <frames> <hold>\n");
+    cliPrintf("epd off\n");
+    cliPrintf("epd ctrl [full|part] <hex>\n");
+    cliPrintf("epd temp <C>\n");
+    cliPrintf("epd lut <frames> [hold vs_black vs_white fr_hex]\n");
+    cliPrintf("epd cmd <hex> [data_hex ...]\n");
     cliPrintf("epd sleep\n");
   }
 }

@@ -19,7 +19,8 @@ extern "C" {
 typedef enum
 {
   EPD_MODE_FULL = 0,      // 내장 웨이브폼 전체 갱신 (깜빡임, 잔상 정리)
-  EPD_MODE_PART,          // 부분 갱신 (차분, 깜빡임 없음)
+  EPD_MODE_PART,          // 부분 갱신 (OTP 웨이브폼, 차분, 화질 좋음, 약 0.6초)
+  EPD_MODE_FAST,          // 고속 부분 갱신 (커스텀 LUT, 약 0.1초, 게임용)
   EPD_MODE_MAX
 } epd_mode_t;
 
@@ -38,6 +39,8 @@ bool epdIsBusy(void);
 bool epdUpdate(epd_mode_t mode);
 bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 void epdGetTime(epd_time_t *p_time);
+void epdSetFastLut(uint8_t frames, uint8_t hold);
+void epdPowerOff(void);
 void epdSleep(void);
 
 #endif

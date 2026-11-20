@@ -9,7 +9,14 @@
 #define EPD_SPI_OP    (SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_OP_MODE_MASTER)
 
 
-static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(DT_NODELABEL(epd_spi), EPD_SPI_OP, 0);
+// Zephyr spi_nrfx 는 spi_config 포인터가 바뀔 때만 재설정하므로, 클럭 변경 시 두 개를 번갈아 쓴다
+static struct spi_dt_spec spi_tbl[2] =
+{
+  SPI_DT_SPEC_GET(DT_NODELABEL(epd_spi), EPD_SPI_OP, 0),
+  SPI_DT_SPEC_GET(DT_NODELABEL(epd_spi), EPD_SPI_OP, 0),
+};
+static uint8_t spi_idx = 0;
+#define spi_dev   spi_tbl[spi_idx]
 
 static const struct gpio_dt_spec pin_busy = GPIO_DT_SPEC_GET(DT_NODELABEL(epd_busy), gpios);
 static const struct gpio_dt_spec pin_res  = GPIO_DT_SPEC_GET(DT_NODELABEL(epd_res),  gpios);
@@ -166,7 +173,10 @@ void ssd1683DeepSleep(void)
 
 bool ssd1683SetSpiFreq(uint32_t freq_hz)
 {
-  spi_dev.config.frequency = freq_hz;
+  uint8_t next = spi_idx ^ 1;
+
+  spi_tbl[next].config.frequency = freq_hz;
+  spi_idx = next;
   return true;
 }
 
