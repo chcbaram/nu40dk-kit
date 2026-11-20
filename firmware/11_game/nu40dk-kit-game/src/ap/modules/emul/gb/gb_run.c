@@ -152,7 +152,7 @@ static const uint8_t    ink_dwell_bonus[4][8] =               // [출발 색][�
 static uint16_t         ink_hist_pct = 100;                   // 되돌아갈 때 받은 펄스 비율 %
 static uint8_t          ink_hist_add = 1;
 static uint8_t          ink_prewhite = 3;                     // 전체 갱신 뒤 흰 픽셀 흰색 펄스 수 (gb prewhite). 흰 자국 0.027 → 0.007
-static uint8_t          ink_wbias    = 0;                     // 흰색으로 가는 전환 여유 펄스 (gb wbias)
+static uint8_t          ink_wbias    = 2;                     // 흰색으로 가는 전환 여유 펄스 (gb wbias)
 static uint16_t         ink_hist_gray = 60;
 // 경로별 보정 [출발][목표][도착 방향: 0 = 밝은 쪽으로 와서(흰색 쪽 구동 뒤), 1 = 어두운 쪽으로 와서] → 펄스 가감 (gb route)
 //   Transition test 측정-보정 반복(tools/cal/route_iter.py) 3 회차 값: 사각형 오차 0.166 → 0.070, 지나간 자리 0.142 → 0.070
