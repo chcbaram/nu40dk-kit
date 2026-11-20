@@ -106,6 +106,15 @@ static uint8_t          diff_nib[256];                        // 2bpp 바이트 
  *   ink_dir             : 1 = 검정 방향 구동 (비트 슬라이스, GB 픽셀당 1bit)
  */
 static volatile bool    ink_gray     = true;
+static uint32_t         ink_scene_px = (GB_LCD_WIDTH * GB_LCD_HEIGHT) * 40 / 100;  // 장면 전환 기준 (바뀐 픽셀 수, 0 = 끔)
+static uint32_t         scene_ms     = 0;
+static uint32_t         ink_quiet_ms  = 1500;                 // 조용한 상태가 이만큼 이어지면 정리 (0 = 끔)
+static uint32_t         ink_quiet_px  = 120;                  // 프레임당 바뀐 픽셀이 이보다 적으면 조용함
+static uint32_t         ink_quiet_act = 3000;                 // 직전 정리 뒤 바뀐 픽셀 합이 이 이상일 때만
+static uint32_t         quiet_ms      = 0;
+static uint32_t         quiet_act     = 0;
+static uint16_t         ink_rev_pct  = 0;                     // 되돌아갈 때 펄스 비율 % (0 = 보정 안 함). gb retarget
+static bool             ink_same_add = false;                 // 같은 방향으로 더 갈 때 남은 펄스 더하기
 static uint8_t          gray_frames  = 4;                     // 회색 모드 스캔 1 회 프레임 수 (32ms)
                                                               //   스캔당 고정 비용(SPI 15ms + 방전 16ms)이 커서, 펄스를 길게·횟수를 적게 하면
                                                               //   한 번 바뀌는 데 걸리는 시간이 짧아져 움직임 잔상이 준다 (16ms x 12 → 32ms x 6)
@@ -113,9 +122,9 @@ static uint8_t          gray_dose[4][4] =
 {
   //  W  L  D  K   (새)      32ms 펄스 기준. 검정 쪽을 InkBoy 표보다 늘리고 흰색 방향도 같은 비율로 맞춤
   {   0, 1, 2, 6 },   // W (이전)        (흰색 방향을 약하게 두면 검었던 자리가 회색 잔상으로 남음)
-  {   4, 0, 1, 4 },   // L
-  {   5, 1, 0, 3 },   // D
-  {   6, 3, 2, 0 },   // K
+  {   5, 0, 1, 4 },   // L               흰색으로 가는 펄스 +1 (L 4→5, D 5→6, K 6→7):
+  {   6, 1, 0, 3 },   // D               움직이는 캐릭터 뒤 잔상이 줄어듦 (2026-11-20)
+  {   7, 3, 2, 0 },   // K
 };
 static uint32_t         ink_dir[INK_WORDS];
 
@@ -251,6 +260,23 @@ static uint8_t *inkWhiteBuf(void)
 
 // 새 프레임과 현재 목표를 비교해 명암이 바뀐 GB 픽셀의 카운터를 예산으로 설정
 //   32 픽셀(8 바이트)을 32bit 두 개로 비교해 같으면 건너뛰고, 다르면 바이트당 룩업 한 번
+// 장면 전환 감지: 이전 목표(ink_shade)와 비교해 바뀐 GB 픽셀 수 (2비트 픽셀, 32비트 단위)
+static uint32_t inkChangedPixels(const uint8_t *p_new)
+{
+  const uint8_t *p_old = &ink_shade[0][0];
+  uint32_t       cnt   = 0;
+
+  for (uint32_t i = 0; i < sizeof(ink_shade); i += 4)
+  {
+    uint32_t n, o, x;
+    memcpy(&n, p_new + i, 4);
+    memcpy(&o, p_old + i, 4);
+    x = n ^ o;
+    cnt += __builtin_popcount((x | (x >> 1)) & 0x55555555UL);
+  }
+  return cnt;
+}
+
 static void inkPlan(const uint8_t *p_new)
 {
   uint8_t *p_old = &ink_shade[0][0];
@@ -275,8 +301,39 @@ static void inkPlan(const uint8_t *p_new)
 
           uint8_t  o    = (p_old[b] >> (6 - p * 2)) & 3;
           uint8_t  n    = (p_new[b] >> (6 - p * 2)) & 3;
-          uint8_t  dose = gray_dose[o][n];
+          int      dose = gray_dose[o][n];
           uint32_t bit  = 1u << (b * 4 + p);
+
+          // retarget: 이전 전환이 끝나기 전에 목표가 바뀌면 남은 펄스(r)로 위치를 추정한다 (RAM 0 근사).
+          //   되돌아감(방향 반대): (표 - r) x ink_rev_pct %, 표 값 이하.
+          //     100% (= 표 - r) 은 잔상이 늘었다. 입자는 처음 몇 펄스에 크게 움직여서 받은 만큼만
+          //     되돌리면 덜 돌아온다 (InkBoy 기본 150%).
+          //   같은 방향 더 감: ink_same_add 면 표 + r
+          if (ink_rev_pct > 0 || ink_same_add)
+          {
+            int r = 0;
+            for (int k = 0; k < INK_CNT_BITS; k++)
+              if (ink_cnt[k][w] & bit) r |= 1 << k;
+            if (r > 0)
+            {
+              bool cur_dark = (ink_dir[w] & bit) != 0;
+              bool new_dark = n > o;
+              if (cur_dark != new_dark)
+              {
+                if (ink_rev_pct > 0)
+                {
+                  int rev = ((dose - r) * ink_rev_pct + 99) / 100;
+                  if (rev < 1)    rev = 1;
+                  if (rev < dose) dose = rev;
+                }
+              }
+              else if (ink_same_add)
+              {
+                dose += r;
+              }
+              if (dose > 15) dose = 15;
+            }
+          }
 
           for (int k = 0; k < INK_CNT_BITS; k++)
           {
@@ -658,6 +715,42 @@ void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h)
   *p_h = GB_SCR_H;
 }
 
+void gbRunSetRetarget(uint16_t rev_pct, bool same_add)
+{
+  ink_rev_pct  = rev_pct;
+  ink_same_add = same_add;
+}
+
+void gbRunGetRetarget(uint16_t *p_rev_pct, bool *p_same_add)
+{
+  *p_rev_pct  = ink_rev_pct;
+  *p_same_add = ink_same_add;
+}
+
+void gbRunSetQuiet(uint32_t ms, uint32_t px, uint32_t act)
+{
+  ink_quiet_ms  = ms;
+  ink_quiet_px  = px;
+  ink_quiet_act = act;
+}
+
+void gbRunGetQuiet(uint32_t *p_ms, uint32_t *p_px, uint32_t *p_act)
+{
+  *p_ms  = ink_quiet_ms;
+  *p_px  = ink_quiet_px;
+  *p_act = ink_quiet_act;
+}
+
+void gbRunSetScenePx(uint32_t px)
+{
+  ink_scene_px = px;
+}
+
+uint32_t gbRunGetScenePx(void)
+{
+  return ink_scene_px;
+}
+
 bool gbRunIsPaused(void)
 {
   return is_pause;
@@ -865,7 +958,7 @@ static void dispInkMode(void)
       // 회색 모드: 흰 화면(+테두리)을 기준으로 시작해 모든 픽셀을 흰색에서 목표 회색까지 구동
       memset(ink_shade, 0, sizeof(ink_shade));
       drawGameCanvas(&ink_shade[0][0]);
-      epdUpdate(EPD_MODE_FULL);
+      epdUpdateCold(10);                      // 저온 웨이브폼: 0xFF 보다 흰색이 깨끗함 (약 1.25초)
       inkPlan(gbGetLcdBuf());
     }
     else
@@ -873,7 +966,7 @@ static void dispInkMode(void)
       drawGameCanvas(gbGetLcdBuf());
       memcpy(ink_shade, gbGetLcdBuf(), sizeof(ink_shade));
       memcpy(ink_base, ink_shade, sizeof(ink_base));
-      epdUpdate(EPD_MODE_FULL);
+      epdUpdateCold(10);
     }
     // 마스크 전체 재생성 (캔버스를 이미지로 쓴 뒤라 다시 만든다), 전 영역 전송 필요
     inkBuildMask(inkWhiteBuf());
@@ -886,6 +979,38 @@ static void dispInkMode(void)
     remain      = ink_gray ? 1 : 0;
     disp_ready  = true;
     return;
+  }
+
+  // 장면 전환(타이틀 → 게임, 스테이지 시작 등): 바뀐 픽셀이 많으면 전체 갱신으로 흰 바탕을 다시 만든다.
+  //   ink 모드는 바뀐 픽셀만 한 번 구동해서, 대비가 떨어진 패널에서는 이전 장면이 연하게 남고
+  //   그 자리를 다시 구동할 일이 없었다 (캐릭터가 지나간 자리만 깨끗해짐)
+  //
+  // 조용한 순간 정리: 스크롤 중 얇은 선(산 윤곽, 구름)은 흰→검이 끝나기 전에 되돌아와 연한 흔적이
+  //   남는다. 변화가 적은 상태(프레임당 ink_quiet_px 미만)가 ink_quiet_ms 이어지고, 직전 정리 뒤
+  //   바뀐 픽셀이 ink_quiet_act 이상 쌓였으면 전체 갱신 1회로 흔적을 지운다 (가만히 있을 때 반복 안 함)
+  if (frame_ready && (ink_scene_px > 0 || ink_quiet_ms > 0))
+  {
+    uint32_t changed = inkChangedPixels(gbGetLcdBuf());
+
+    if (ink_scene_px > 0 && changed >= ink_scene_px && millis() - scene_ms >= 1000)
+    {
+      stat.ink_scene++;
+      scene_ms  = millis();
+      quiet_act = 0;
+      req_full  = true;
+      return;                               // 다음 호출에서 req_full 처리 (프레임은 그대로 사용)
+    }
+
+    quiet_act += changed;
+    if (changed >= ink_quiet_px) quiet_ms = millis();
+    if (ink_quiet_ms > 0 && quiet_act >= ink_quiet_act && millis() - quiet_ms >= ink_quiet_ms)
+    {
+      stat.ink_quiet++;
+      scene_ms  = millis();
+      quiet_act = 0;
+      req_full  = true;
+      return;
+    }
   }
 
   // 새 프레임이 있으면 목표 갱신

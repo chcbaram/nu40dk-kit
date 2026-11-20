@@ -121,37 +121,58 @@ static void cfgSave(void)
 /*---------------------------------------------------------------------------
  * 입력
  *-------------------------------------------------------------------------*/
-static uint8_t readKeyBits(void)
+static uint8_t padKeyBits(const xbox_hid_report_t *p_pad)
+{
+  uint8_t bits = 0;
+
+  if (p_pad->dpad == 1 || p_pad->dpad == 2 || p_pad->dpad == 8 || p_pad->left_stick_y < 12000) bits |= (1 << KEY_UP);
+  if (p_pad->dpad == 4 || p_pad->dpad == 5 || p_pad->dpad == 6 || p_pad->left_stick_y > 53000) bits |= (1 << KEY_DOWN);
+  if (p_pad->dpad == 7 || p_pad->left_stick_x < 12000) bits |= (1 << KEY_LEFT);
+  if (p_pad->dpad == 3 || p_pad->left_stick_x > 53000) bits |= (1 << KEY_RIGHT);
+  if (p_pad->btn_a || p_pad->btn_menu)  bits |= (1 << KEY_OK);
+  if (p_pad->btn_b || p_pad->btn_xbox)  bits |= (1 << KEY_BACK);
+  return bits;
+}
+
+// 현재 눌린 키. p_latched 가 있으면 화면 갱신 중 눌렸다 뗀 패드 키(래치)를 따로 돌려준다
+static uint8_t readKeyBitsEx(uint8_t *p_latched)
 {
   xbox_hid_report_t pad;
   uint8_t           bits = 0;
+  uint8_t           latched = 0;
 
   if (buttonGetPressed(_DEF_CH1)) bits |= (1 << KEY_UP);
   if (buttonGetPressed(_DEF_CH2)) bits |= (1 << KEY_DOWN);
   if (buttonGetPressed(_DEF_CH3)) bits |= (1 << KEY_OK);
   if (buttonGetPressed(_DEF_CH4)) bits |= (1 << KEY_BACK);
 
-  if (blePadIsConnected() && blePadGetInfoLatched(BLE_PAD_LATCH_LAUNCHER, &pad))
+  if (blePadIsConnected())
   {
-    if (pad.dpad == 1 || pad.dpad == 2 || pad.dpad == 8 || pad.left_stick_y < 12000) bits |= (1 << KEY_UP);
-    if (pad.dpad == 4 || pad.dpad == 5 || pad.dpad == 6 || pad.left_stick_y > 53000) bits |= (1 << KEY_DOWN);
-    if (pad.dpad == 7 || pad.left_stick_x < 12000) bits |= (1 << KEY_LEFT);
-    if (pad.dpad == 3 || pad.left_stick_x > 53000) bits |= (1 << KEY_RIGHT);
-    if (pad.btn_a || pad.btn_menu)  bits |= (1 << KEY_OK);
-    if (pad.btn_b || pad.btn_xbox)  bits |= (1 << KEY_BACK);
+    if (blePadGetInfo(&pad)) bits |= padKeyBits(&pad);
+    if (blePadGetInfoLatched(BLE_PAD_LATCH_LAUNCHER, &pad)) latched = padKeyBits(&pad);
   }
-  return bits;
+  if (p_latched != NULL) *p_latched = latched;
+  return bits | (p_latched == NULL ? latched : 0);
+}
+
+static uint8_t readKeyBits(void)
+{
+  return readKeyBitsEx(NULL);
 }
 
 // 눌림 엣지 + 위/아래/좌/우 자동 반복
+//   엣지는 (현재 | 래치) 로 찾아 갱신 중 짧게 누른 키도 받는다.
+//   자동 반복과 이전 상태는 현재 상태만 쓴다. 래치를 "누르고 있음"으로 보면 갱신(0.6초) 직후
+//   반복 조건(400ms)을 넘어 D-pad 한 번에 두 칸 움직였다.
 static ui_key_t readKey(void)
 {
   static uint8_t  pre_bits = 0xFF;      // 시작 시 이미 눌린 키는 무시
   static uint32_t press_ms = 0;
   static uint32_t repeat_ms = 0;
-  uint8_t         bits = readKeyBits();
-  uint8_t         down = bits & ~pre_bits;
-  ui_key_t           key  = KEY_NONE;
+  uint8_t         latched;
+  uint8_t         bits = readKeyBitsEx(&latched);
+  uint8_t         down = (bits | latched) & ~pre_bits;
+  ui_key_t        key  = KEY_NONE;
 
   if (pre_bits == 0xFF) down = 0;
 
@@ -281,9 +302,11 @@ static void present(void)
   }
   else
   {
-    // 런처는 공장(OTP) 부분 갱신만 쓴다. 커스텀 FAST 웨이브폼은 DC 균형이 맞지 않아
-    // 오래 쓰면 패널에 전하가 쌓여 회색 배경/이전 화면 겹침이 생긴다 (게임 화면에서만 사용)
-    epdUpdate(EPD_MODE_PART);
+    // 메뉴 이동: 커스텀 FAST 웨이브폼 (약 0.1초, 바뀐 픽셀만 구동, hold 0).
+    //   공장 부분 갱신(0.6초)은 반응이 한 박자 늦게 보였다. 예전 FAST 의 패널 잔상은 바뀌지 않은
+    //   픽셀까지 구동한 hold 때문이었고 지금은 hold 0. 검정이 덜 진한 것은 10회마다·멈춘 뒤 5초의
+    //   저온 전체 갱신이 정리한다.
+    epdUpdate(EPD_MODE_FAST);
     fast_cnt++;
   }
   epd_on       = true;

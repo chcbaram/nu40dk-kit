@@ -538,6 +538,42 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  // 회색 모드 목표 변경 보정: gb retarget <되돌림 % (0=끔)> [같은 방향 더하기 0|1]
+  if (args->argc >= 1 && args->isStr(0, "retarget"))
+  {
+    uint16_t rev;
+    bool     same;
+
+    gbRunGetRetarget(&rev, &same);
+    if (args->argc >= 2) rev  = args->getData(1);
+    if (args->argc >= 3) same = args->getData(2) != 0;
+    gbRunSetRetarget(rev, same);
+    cliPrintf("retarget : reverse %d %%, same-dir add %s\n", rev, same ? "on" : "off");
+    ret = true;
+  }
+
+  // 조용한 순간 정리: gb quiet <ms (0=끔)> [프레임당 px] [누적 px]
+  if (args->argc >= 1 && args->isStr(0, "quiet"))
+  {
+    uint32_t ms, px, act;
+
+    gbRunGetQuiet(&ms, &px, &act);
+    if (args->argc >= 2) ms  = args->getData(1);
+    if (args->argc >= 3) px  = args->getData(2);
+    if (args->argc >= 4) act = args->getData(3);
+    gbRunSetQuiet(ms, px, act);
+    cliPrintf("quiet : %d ms, < %d px/frame, after %d px\n", ms, px, act);
+    ret = true;
+  }
+
+  // 장면 전환 전체 갱신 기준: gb scene [px|0]  (GB 화면 23040 픽셀 중 바뀐 수)
+  if (args->argc >= 1 && args->isStr(0, "scene"))
+  {
+    if (args->argc >= 2) gbRunSetScenePx(args->getData(1));
+    cliPrintf("scene : %d px (%d %%)\n", gbRunGetScenePx(), gbRunGetScenePx() * 100 / (160 * 144));
+    ret = true;
+  }
+
   if (args->argc == 1 && args->isStr(0, "stat"))
   {
     gb_run_stat_t pre, cur;
@@ -564,10 +600,11 @@ void cliGb(cli_args_t *args)
       uint32_t pp = cur.ink_pending - pre.ink_pending;
 
       if (gbRunGetDispMode())
-        cliPrintf("    ink cpu: plan %d us/frame, dec %d us/scan, rows %d/scan\n",
+        cliPrintf("    ink cpu: plan %d us/frame, dec %d us/scan, rows %d/scan, scene %d, quiet %d\n",
                   df ? (cur.ink_plan_us - pre.ink_plan_us) / df : 0,
                   sc ? (cur.ink_dec_us  - pre.ink_dec_us)  / sc : 0,
-                  sc ? (cur.ink_rows    - pre.ink_rows)    / sc : 0);
+                  sc ? (cur.ink_rows    - pre.ink_rows)    / sc : 0,
+                  cur.ink_scene - pre.ink_scene, cur.ink_quiet - pre.ink_quiet);
       if (gbRunGetDispMode())
         cliPrintf("emu %2d fps (%3d %%, %5d us/frame)  ink: frames %d, scans %d (%d ms, %d px)  audio %d us\n",
                   ef, ef * 100 / 60, ef ? eu / ef : 0, df, sc, sc ? dm / sc : 0, sc ? pp / sc : 0, ef ? au / ef : 0);

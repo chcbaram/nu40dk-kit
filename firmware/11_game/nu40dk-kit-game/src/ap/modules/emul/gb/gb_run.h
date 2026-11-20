@@ -13,6 +13,8 @@ typedef struct
   uint32_t audio_us_sum;    // 사운드 샘플 생성 시간 합
   uint32_t audio_drop;      // 믹서가 가득 차 버린 프레임 수
   uint32_t ink_scans;       // ink 모드 스캔 수
+  uint32_t ink_scene;       // 장면 전환으로 한 전체 갱신 수
+  uint32_t ink_quiet;       // 조용한 순간 정리 전체 갱신 수
   uint32_t ink_pending;     // ink 모드 스캔당 구동 GB 픽셀 합
   uint32_t ink_plan_us;     // 변화 감지 시간 합
   uint32_t ink_mask_us;     // 마스크 생성 시간 합
@@ -29,6 +31,12 @@ void gbRunSetPause(bool pause);
 void gbRunWaitDisplayIdle(void);
 void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h);
 bool gbRunIsPaused(void);
+void     gbRunSetRetarget(uint16_t rev_pct, bool same_add);  // 회색 모드 목표 변경 보정 (0 = 끔)
+void     gbRunGetRetarget(uint16_t *p_rev_pct, bool *p_same_add);
+void     gbRunSetQuiet(uint32_t ms, uint32_t px, uint32_t act);   // 조용한 순간 정리 (ms = 0 끔)
+void     gbRunGetQuiet(uint32_t *p_ms, uint32_t *p_px, uint32_t *p_act);
+void     gbRunSetScenePx(uint32_t px);   // 장면 전환 전체 갱신 기준 (바뀐 GB 픽셀 수, 0 = 끔)
+uint32_t gbRunGetScenePx(void);
 bool gbRunGetMenuRequest(void);   // 메뉴 버튼(Xbox / BTN4 길게) 눌림 여부, 읽으면 지워짐
 void gbRunSetSound(bool enable);
 void gbRunSetWinFull(bool full);

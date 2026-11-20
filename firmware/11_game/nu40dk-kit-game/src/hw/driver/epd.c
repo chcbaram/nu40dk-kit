@@ -26,6 +26,7 @@ static uint8_t    lut_buf[227];         // 0x32 커스텀 LUT (흑백 모드 형
 static bool       fast_ready     = false;   // 커스텀 LUT/전압 설정 완료 여부 (OTP LUT 로드 시 해제)
 static bool       fast_analog_on = false;   // 아날로그 전원 유지 중이면 0x8C 로 갱신
 static uint8_t    fast_frames    = 10;      // 전환 펄스 길이 (프레임, 8ms @125Hz)
+static int16_t    lut_vcom       = 0x00;    // 커스텀 LUT(게임, 런처 FAST) 동안 0x2C(VCOM) 덮어쓰기 (-1 = OTP 값). 0x00: 계속 스캔해도 흰색 유지
 static uint8_t    fast_hold      = 0;       // 유지 픽셀 구동 길이 (0 = 구동 안 함. DC 누적으로 패널 잔상 유발)
 static uint8_t    lut_frames     = 0;       // 지금 로드된 커스텀 LUT 의 전환 프레임 수
 static uint8_t    lut_hold       = 0xFF;    // 지금 로드된 커스텀 LUT 의 hold
@@ -139,6 +140,15 @@ static void epdCustomLutSetup(uint8_t frames, uint8_t hold)
 
   epdBuildLut(frames, 1, 2, lut_fr, hold);
   epdWriteLut();
+
+  // 구동하지 않는 픽셀(VSS)에도 스캔 동안 VSS - DCVCOM 이 걸린다. OTP 의 DCVCOM 이 음전압이라
+  // 계속 스캔하는 게임 화면에서 흰 바탕이 점점 검게 밀렸다. 게임 LUT 동안만 VCOM 을 바꾼다.
+  // 공장(OTP) 갱신은 WS byte 232 로 VCOM 도 다시 불러오므로 런처는 원래 값으로 돌아간다.
+  if (lut_vcom >= 0)
+  {
+    d[0] = (uint8_t)lut_vcom;
+    ssd1683WriteCmdData(0x2C, d, 1);
+  }
 
   if (lut_vendor)
   {
@@ -690,6 +700,19 @@ void cliEpd(cli_args_t *args)
     ret = true;
   }
 
+  // 게임용 LUT 동안 VCOM(0x2C) 덮어쓰기: epd vcom <hex 00~78 | -1>
+  if (args->argc >= 1 && args->isStr(0, "vcom"))
+  {
+    if (args->argc >= 2)
+    {
+      lut_vcom   = args->isStr(1, "-1") ? -1 : (int16_t)strtol(args->getStr(1), NULL, 16);
+      fast_ready = false;                     // 다음 게임 스캔에서 LUT 설정을 다시 쓴다
+    }
+    if (lut_vcom < 0) cliPrintf("vcom : OTP\n");
+    else              cliPrintf("vcom : 0x%02X (%d.%dV)\n", lut_vcom, -(lut_vcom / 4) / 10, (lut_vcom / 4) % 10);
+    ret = true;
+  }
+
   if (args->argc >= 1 && args->isStr(0, "clear"))
   {
     epd_mode_t mode = getMode(args, 1, EPD_MODE_FULL);
@@ -891,6 +914,7 @@ void cliEpd(cli_args_t *args)
     cliPrintf("epd init\n");
     cliPrintf("epd clear [full|part|fast]\n");
     cliPrintf("epd redraw full|part|clean|strong [n]\n");
+    cliPrintf("epd vcom <hex 00~78|-1>\n");
     cliPrintf("epd test 0~3 [full|part|fast]   0:checker 1:gray 2:gb 3:text\n");
     cliPrintf("epd text <str>\n");
     cliPrintf("epd spi <MHz>\n");
