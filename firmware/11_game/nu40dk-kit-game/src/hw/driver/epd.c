@@ -45,7 +45,9 @@ static uint8_t    last_ctrl      = 0;       // 마지막으로 보낸 0x22 값 (
 static void epdRestoreSoftStart(void)
 {
   const uint8_t d[4] = {0x8B, 0x9C, 0x96, 0x0F};
+  const uint8_t border = 0x01;                // 테두리: LUT1 을 따름 (공장 갱신용, 초기화 값)
   ssd1683WriteCmdData(0x0C, d, 4);
+  ssd1683WriteCmdData(0x3C, &border, 1);
 }
 
 void epdBuildLut(uint8_t frames, uint8_t vs_black, uint8_t vs_white, uint8_t fr, uint8_t hold);
@@ -150,6 +152,10 @@ static void epdCustomLutSetup(uint8_t frames, uint8_t hold)
   {
     d[0] = 0x8B; d[1] = 0x9C; d[2] = 0x96; d[3] = 0x00;   // 부스터 소프트 스타트 90ms → 30ms
     ssd1683WriteCmdData(0x0C, d, 4);
+    // 테두리(VBD)를 VCOM 으로 고정: 0x01(LUT1 따름)이면 게임 중 스캔마다 테두리가 구동되어
+    // 화면 바깥 띠가 회색으로 깜빡인다 (부분 갱신에서 흔히 쓰는 설정, GxEPD2 도 0x80)
+    d[0] = 0x80;
+    ssd1683WriteCmdData(0x3C, d, 1);
     fast_analog_on = false;
   }
   fast_ready    = true;
