@@ -10,6 +10,47 @@
  */
 #include "ap_def.h"
 #include <pm_config.h>
+#include <hal/nrf_nvmc.h>
+#include <hal/nrf_timer.h>
+#include <cmsis_core.h>
+
+
+// PC 샘플링 프로파일러 (gb bench <n> prof): TIMER4 인터럽트에서 끊긴 스레드의 PC 를 모은다
+#define PROF_MAX  512
+static uint32_t          prof_pc[PROF_MAX];
+static uint32_t          prof_lr[PROF_MAX];      // 호출한 쪽 (leaf 함수의 호출자 확인용)
+static volatile uint32_t prof_cnt = 0;
+
+ISR_DIRECT_DECLARE(profIsr)
+{
+  NRF_TIMER4->EVENTS_COMPARE[0] = 0;
+  uint32_t *p_sp = (uint32_t *)__get_PSP();     // 스레드 모드에서 끊긴 경우 예외 프레임 (r0~r3, r12, lr, pc, xpsr)
+  if (prof_cnt < PROF_MAX) { prof_lr[prof_cnt] = p_sp[5]; prof_pc[prof_cnt++] = p_sp[6]; }
+  return 0;
+}
+
+static void profStart(uint32_t period_us)
+{
+  prof_cnt = 0;
+  IRQ_DIRECT_CONNECT(TIMER4_IRQn, 2, profIsr, 0);
+  NRF_TIMER4->TASKS_STOP  = 1;
+  NRF_TIMER4->TASKS_CLEAR = 1;
+  NRF_TIMER4->MODE        = 0;                  // timer
+  NRF_TIMER4->BITMODE     = 3;                  // 32bit
+  NRF_TIMER4->PRESCALER   = 4;                  // 1MHz
+  NRF_TIMER4->CC[0]       = period_us;
+  NRF_TIMER4->SHORTS      = TIMER_SHORTS_COMPARE0_CLEAR_Msk;
+  NRF_TIMER4->INTENSET    = TIMER_INTENSET_COMPARE0_Msk;
+  irq_enable(TIMER4_IRQn);
+  NRF_TIMER4->TASKS_START = 1;
+}
+
+static void profStop(void)
+{
+  NRF_TIMER4->TASKS_STOP = 1;
+  NRF_TIMER4->INTENCLR   = TIMER_INTENCLR_COMPARE0_Msk;
+  irq_disable(TIMER4_IRQn);
+}
 #include "gb_core.h"
 #include "gb_emul.h"
 #include "gb_rom.h"
@@ -237,6 +278,10 @@ void cliGb(cli_args_t *args)
     uint32_t exe_us;
     uint32_t max_us = 0;
     bool     bench_skip = false;
+    bool     bench_audio = false;
+    bool     bench_prof  = false;
+    uint32_t audio_sum = 0;
+    static int16_t bench_audio_buf[400];       // 11025Hz 스테레오 1 프레임 368 샘플
 
     gbRunStop();
     lcd_enable = true;
@@ -248,11 +293,19 @@ void cliGb(cli_args_t *args)
       {
         if (args->isStr(i, "nolcd")) lcd_enable = false;
         else if (args->isStr(i, "skip"))  bench_skip = true;
+        else if (args->isStr(i, "audio")) bench_audio = true;
+        else if (args->isStr(i, "prof"))  bench_prof = true;
         else gbCoreSetOption(args->getStr(i));
       }
       gbCoreSetFrameSkip(bench_skip);
 
+      // 플래시 명령 캐시 적중/미스 측정 (NVMC 캐시 프로파일링)
+      NRF_NVMC->ICACHECNF |= NVMC_ICACHECNF_CACHEPROFEN_Msk;
+      NRF_NVMC->IHIT  = 0;
+      NRF_NVMC->IMISS = 0;
+
       uint32_t start_us = micros();
+      if (bench_prof) profStart(19993);           // 프레임 주기와 겹치지 않게 약 20ms 간격
 
       for (uint32_t i = 0; i < frames; i++)
       {
@@ -260,6 +313,13 @@ void cliGb(cli_args_t *args)
         gbRunFrame();
         exe_us = micros() - pre_us;
         if (exe_us > max_us) max_us = exe_us;
+        if (bench_audio)
+        {
+          // 사운드 합성을 별도로 재서, 에뮬레이터 프레임 시간에 사운드가 주는 영향을 분리한다
+          uint32_t a_us = micros();
+          gbCoreAudioGetFrame(bench_audio_buf);
+          audio_sum += micros() - a_us;
+        }
 
         if ((i & 0x3F) == 0 && cliKeepLoop() == false)
         {
@@ -267,7 +327,8 @@ void cliGb(cli_args_t *args)
           break;
         }
       }
-      uint32_t total_us = micros() - start_us;
+      if (bench_prof) profStop();
+      uint32_t total_us = micros() - start_us - audio_sum;
       uint32_t avg_us   = total_us / frames;
 
       cliPrintf("core %s, frames %d, lcd %s, skip %d, cgb %d, double speed %d\n", gbCoreName(), frames,
@@ -276,6 +337,23 @@ void cliGb(cli_args_t *args)
       cliPrintf("avg %d us/frame (max %d us), %d.%d fps, speed %d %%\n",
                 avg_us, max_us, 1000000 / avg_us, (10000000 / avg_us) % 10,
                 (GB_FRAME_US * 100) / avg_us);
+      {
+        uint32_t hit = NRF_NVMC->IHIT, miss = NRF_NVMC->IMISS;
+        cliPrintf("icache hit %u, miss %u (%u.%u %% miss), miss/frame %u\n", hit, miss,
+                  (uint32_t)((uint64_t)miss * 100 / (hit + miss + 1)),
+                  (uint32_t)((uint64_t)miss * 1000 / (hit + miss + 1)) % 10, miss / frames);
+      }
+      if (bench_prof)
+      {
+        cliPrintf("prof %d samples\n", prof_cnt);
+        for (uint32_t i = 0; i < prof_cnt; i++)
+        {
+          cliPrintf("%08X:%08X%s", prof_pc[i], prof_lr[i], (i % 4) == 3 ? "\n" : " ");
+          if ((i % 64) == 63) delay(5);
+        }
+        cliPrintf("\nprof end\n");
+      }
+      if (bench_audio) cliPrintf("audio %d us/frame (excluded from emu time)\n", audio_sum / frames);
     }
     lcd_enable = true;
     gbCoreSetOption("dual");
@@ -426,6 +504,25 @@ void cliGb(cli_args_t *args)
   }
 
   // gb stat : 1 초마다 에뮬 속도와 화면 fps 출력 (아무 키나 누르면 종료)
+  // 실행 중 PC 샘플링: gb prof [ms]  (모든 스레드 대상, 약 1000 샘플)
+  if (args->argc >= 1 && args->isStr(0, "prof"))
+  {
+    uint32_t ms = args->argc >= 2 ? args->getData(1) : 10000;
+    uint32_t period = ms * 1000 / PROF_MAX;
+
+    profStart(period < 100 ? 100 : period);
+    delay(ms);
+    profStop();
+    cliPrintf("prof %d samples\n", prof_cnt);
+    for (uint32_t i = 0; i < prof_cnt; i++)
+    {
+      cliPrintf("%08X:%08X%s", prof_pc[i], prof_lr[i], (i % 4) == 3 ? "\n" : " ");
+      if ((i % 64) == 63) delay(5);
+    }
+    cliPrintf("\nprof end\n");
+    ret = true;
+  }
+
   if (args->argc == 1 && args->isStr(0, "stat"))
   {
     gb_run_stat_t pre, cur;

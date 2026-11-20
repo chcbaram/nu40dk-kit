@@ -2678,7 +2678,8 @@ static int compare_sprites(const struct sprite_data *const sd1, const struct spr
 
 WGB_HOT void __gb_draw_line(struct gb_s *gb)
 {
-	uint8_t pixels[160] = {0};
+	/* [nu40dk-kit] pixels 초기화(memset 160B)를 프레임 스킵 판단 뒤로 옮김.
+	 * 그리지 않는 프레임에서도 매 줄 지우던 비용이 실행 시간의 약 13% 였다. */
 	const uint8_t hram_io_ly = gb->hram_io[IO_LY];
 #if WALNUT_FULL_GBC_SUPPORT
 	const uint8_t cgbMode = gb->cgb.cgbMode;
@@ -2689,6 +2690,9 @@ WGB_HOT void __gb_draw_line(struct gb_s *gb)
 
 	if(gb->direct.frame_skip && !gb->display.frame_skip_count)
 		return;
+
+	uint32_t pixels32[160 / 4] = {0};     /* 32비트 단위로 지움 */
+	uint8_t *pixels = (uint8_t *)pixels32;
 
 #if WALNUT_FULL_GBC_SUPPORT
 	uint8_t pixelsPrio[160] = {0};  //do these pixels have priority over OAM?

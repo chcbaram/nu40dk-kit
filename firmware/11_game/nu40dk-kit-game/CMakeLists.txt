@@ -45,3 +45,9 @@ target_compile_definitions(app PRIVATE MINIGB_APU_AUDIO_FORMAT_S16SYS AUDIO_SAMP
 
 
 zephyr_linker_sources(SECTIONS src/bsp/ldscript/ldscript.ld)
+
+# 에뮬레이터 코어와 사운드 합성만 -O3 (실험)
+set_source_files_properties(
+  src/ap/modules/emul/core/walnut/core_walnut.c
+  src/ap/modules/emul/apu/minigb_apu/minigb_apu.c
+  PROPERTIES COMPILE_OPTIONS "-O3")
