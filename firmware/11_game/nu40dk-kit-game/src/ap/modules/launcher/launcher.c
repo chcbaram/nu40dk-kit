@@ -1060,6 +1060,17 @@ static void cliUi(cli_args_t *args)
     cliPrintf("ui mode %s\n", move_mode == 0 ? "fast" : "part");
     ret = true;
   }
+  if (args->argc == 2 && args->isStr(0, "voice"))
+  {
+    // ui voice <파일 또는 8자리 번호> : SD 음성 재생 시험 (번호면 /rpg/v/<번호>.WAV)
+    char path[64];
+    const char *arg = args->getStr(1);
+    if (strlen(arg) == 8 && strchr(arg, '/') == NULL) snprintf(path, sizeof(path), "/rpg/v/%s.WAV", arg);
+    else                                             snprintf(path, sizeof(path), "%s", arg);
+    bool ok = voicePlay(path);
+    cliPrintf("voice %s : %s\n", path, ok ? "playing" : "fail (파일·형식 확인)");
+    ret = true;
+  }
   if (args->argc == 2 && args->isStr(0, "keylog"))
   {
     key_log = args->isStr(1, "on");
