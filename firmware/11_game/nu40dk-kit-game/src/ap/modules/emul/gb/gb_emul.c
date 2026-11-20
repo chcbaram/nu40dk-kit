@@ -362,6 +362,30 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  // gb disp ink|frame : 화면 갱신 방식
+  if (args->argc == 2 && args->isStr(0, "disp"))
+  {
+    gbRunSetDispMode(args->isStr(1, "ink") ? 1 : 0);
+    cliPrintf("disp %s\n", gbRunGetDispMode() ? "ink" : "frame");
+    ret = true;
+  }
+
+  // gb ink [budget frames frame_ms] : ink 모드 설정
+  if (args->argc >= 1 && args->isStr(0, "ink"))
+  {
+    uint8_t  b, f;
+    uint32_t ms;
+
+    gbRunGetInk(&b, &f, &ms);
+    if (args->argc >= 2) b  = args->getData(1);
+    if (args->argc >= 3) f  = args->getData(2);
+    if (args->argc >= 4) ms = args->getData(3);
+    gbRunSetInk(b, f, ms);
+    gbRunGetInk(&b, &f, &ms);
+    cliPrintf("ink : budget %d pulses, %d frames/scan (%d ms), new frame every %d ms\n", b, f, f * 8, ms);
+    ret = true;
+  }
+
   if (args->argc == 2 && args->isStr(0, "win"))
   {
     gbRunSetWinFull(args->isStr(1, "full"));
@@ -399,8 +423,20 @@ void cliGb(cli_args_t *args)
       uint32_t au = cur.audio_us_sum - pre.audio_us_sum;
       uint32_t ad = cur.audio_drop   - pre.audio_drop;
 
-      cliPrintf("emu %2d fps (%3d %%, %5d us/frame)  disp %d fps (%d ms)  audio %d us, drop %d\n",
-                ef, ef * 100 / 60, ef ? eu / ef : 0, df, df ? dm / df : 0, ef ? au / ef : 0, ad);
+      uint32_t sc = cur.ink_scans   - pre.ink_scans;
+      uint32_t pp = cur.ink_pending - pre.ink_pending;
+
+      if (gbRunGetDispMode())
+        cliPrintf("    ink cpu: plan %d us/frame, mask %d us/scan, dec %d us/scan\n",
+                  df ? (cur.ink_plan_us - pre.ink_plan_us) / df : 0,
+                  sc ? (cur.ink_mask_us - pre.ink_mask_us) / sc : 0,
+                  sc ? (cur.ink_dec_us  - pre.ink_dec_us)  / sc : 0);
+      if (gbRunGetDispMode())
+        cliPrintf("emu %2d fps (%3d %%, %5d us/frame)  ink: frames %d, scans %d (%d ms, %d px)  audio %d us\n",
+                  ef, ef * 100 / 60, ef ? eu / ef : 0, df, sc, sc ? dm / sc : 0, sc ? pp / sc : 0, ef ? au / ef : 0);
+      else
+        cliPrintf("emu %2d fps (%3d %%, %5d us/frame)  disp %d fps (%d ms)  audio %d us, drop %d\n",
+                  ef, ef * 100 / 60, ef ? eu / ef : 0, df, df ? dm / df : 0, ef ? au / ef : 0, ad);
 
       // CPU 사용률: 전체 실행 사이클 대비 각 스레드 (나머지는 BT, I2S, CLI, 인터럽트 등)
       gbRunGetThreadCycles(&emu1, &disp1);
@@ -475,6 +511,8 @@ void cliGb(cli_args_t *args)
     cliPrintf("gb full\n");
     cliPrintf("gb sound on|off\n");
     cliPrintf("gb win full|game\n");
+    cliPrintf("gb disp ink|frame\n");
+    cliPrintf("gb ink [budget frames frame_ms]\n");
     cliPrintf("gb key <a,b,select,start,right,left,up,down> [ms]\n");
     cliPrintf("gb load <index|file> [force]\n");
     cliPrintf("gb bench <frames> [nolcd] [skip] [core option]\n");

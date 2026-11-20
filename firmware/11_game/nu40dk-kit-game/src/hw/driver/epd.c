@@ -27,6 +27,8 @@ static bool       fast_ready     = false;   // 커스텀 LUT/전압 설정 완�
 static bool       fast_analog_on = false;   // 아날로그 전원 유지 중이면 0x8C 로 갱신
 static uint8_t    fast_frames    = 10;      // 전환 펄스 길이 (프레임, 8ms @125Hz)
 static uint8_t    fast_hold      = 0;       // 유지 픽셀 구동 길이 (0 = 구동 안 함. DC 누적으로 패널 잔상 유발)
+static uint8_t    lut_frames     = 0;       // 지금 로드된 커스텀 LUT 의 전환 프레임 수
+static uint8_t    lut_hold       = 0xFF;    // 지금 로드된 커스텀 LUT 의 hold
 
 static const char *mode_str[EPD_MODE_MAX] = {"full", "part", "fast"};
 static uint32_t   busy_err_cnt   = 0;       // BUSY 제한시간 초과 → 자동 복구 횟수
@@ -116,6 +118,28 @@ bool epdIsBusy(void)
   return ssd1683IsBusy();
 }
 
+// 커스텀 LUT 준비 (전환 frames, 유지 hold). 이미 같은 LUT 가 로드돼 있으면 생략
+//   흰→검 VSH1, 검→흰 VSL, FR 125Hz. 전압(0x04)과 EOPT(0x3F)는 OTP 값을 그대로 사용
+//   (VSH1/VSL ±17V, EOPT 0x07 실험 후 패널에 점이 남는 현상이 있어 제외)
+static void epdCustomLutSetup(uint8_t frames, uint8_t hold)
+{
+  uint8_t d[4];
+
+  if (fast_ready && lut_frames == frames && lut_hold == hold) return;
+
+  epdBuildLut(frames, 1, 2, 0x05, hold);
+  epdWriteLut();
+  if (!fast_ready)
+  {
+    d[0] = 0x8B; d[1] = 0x9C; d[2] = 0x96; d[3] = 0x00;   // 부스터 소프트 스타트 90ms → 30ms
+    ssd1683WriteCmdData(0x0C, d, 4);
+    fast_analog_on = false;
+  }
+  fast_ready = true;
+  lut_frames = frames;
+  lut_hold   = hold;
+}
+
 bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 {
   uint8_t  data[2];
@@ -143,19 +167,9 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
   pre_ms = millis();
   pre_us = micros();
 
-  if (mode == EPD_MODE_FAST && !fast_ready)
+  if (mode == EPD_MODE_FAST)
   {
-    uint8_t d[4];
-
-    // 커스텀 LUT: 전환 fast_frames, 유지 fast_hold, 흰→검 VSH1, 검→흰 VSL, FR 125Hz
-    //   전압(0x04)과 EOPT(0x3F)는 OTP 값을 그대로 사용한다.
-    //   (VSH1/VSL ±17V, EOPT 0x07 실험 후 패널에 점이 남는 현상이 있어 제외)
-    epdBuildLut(fast_frames, 1, 2, 0x05, fast_hold);
-    epdWriteLut();
-    d[0] = 0x8B; d[1] = 0x9C; d[2] = 0x96; d[3] = 0x00;   // 부스터 소프트 스타트 90ms → 30ms
-    ssd1683WriteCmdData(0x0C, d, 4);
-    fast_ready     = true;
-    fast_analog_on = false;
+    epdCustomLutSetup(fast_frames, fast_hold);
   }
 
   if (mode != EPD_MODE_FAST && fast_ready)
@@ -175,6 +189,7 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
     ssd1683Activate(full_ctrl);
     fast_ready     = false;                   // OTP LUT 가 다시 로드됨
     fast_analog_on = false;
+    lut_hold       = 0xFF;
 
     uint32_t busy_ms = millis();
     ret = ssd1683WaitBusy(EPD_FULL_TIMEOUT_MS);
@@ -220,6 +235,51 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
   return ret;
 }
 
+/*
+ * 마스크 갱신 (픽셀별 구동, InkBoy 방식)
+ *
+ *   p_black : 1 = 이 픽셀을 검정 방향으로 구동 → RED RAM
+ *   p_white : 1 = 이 픽셀을 흰색 방향으로 구동 → BW RAM
+ *   둘 다 0 인 픽셀은 구동하지 않는다 (LUTBB/LUTWW = 전압 0).
+ *   커스텀 LUT 에서 (RED, BW) = (1,0) → LUTBW(VSH1, 검정), (0,1) → LUTWB(VSL, 흰색).
+ *   전체 폭(400px, stride 50) 의 y ~ y+h 줄. 화면 RAM 의 이미지는 의미가 없어진다.
+ */
+bool epdUpdateMask(const uint8_t *p_black, const uint8_t *p_white, uint16_t y, uint16_t h, uint8_t frames)
+{
+  uint8_t  data[2];
+  uint32_t pre_us = micros();
+  uint32_t pre_ms = millis();
+  bool     ret;
+
+  if (!is_init) return false;
+  if (ssd1683IsBusy() && !ssd1683WaitBusy(3000))
+  {
+    epdRecover("busy before mask");
+  }
+
+  epdCustomLutSetup(frames, 0);
+
+  // p_black/p_white 는 y 줄부터 시작하는 버퍼이므로 y 를 0 으로 넘기고 창만 y 로 맞춘다
+  ssd1683WriteRam(SSD1683_RAM_RED, 0, y, EPD_WIDTH, h, p_black - y * EPD_STRIDE, EPD_STRIDE);
+  ssd1683WriteRam(SSD1683_RAM_BW,  0, y, EPD_WIDTH, h, p_white - y * EPD_STRIDE, EPD_STRIDE);
+  epd_time.spi_us = micros() - pre_us;
+
+  data[0] = 0x00; data[1] = 0x00;
+  ssd1683WriteCmdData(0x21, data, 2);
+  last_ctrl = fast_analog_on ? 0x8C : 0xCC;
+  ssd1683Activate(last_ctrl);
+  fast_analog_on = true;
+
+  uint32_t busy_ms = millis();
+  ret = ssd1683WaitBusy(EPD_PART_TIMEOUT_MS);
+  epd_time.busy_ms  = millis() - busy_ms;
+  epd_time.total_ms = millis() - pre_ms;
+  epd_time.count++;
+
+  if (!ret) epdRecover("mask");
+  return ret;
+}
+
 // BUSY 가 풀리지 않을 때: 하드웨어 리셋 + 패널 재초기화 (컨트롤러가 가끔 BUSY 에 갇힘, Phase 7 에서 확인)
 void epdRecover(const char *p_reason)
 {
@@ -228,6 +288,7 @@ void epdRecover(const char *p_reason)
   epdInitPanel();
   fast_ready     = false;
   fast_analog_on = false;
+  lut_hold       = 0xFF;
 }
 
 bool epdUpdate(epd_mode_t mode)
@@ -328,7 +389,6 @@ void epdSetFastLut(uint8_t frames, uint8_t hold)
 {
   fast_frames = frames;
   fast_hold   = hold;
-  fast_ready  = false;
 }
 
 // 아날로그 전원 끄기 (FAST 모드 사용 후 대기 상태로 둘 때)

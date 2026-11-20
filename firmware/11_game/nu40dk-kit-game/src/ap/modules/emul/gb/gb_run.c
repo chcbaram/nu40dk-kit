@@ -72,6 +72,32 @@ static volatile bool win_full     = true;    // true: 전체 폭(400px) DMA 한 
 static uint8_t dither_lut[2][256];
 
 
+/*
+ * ink 모드: 픽셀(블록)별 펄스 카운터 (InkBoy 방식)
+ *
+ *   - GB 픽셀(=화면 2x2 블록) 마다 3bit 카운터. 명암이 바뀌면 카운터 = 예산(ink_budget)
+ *   - 스캔마다 카운터가 남은 블록만 목표색으로 구동하고 1 씩 줄인다. 0 이면 구동 안 함(HOLD)
+ *   - 변하지 않은 블록은 전압이 걸리지 않아 DC 가 쌓이지 않는다 (hold 구동의 패널 잔상 문제 해결)
+ *   - 카운터는 비트 슬라이스: ink_cnt[k][w] 의 비트 b = 픽셀 (w*32+b) 카운터의 k 번째 비트
+ *   - 마스크는 전체 폭 400px 로 만든다 (SPI DMA 를 큰 덩어리로). 흰색 마스크는 캔버스 버퍼를 빌려 쓴다
+ */
+#define DISP_MODE_FRAME     0         // 프레임 전체를 FAST 로 갱신 (Phase 4~7)
+#define DISP_MODE_INK       1         // 픽셀별 펄스 카운터 (Phase 8)
+#define INK_WORDS           ((GB_LCD_WIDTH * GB_LCD_HEIGHT) / 32)    // 720
+#define INK_CNT_BITS        3
+
+static volatile uint8_t disp_mode    = DISP_MODE_INK;
+static volatile bool    disp_busy    = false;                 // EPD 갱신 중
+static uint8_t          ink_budget   = 7;                     // 명암이 바뀐 블록에 줄 펄스 수 (1~7)
+static uint8_t          ink_frames   = 3;                     // 스캔 1 회 펄스 길이 (프레임, 8ms)
+static uint32_t         ink_frame_ms = 100;                   // 새 GB 프레임을 받는 최소 간격
+static uint8_t          ink_shade[GB_LCD_HEIGHT][GB_LCD_WIDTH / 4];   // 현재 목표 (2bpp)
+static uint32_t         ink_cnt[INK_CNT_BITS][INK_WORDS];
+static uint8_t          ink_black[GB_SCR_H * EPD_STRIDE];     // 검정 구동 마스크 (게임 영역 줄, 전체 폭)
+static uint8_t          expand4[16];                          // 4 픽셀 니블 → 8 화면 픽셀 바이트
+static uint8_t          diff_nib[256];                        // 2bpp 바이트 차이 → 바뀐 픽셀 니블
+
+
 
 
 static void makeDitherLut(void)
@@ -98,6 +124,118 @@ static void makeDitherLut(void)
       dither_lut[row][v] = ~black;
     }
   }
+}
+
+static void convertFrameFrom(const uint8_t *p_src)
+{
+  uint8_t *p_fb = canvasGetBuffer();
+
+  for (int y = 0; y < GB_LCD_HEIGHT; y++)
+  {
+    uint8_t *p_dst0 = &p_fb[(GB_SCR_Y + y * 2) * CANVAS_STRIDE + GB_SCR_X / 8];
+    uint8_t *p_dst1 = p_dst0 + CANVAS_STRIDE;
+
+    for (int x = 0; x < GB_LCD_WIDTH / 4; x++)
+    {
+      uint8_t v = *p_src++;
+      p_dst0[x] = dither_lut[0][v];
+      p_dst1[x] = dither_lut[1][v];
+    }
+  }
+}
+
+// 게임 화면 전체(흰 배경 + 테두리 + 게임 영역)를 캔버스에 그린다
+static void drawGameCanvas(const uint8_t *p_src)
+{
+  canvasClear(CANVAS_WHITE);
+  canvasDrawRect(GB_SCR_X - 2, GB_SCR_Y - 2, GB_SCR_W + 4, GB_SCR_H + 4, CANVAS_BLACK);
+  convertFrameFrom(p_src);
+}
+
+// 새 프레임과 현재 목표를 비교해 명암이 바뀐 GB 픽셀의 카운터를 예산으로 설정
+//   32 픽셀(8 바이트)을 32bit 두 개로 비교해 같으면 건너뛰고, 다르면 바이트당 룩업 한 번
+static void inkPlan(const uint8_t *p_new)
+{
+  uint8_t *p_old = &ink_shade[0][0];
+
+  for (int w = 0; w < INK_WORDS; w++, p_new += 8, p_old += 8)
+  {
+    uint32_t n0, n1, o0, o1;
+
+    memcpy(&n0, p_new, 4); memcpy(&n1, p_new + 4, 4);
+    memcpy(&o0, p_old, 4); memcpy(&o1, p_old + 4, 4);
+    if (n0 == o0 && n1 == o1) continue;
+
+    uint32_t changed = 0;
+    for (int b = 0; b < 8; b++)
+    {
+      changed |= (uint32_t)diff_nib[p_new[b] ^ p_old[b]] << (b * 4);
+    }
+    for (int k = 0; k < INK_CNT_BITS; k++)
+    {
+      ink_cnt[k][w] = (ink_cnt[k][w] & ~changed) | (((ink_budget >> k) & 1) ? changed : 0);
+    }
+    memcpy(p_old, p_new, 8);
+  }
+}
+
+// 카운터가 남은 블록의 마스크 생성. 반환 = 구동할 GB 픽셀 수
+//   버퍼는 한 번에 지우고, 카운터가 남은 32 픽셀 묶음만 채운다 (여백은 0 = 구동 안 함)
+static uint32_t inkBuildMask(uint8_t *p_white)
+{
+  uint32_t pending = 0;
+
+  memset(ink_black, 0, GB_SCR_H * EPD_STRIDE);
+  memset(p_white,   0, GB_SCR_H * EPD_STRIDE);
+
+  for (int w = 0; w < INK_WORDS; w++)
+  {
+    uint32_t active = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w];
+
+    if (active == 0) continue;
+    pending += __builtin_popcount(active);
+
+    int            y    = w / (GB_LCD_WIDTH / 32);
+    int            gx0  = (w % (GB_LCD_WIDTH / 32)) * 8;
+    const uint8_t *p_sh = &ink_shade[y][gx0];
+    uint8_t       *pb0  = &ink_black[(y * 2) * EPD_STRIDE + GB_SCR_X / 8 + gx0];
+    uint8_t       *pw0  = &p_white[(y * 2) * EPD_STRIDE + GB_SCR_X / 8 + gx0];
+
+    for (int g = 0; g < 8; g++, active >>= 4)
+    {
+      uint8_t nib = active & 0xF;
+      if (nib == 0) continue;
+
+      uint8_t v   = p_sh[g];
+      uint8_t act = expand4[nib];
+      uint8_t t0  = dither_lut[0][v];       // 1 = 흰색 목표
+      uint8_t t1  = dither_lut[1][v];
+
+      pw0[g]               = t0 & act;  pb0[g]               = ~t0 & act;
+      pw0[g + EPD_STRIDE]  = t1 & act;  pb0[g + EPD_STRIDE]  = ~t1 & act;
+    }
+  }
+  return pending;
+}
+
+// 구동한 블록의 카운터를 1 줄인다 (비트 슬라이스 감소). 반환 = 아직 남은 GB 픽셀 수
+static uint32_t inkDecrement(void)
+{
+  uint32_t remain = 0;
+
+  for (int w = 0; w < INK_WORDS; w++)
+  {
+    uint32_t borrow = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w];
+
+    for (int k = 0; k < INK_CNT_BITS && borrow; k++)
+    {
+      uint32_t old = ink_cnt[k][w];
+      ink_cnt[k][w] = old ^ borrow;
+      borrow &= ~old;
+    }
+    remain += __builtin_popcount(ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w]);
+  }
+  return remain;
 }
 
 static void convertFrame(void)
@@ -212,6 +350,18 @@ static void writeAudio(void)
 bool init(void)
 {
   makeDitherLut();
+  for (int n = 0; n < 16; n++)
+  {
+    uint8_t out = 0;
+    for (int i = 0; i < 4; i++) if (n & (1 << i)) out |= 0xC0 >> (i * 2);
+    expand4[n] = out;
+  }
+  for (int d = 0; d < 256; d++)
+  {
+    uint8_t nib = 0;
+    for (int i = 0; i < 4; i++) if (d & (0xC0 >> (i * 2))) nib |= 1 << i;
+    diff_nib[d] = nib;
+  }
 
   k_thread_create(&emu_thread, emu_stack, K_THREAD_STACK_SIZEOF(emu_stack),
                   emuThread, NULL, NULL, NULL, EMU_THREAD_PRI, 0, K_NO_WAIT);
@@ -277,9 +427,39 @@ void gbRunWaitDisplayIdle(void)
 {
   for (int i = 0; i < 100; i++)
   {
-    if (disp_ready && !frame_ready) break;
+    if (!disp_busy && (disp_mode == DISP_MODE_INK || (disp_ready && !frame_ready))) break;
     k_sleep(K_MSEC(10));
   }
+  // ink 모드는 캔버스를 마스크 버퍼로 쓰므로, 런처가 그 위에 메뉴를 그리기 전에 화면 이미지를 복원
+  if (disp_mode == DISP_MODE_INK)
+  {
+    drawGameCanvas(&ink_shade[0][0]);
+  }
+}
+
+void gbRunSetDispMode(uint8_t mode)
+{
+  disp_mode = mode ? DISP_MODE_INK : DISP_MODE_FRAME;
+  req_full  = true;
+}
+
+uint8_t gbRunGetDispMode(void)
+{
+  return disp_mode;
+}
+
+void gbRunSetInk(uint8_t budget, uint8_t frames, uint32_t frame_ms)
+{
+  ink_budget   = constrain(budget, 1, 7);
+  ink_frames   = constrain(frames, 1, 63);
+  ink_frame_ms = frame_ms;
+}
+
+void gbRunGetInk(uint8_t *p_budget, uint8_t *p_frames, uint32_t *p_frame_ms)
+{
+  *p_budget   = ink_budget;
+  *p_frames   = ink_frames;
+  *p_frame_ms = ink_frame_ms;
 }
 
 // 게임 화면 영역 (런처가 게임 메뉴를 그 위에 그릴 때 사용)
@@ -423,41 +603,133 @@ void emuThread(void *arg1, void *arg2, void *arg3)
   }
 }
 
-void dispThread(void *arg1, void *arg2, void *arg3)
+static void dispFrameMode(void)
 {
   epd_time_t t;
 
+  k_sem_take(&frame_sem, K_FOREVER);
+  if (!is_run || is_pause) return;
+
+  disp_busy = true;
+  if (req_full)
+  {
+    // 처음 또는 잔상 정리: 화면 전체를 흰 배경 + 게임 영역 테두리로 전체 갱신
+    drawGameCanvas(gbGetLcdBuf());
+    frame_ready = false;
+    req_full    = false;
+    epdUpdate(EPD_MODE_FULL);
+  }
+  else
+  {
+    convertFrame();
+    frame_ready = false;                    // lcd_buf 반환 (에뮬은 다음 렌더링 가능)
+    // 전체 폭(400px)으로 보내면 RAM 이 연속이라 SPI DMA 를 큰 덩어리로 보낸다
+    // (320px 창은 줄마다 288 번 x 2 전송이 생겨 CPU 를 많이 씀)
+    if (win_full)
+      epdUpdateWindow(EPD_MODE_FAST, 0, GB_SCR_Y, EPD_WIDTH, GB_SCR_H);
+    else
+      epdUpdateWindow(EPD_MODE_FAST, GB_SCR_X, GB_SCR_Y, GB_SCR_W, GB_SCR_H);
+  }
+  disp_busy = false;
+
+  epdGetTime(&t);
+  stat.disp_frames++;
+  stat.disp_ms_sum += t.total_ms;
+  disp_ready = true;
+}
+
+static void dispInkMode(void)
+{
+  static uint32_t take_ms = 0;
+  static uint32_t remain  = 0;              // 아직 구동할 GB 픽셀 수 (0 이면 마스크를 만들 필요 없음)
+  epd_time_t      t;
+
+  if (!is_run || is_pause)
+  {
+    k_sem_take(&frame_sem, K_MSEC(50));
+    return;
+  }
+
+  if (req_full)
+  {
+    if (!frame_ready)
+    {
+      disp_ready = true;
+      k_sem_take(&frame_sem, K_MSEC(50));
+      return;
+    }
+    // 시작/재개: 전체 갱신으로 기준 화면을 만들고 카운터 초기화
+    disp_busy = true;
+    drawGameCanvas(gbGetLcdBuf());
+    memcpy(ink_shade, gbGetLcdBuf(), sizeof(ink_shade));
+    memset(ink_cnt, 0, sizeof(ink_cnt));
+    frame_ready = false;
+    req_full    = false;
+    epdUpdate(EPD_MODE_FULL);
+    disp_busy   = false;
+    take_ms     = millis();
+    remain      = 0;
+    disp_ready  = true;
+    return;
+  }
+
+  // 새 프레임이 있으면 목표 갱신
+  bool planned = false;
+  if (frame_ready)
+  {
+    uint32_t t0 = micros();
+    inkPlan(gbGetLcdBuf());
+    stat.ink_plan_us += micros() - t0;
+    frame_ready = false;
+    take_ms     = millis();
+    planned     = true;
+    stat.disp_frames++;
+  }
+  // 다음 프레임 요청 (너무 자주 받으면 렌더링 비용이 커서 간격을 둔다)
+  if (!disp_ready && millis() - take_ms >= ink_frame_ms)
+  {
+    disp_ready = true;
+  }
+
+  // 남은 구동도 없고 새 프레임도 없으면 마스크를 만들지 않고 대기 (CPU 절약)
+  if (!planned && remain == 0)
+  {
+    k_sem_take(&frame_sem, K_MSEC(20));
+    return;
+  }
+
+  uint8_t *p_white = canvasGetBuffer() + GB_SCR_Y * EPD_STRIDE;   // 캔버스를 흰색 마스크 버퍼로 사용
+  uint32_t t1 = micros();
+  uint32_t pending = inkBuildMask(p_white);
+  stat.ink_mask_us += micros() - t1;
+
+  if (pending == 0)
+  {
+    remain = 0;
+    k_sem_take(&frame_sem, K_MSEC(20));     // 구동할 것이 없으면 새 프레임 대기
+    return;
+  }
+
+  disp_busy = true;
+  epdUpdateMask(ink_black, p_white, GB_SCR_Y, GB_SCR_H, ink_frames);
+  disp_busy = false;
+  uint32_t t2 = micros();
+  remain = inkDecrement();
+  stat.ink_dec_us += micros() - t2;
+
+  epdGetTime(&t);
+  stat.disp_ms_sum += t.total_ms;
+  stat.ink_scans++;
+  stat.ink_pending += pending;
+}
+
+void dispThread(void *arg1, void *arg2, void *arg3)
+{
   while (1)
   {
-    k_sem_take(&frame_sem, K_FOREVER);
-    if (!is_run) continue;
-
-
-    if (req_full)
-    {
-      // 처음 또는 잔상 정리: 화면 전체를 흰 배경 + 게임 영역 테두리로 전체 갱신
-      canvasClear(CANVAS_WHITE);
-      canvasDrawRect(GB_SCR_X - 2, GB_SCR_Y - 2, GB_SCR_W + 4, GB_SCR_H + 4, CANVAS_BLACK);
-      convertFrame();
-      frame_ready = false;
-      req_full    = false;
-      epdUpdate(EPD_MODE_FULL);
-    }
+    if (disp_mode == DISP_MODE_INK)
+      dispInkMode();
     else
-    {
-      convertFrame();
-      frame_ready = false;                    // lcd_buf 반환 (에뮬은 다음 렌더링 가능)
-      // 전체 폭(400px)으로 보내면 RAM 이 연속이라 SPI DMA 한 번에 전송된다
-      // (320px 창은 줄마다 288 번 x 2 전송이 생겨 CPU 를 많이 씀)
-      if (win_full)
-        epdUpdateWindow(EPD_MODE_FAST, 0, GB_SCR_Y, EPD_WIDTH, GB_SCR_H);
-      else
-        epdUpdateWindow(EPD_MODE_FAST, GB_SCR_X, GB_SCR_Y, GB_SCR_W, GB_SCR_H);
-    }
-
-    epdGetTime(&t);
-    stat.disp_frames++;
-    stat.disp_ms_sum += t.total_ms;
-    disp_ready = true;
+      dispFrameMode();
   }
 }
