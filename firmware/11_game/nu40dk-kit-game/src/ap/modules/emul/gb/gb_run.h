@@ -33,6 +33,7 @@ void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h);
 bool gbRunIsPaused(void);
 void     gbRunSetRetarget(uint16_t rev_pct, bool same_add);  // 회색 모드 목표 변경 보정 (0 = 끔)
 void     gbRunGetRetarget(uint16_t *p_rev_pct, bool *p_same_add);
+uint8_t *gbRunGetScratch(uint32_t *p_size);  // 게임 정지 중 ink 마스크 버퍼 빌리기 (실행 중 NULL)
 void     gbRunSetQuiet(uint32_t ms, uint32_t px, uint32_t act);   // 조용한 순간 정리 (ms = 0 끔)
 void     gbRunGetQuiet(uint32_t *p_ms, uint32_t *p_px, uint32_t *p_act);
 void     gbRunSetScenePx(uint32_t px);   // 장면 전환 전체 갱신 기준 (바뀐 GB 픽셀 수, 0 = 끔)

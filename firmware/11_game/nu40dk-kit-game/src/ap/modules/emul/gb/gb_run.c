@@ -120,11 +120,11 @@ static uint8_t          gray_frames  = 4;                     // 회색 모드 �
                                                               //   한 번 바뀌는 데 걸리는 시간이 짧아져 움직임 잔상이 준다 (16ms x 12 → 32ms x 6)
 static uint8_t          gray_dose[4][4] =
 {
-  //  W  L  D  K   (새)      32ms 펄스 기준. 검정 쪽을 InkBoy 표보다 늘리고 흰색 방향도 같은 비율로 맞춤
-  {   0, 1, 2, 6 },   // W (이전)        (흰색 방향을 약하게 두면 검었던 자리가 회색 잔상으로 남음)
-  {   5, 0, 1, 4 },   // L               흰색으로 가는 펄스 +1 (L 4→5, D 5→6, K 6→7):
-  {   6, 1, 0, 3 },   // D               움직이는 캐릭터 뒤 잔상이 줄어듦 (2026-11-20)
-  {   7, 3, 2, 0 },   // K
+  //  W  L  D  K   (새)      32ms 펄스 기준. 카메라 캘리브레이션 (gb cal / gb caltable, docs/10_calibration.md)
+  {   0, 1, 3, 7 },   // W (이전)   같은 목표 회색이 출발 색과 상관없이 같은 밝기가 되도록 맞춤
+  {   3, 0, 2, 6 },   // L          (예전 표는 출발 색에 따라 같은 L 이 0.35~0.79 로 달라 얼룩이 남음)
+  {   5, 2, 0, 4 },   // D
+  {  10, 6, 3, 0 },   // K          검→흰은 첫 펄스가 거의 효과 없음
 };
 static uint32_t         ink_dir[INK_WORDS];
 
@@ -725,6 +725,14 @@ void gbRunGetRetarget(uint16_t *p_rev_pct, bool *p_same_add)
 {
   *p_rev_pct  = ink_rev_pct;
   *p_same_add = ink_same_add;
+}
+
+// 게임이 멈춰 있을 때 ink 마스크 버퍼를 다른 용도(캘리브레이션 등)로 빌려 준다
+uint8_t *gbRunGetScratch(uint32_t *p_size)
+{
+  if (is_run) return NULL;
+  *p_size = sizeof(ink_black);
+  return ink_black;
 }
 
 void gbRunSetQuiet(uint32_t ms, uint32_t px, uint32_t act)
