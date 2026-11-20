@@ -66,15 +66,51 @@ def segments(data):
     return [s for s in merged if s[1] - s[0] >= 12]
 
 
-def fit(segs, count):
-    """대사 수보다 많으면 가장 짧은 쉼부터 합친다"""
-    segs = [list(s) for s in segs]
-    while len(segs) > count:
-        gaps = [(segs[k + 1][0] - segs[k][1], k) for k in range(len(segs) - 1)]
-        g, k = min(gaps)
-        segs[k][1] = segs[k + 1][1]
-        del segs[k + 1]
-    return segs
+def syllables(text):
+    n = 0
+    for ch in text:
+        if 0xAC00 <= ord(ch) <= 0xD7A3:
+            n += 1
+        elif ch.isalnum():
+            n += 0.5
+    return max(n, 1)
+
+
+def fit(segs, texts):
+    """말소리 구간들을 대사 수만큼 이어진 묶음으로 나눈다.
+    대사 안에서도 구절 사이를 길게 쉬는 경우가 있어 쉼 길이만으로는 경계를 못 찾는다.
+    묶음 길이가 글자 수에 비례하도록(동적 계획법), 긴 쉼은 경계일 가능성을 조금 높인다."""
+    n, m = len(segs), len(texts)
+    syl = [syllables(t) for t in texts]
+    speech = sum(b - a for a, b in segs)
+    rate = speech / sum(syl)                                   # 글자당 프레임
+    INF = float('inf')
+    # cost[i][j]: 앞 i 개 구간으로 앞 j 개 대사를 만든 최소 비용
+    cost = [[INF] * (m + 1) for _ in range(n + 1)]
+    back = [[0] * (m + 1) for _ in range(n + 1)]
+    cost[0][0] = 0
+    for i in range(1, n + 1):
+        for j in range(1, min(i, m) + 1):
+            for k in range(j - 1, i):                           # 구간 k..i-1 이 j 번째 대사
+                if cost[k][j - 1] == INF:
+                    continue
+                dur = segs[i - 1][1] - segs[k][0]               # 안쪽 쉼 포함 길이
+                inner = sum(segs[t + 1][0] - segs[t][1] for t in range(k, i - 1))
+                exp = syl[j - 1] * rate
+                c = ((dur - inner * 0.5) - exp) ** 2 / (exp + 10)
+                if i < n:
+                    c -= (segs[i][0] - segs[i - 1][1]) * 0.05   # 뒤 쉼이 길면 경계일 가능성
+                c += cost[k][j - 1]
+                if c < cost[i][j]:
+                    cost[i][j] = c
+                    back[i][j] = k
+    out = []
+    i, j = n, m
+    while j > 0:
+        k = back[i][j]
+        out.append([segs[k][0], segs[i - 1][1], k, i - 1])
+        i, j = k, j - 1
+    return out[::-1]
 
 
 def main():
@@ -92,14 +128,14 @@ def main():
         for k, s in enumerate(segs):
             print('  %2d  %5.1f ~ %5.1f s' % (k + 1, s[0] * 0.02, s[1] * 0.02))
         sys.exit(1)
-    segs = fit(segs, len(lines))
+    segs = fit(segs, [t for c, t in lines])
     out = os.path.join(HERE, 'voice_rec')
     os.makedirs(out, exist_ok=True)
-    for (crc, text), (a, b) in zip(lines, segs):
+    for (crc, text), (a, b, k0, k1) in zip(lines, segs):
         a = max(0, a - 5)                                      # 앞 0.1 초, 뒤 0.2 초 여유
         b = min(len(data) // 2 // FRAME, b + 10)
         seg = data[a * FRAME * 2:b * FRAME * 2]
-        print('  %s  %4.1f s  %5.1f ~ %5.1f  %s' % (crc, len(seg) / 2 / RATE, a * 0.02, b * 0.02, text))
+        print('  %s  %4.1f s  %5.1f ~ %5.1f  [구간 %d~%d]  %s' % (crc, len(seg) / 2 / RATE, a * 0.02, b * 0.02, k0, k1, text))
         if not dry:
             with wave.open(os.path.join(out, crc + '.wav'), 'wb') as w:
                 w.setnchannels(1)
