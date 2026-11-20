@@ -577,6 +577,13 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  if (args->argc >= 1 && args->isStr(0, "wbias"))
+  {
+    if (args->argc >= 2) gbRunSetWbias(args->getData(1));
+    cliPrintf("wbias : %d\n", gbRunGetWbias());
+    ret = true;
+  }
+
   if (args->argc >= 1 && args->isStr(0, "histgray"))
   {
     if (args->argc >= 2) gbRunSetHistGray(args->getData(1));
