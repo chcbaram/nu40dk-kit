@@ -544,6 +544,20 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  if (args->argc >= 1 && args->isStr(0, "prewhite"))
+  {
+    if (args->argc >= 2) gbRunSetPrewhite(args->getData(1));
+    cliPrintf("prewhite : %d\n", gbRunGetPrewhite());
+    ret = true;
+  }
+
+  if (args->argc >= 1 && args->isStr(0, "histgray"))
+  {
+    if (args->argc >= 2) gbRunSetHistGray(args->getData(1));
+    cliPrintf("hist gray : %d %%\n", gbRunGetHistGray());
+    ret = true;
+  }
+
   if (args->argc >= 1 && args->isStr(0, "dwell"))
   {
     if (args->argc >= 2) gbRunSetDwell(args->getData(1));
@@ -832,6 +846,7 @@ void cliGb(cli_args_t *args)
     gbRunSetExtBusy(true);
     uint8_t  frames = args->argc >= 2 ? args->getData(1) : 4;
     uint32_t gap_ms = args->argc >= 3 ? args->getData(2) : 0;     // 펄스(스캔) 사이 쉬는 시간
+    bool     k_pulse = args->argc >= 4 ? args->getData(3) != 0 : true; // K 줄을 게임처럼 흰→검 펄스로 (0 = F7 검정)
     uint32_t size;
     uint8_t *p_buf  = gbRunGetScratch(&size);
     const uint16_t y0 = 90, h = 138, stride = 50, ph = 24, pitch = 38;
@@ -855,7 +870,7 @@ void cliGb(cli_args_t *args)
     for (int r = 0; r < 4; r++)
     {
       canvasPrintf(290, y0 + r * pitch + 4, CANVAS_BLACK, "from %c", names[r]);
-      if (r == 3)
+      if (r == 3 && !k_pulse)
         for (int c = 0; c < 4; c++) canvasFillRect(16 + c * 64, y0 + r * pitch, 48, ph, CANVAS_BLACK);
     }
     epdUpdateStrong();
@@ -869,7 +884,7 @@ void cliGb(cli_args_t *args)
       for (int r = 0; r < 4; r++)
         for (int c = 0; c < 4; c++)
         {
-          if (stage == 0) dose[r][c] = (r == 1 || r == 2) ? gbRunGetGrayDose(0, r) : 0;
+          if (stage == 0) dose[r][c] = (r == 1 || r == 2 || (r == 3 && k_pulse)) ? gbRunGetGrayDose(0, r) : 0;
           else            dose[r][c] = (r != c) ? gbRunGetGrayDose(r, c) : 0;
           if (dose[r][c] > max_d) max_d = dose[r][c];
         }

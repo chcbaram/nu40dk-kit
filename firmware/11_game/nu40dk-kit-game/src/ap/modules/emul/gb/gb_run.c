@@ -150,7 +150,9 @@ static const uint8_t    ink_dwell_bonus[4][8] =               // [출발 색][�
   {0, 1, 2, 2, 3, 3, 3, 4},   // K   (caldwell: 0 초 기준 +2 @1 초, +3 @3 초, +5 @10 초)
 };
 static uint16_t         ink_hist_pct = 100;                   // 되돌아갈 때 받은 펄스 비율 %
-static uint8_t          ink_hist_add = 1;                     // 되돌아갈 때 추가 펄스 (관성 상쇄)
+static uint8_t          ink_hist_add = 1;
+static uint8_t          ink_prewhite = 3;                     // 전체 갱신 뒤 흰 픽셀 흰색 펄스 수 (gb prewhite). 흰 자국 0.027 → 0.007
+static uint16_t         ink_hist_gray = 60;                   // 회색으로 되돌아갈 때 받은 펄스 비율 % (gb hist ... gray)                     // 되돌아갈 때 추가 펄스 (관성 상쇄)
 static uint16_t         ink_rev_pct  = 0;                     // 되돌아갈 때 펄스 비율 % (0 = 보정 안 함). gb retarget
 static bool             ink_same_add = false;                 // 같은 방향으로 더 갈 때 남은 펄스 더하기
 static uint8_t          gray_frames  = 4;                     // 회색 모드 스캔 1 회 프레임 수 (32ms)
@@ -162,7 +164,7 @@ static uint8_t          gray_dose[4][4] =
   {   0, 1, 3, 9 },   // W (이전)
   {   2, 0, 2, 8 },   // L          흰색 쪽은 강한 전압에서 과해 흰 자국이 남아 줄임 (L 3→2, D 5→4, K 10→6).
   {   4, 2, 0, 6 },   // D          게임의 검정은 흰→검 9 펄스로 만든 것이라 공장 검정보다 얕다.
-  {   6, 6, 3, 0 },   // K          머문 시간·되돌아감은 이력 보정(gb hist)이 따로 더하거나 뺀다.
+  {   6, 3, 2, 0 },   // K          게임 검정(펄스로 만든 얕은 검정) 기준: K→L 6→3, K→D 3→2 (caltable k_pulse). 머문 시간·되돌아감은 gb hist
 };
 static uint32_t         ink_dir[INK_WORDS];
 
@@ -413,7 +415,8 @@ static void inkPlan(const uint8_t *p_new)
             {
               // 머물던 픽셀: dv = 머문 시간 (0.5 초 단위, 최대 7). 밝은 쪽으로 떠날 때 머문 만큼 펄스 추가
               //   카메라 (caldwell): 검정에 0 초 5, 1 초 7, 3 초 8, 10 초 10 펄스 필요
-              if (n < o && ink_dwell_pct > 0)
+              // 흰색으로 갈 때만 (caldwell 은 흰색 도달 기준 측정. 회색으로 갈 때 더하면 회색이 하얗게 넘침)
+              if (n == 0 && ink_dwell_pct > 0)
                 dose += (ink_dwell_bonus[o][dv] * ink_dwell_pct + 50) / 100;
               hs = o;
               dv = 0;
@@ -428,7 +431,11 @@ static void inkPlan(const uint8_t *p_new)
               if (n == hs)
               {
                 // 출발 색으로 되돌아감
-                dose     = (dv * ink_hist_pct + 99) / 100 + ink_hist_add;
+                // 흰색은 끝이라 조금 넘쳐도 표시가 나지 않지만, 회색으로 되돌아갈 때 추가 펄스를 주면
+                // 회색이 하얗게 넘친다 (게임: 마리오가 지나간 회색 띠에 흰 세로 자국). 회색이면 추가 없이
+                // 회색은 밝아지는 쪽이 어두워지는 쪽보다 펄스당 많이 움직여(응답 곡선) 같은 수로 되돌리면 넘친다
+                dose     = (n == 0) ? (dv * ink_hist_pct + 99) / 100 + ink_hist_add
+                                    : (dv * ink_hist_gray + 50) / 100;
                 new_dark = !go_dark;
                 dv       = 0;
               }
@@ -441,7 +448,8 @@ static void inkPlan(const uint8_t *p_new)
               else if (n_side)
               {
                 // S 와 o 사이의 n 을 이미 지나침: 조금 되돌아감 (구름 테두리 → 안쪽 같은 경우)
-                dose     = ((dv - need) * ink_hist_pct + 99) / 100 + (dv > need ? ink_hist_add : 0);
+                dose     = (n == 0) ? ((dv - need) * ink_hist_pct + 99) / 100 + (dv > need ? ink_hist_add : 0)
+                                    : ((dv - need) * ink_hist_gray + 50) / 100;
                 new_dark = !go_dark;
                 hs       = n;                                         // 되돌아 n 에 도착하면 그곳이 출발점
                 dv       = 0;
@@ -799,7 +807,7 @@ static void patternFrame(bool draw)
     return;
   }
 
-  if (pat_big)
+  if (pat_big == 1 || pat_big == 3)
   {
     // 큰 도형: 2px 산(가로 64, y 60~92), 구름 40x16 (y 24), 상자 24x24 (y 98)
     for (int t = 0; t < 32; t++)
@@ -809,6 +817,7 @@ static void patternFrame(bool draw)
     }
     patRect(p_buf, ox + 4,  24, 40, 16, 2);
     patRect(p_buf, ox + 5,  25, 38, 14, 1);
+    if (pat_big == 3) patRect(p_buf, 0, 94, GB_LCD_WIDTH, 32, 1);   // 회색(L) 띠: 상자가 회색 위를 지나감
     patRect(p_buf, ox + 60, 98, 24, 24, 3);
     return;
   }
@@ -1024,6 +1033,26 @@ void gbRunSetThin(uint8_t n)
 uint8_t gbRunGetThin(void)
 {
   return ink_thin;
+}
+
+void gbRunSetPrewhite(uint8_t n)
+{
+  ink_prewhite = n;
+}
+
+uint8_t gbRunGetPrewhite(void)
+{
+  return ink_prewhite;
+}
+
+void gbRunSetHistGray(uint16_t pct)
+{
+  ink_hist_gray = pct;
+}
+
+uint16_t gbRunGetHistGray(void)
+{
+  return ink_hist_gray;
 }
 
 void gbRunSetDwell(uint16_t pct)
@@ -1353,6 +1382,14 @@ static void dispInkMode(void)
       // (공장 갱신이 구동 전압을 모드별 값으로 바꿈, 3색 모드로 화면을 구동해야 강한 쪽이 됨. 카메라:
       //  흰→검 9 펄스가 F7 뒤 54, 저온 흑백 뒤 89~93). 펄스 표·보너스는 F7 뒤 기준으로 맞췄다.
       epdUpdateStrong();
+      // 바탕을 '펄스 흰색'으로: F7 의 흰색보다 펄스로 만든 흰색이 더 하얘서, 물체가 지나간 자리가
+      // 바탕보다 하얗게 남았다. 캔버스에서 흰 픽셀만 흰색 쪽 펄스 n 번 (검은 테두리는 그대로)
+      if (ink_prewhite > 0)
+      {
+        memset(ink_black, 0, sizeof(ink_black));
+        for (int i = 0; i < ink_prewhite; i++)
+          epdUpdateMask(ink_black, inkWhiteBuf(), GB_SCR_Y, GB_SCR_H, gray_frames);
+      }
       inkPlan(gbGetLcdBuf());
     }
     else
