@@ -92,7 +92,43 @@ void gbRomGetTitle(char *p_title, uint32_t len)
   p_title[i] = 0;
 }
 
+// 배터리 백업 세이브 크기 (배터리 없는 카트리지는 0)
+uint32_t gbGetSaveSize(void)
+{
+  static const uint32_t ram_size[6] = {0, 2048, 8192, 32768, 131072, 65536};
+  uint8_t  type = rom_base[0x147];
+  uint8_t  code = rom_base[0x149];
+  uint32_t size;
+
+  switch (type)
+  {
+    case 0x03: case 0x06: case 0x09: case 0x0D: case 0x0F: case 0x10:
+    case 0x13: case 0x1B: case 0x1E:
+      break;
+    default:
+      return 0;
+  }
+  size = (type == 0x06) ? 512 : (code < 6 ? ram_size[code] : 0);   // MBC2 는 내장 512 x 4bit
+  return MIN(size, (uint32_t)GB_CART_RAM_MAX);
+}
+
+uint8_t *gbGetCartRam(void)
+{
+  return cart_ram;
+}
+
+void gbClearCartRam(void)
+{
+  memset(cart_ram, 0xFF, sizeof(cart_ram));
+}
+
 bool gbLoad(void)
+{
+  return gbLoadEx(true);
+}
+
+// clear_ram = false 면 cart RAM 을 지우지 않는다 (미리 불러온 세이브 유지)
+bool gbLoadEx(bool clear_ram)
 {
   gb_core_cfg_t cfg;
 
@@ -104,7 +140,7 @@ bool gbLoad(void)
     return false;
   }
 
-  memset(cart_ram, 0xFF, sizeof(cart_ram));
+  if (clear_ram) gbClearCartRam();
 
   cfg.p_rom         = rom_base;
   cfg.p_cart_ram    = cart_ram;

@@ -108,6 +108,17 @@ static const struct bt_le_scan_param ble_pad_scan_param = {
   .window   = BT_GAP_SCAN_FAST_INTERVAL, // 💡 30ms -> 60ms로 확장 (100% 무손실 캐치)
 };
 
+// 보고서 초기값: 스틱은 중앙(32768). 0 으로 두면 패드가 스틱 데이터를 보내기 전까지
+// "왼쪽 위로 꺾음" 으로 읽혀 메뉴가 계속 움직인다
+static void blePadResetReport(xbox_hid_report_t *p_report)
+{
+  memset(p_report, 0, sizeof(xbox_hid_report_t));
+  p_report->left_stick_x  = 32768;
+  p_report->left_stick_y  = 32768;
+  p_report->right_stick_x = 32768;
+  p_report->right_stick_y = 32768;
+}
+
 static void blePadScanStartNow(void)
 {
   if (!scan_enable || is_connecting_or_connected || ble_pad_conn != NULL)
@@ -286,6 +297,9 @@ static void blePadDisconnected(struct bt_conn *conn, uint8_t reason)
   is_connecting_or_connected = false;
   is_subscribed              = false;
   battery_level              = -1;
+  lock();
+  blePadResetReport(&xbox_report);
+  unLock();
   handle_battery             = 0;
   k_work_cancel_delayable(&ble_pad_activation_work);
   k_work_cancel_delayable(&ble_pad_battery_work);
@@ -707,7 +721,7 @@ bool blePadGetInfo(xbox_hid_report_t *p_report)
   if (is_connected)
     memcpy(p_report, &xbox_report, sizeof(xbox_report));
   else
-    memset(p_report, 0, sizeof(xbox_report));
+    blePadResetReport(p_report);
   unLock();
 
   return is_connected;
@@ -717,7 +731,7 @@ bool blePadInit(void)
 {
 
   lock();
-  memset(&xbox_report, 0, sizeof(xbox_report));
+  blePadResetReport(&xbox_report);
   unLock();
 
   int err = bt_enable(NULL);

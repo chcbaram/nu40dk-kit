@@ -21,6 +21,10 @@ typedef void (*gb_rom_progress_cb_t)(uint32_t done, uint32_t total);
 gb_rom_err_t gbRomLoad(const char *p_name, bool force, gb_rom_progress_cb_t cb);   // 이름만 주면 /roms/ 기준
 const char  *gbRomErrStr(gb_rom_err_t err);
 bool         gbRomGetName(uint32_t index, char *p_name, uint32_t len);
+bool         gbRomReadHeader(const char *p_name, uint8_t *p_hdr, uint32_t *p_size);   // p_hdr: 0x150 바이트
+bool         gbSaveExists(const char *p_rom_name);
+bool         gbSaveRead(const char *p_rom_name, uint8_t *p_buf, uint32_t size);
+bool         gbSaveWrite(const char *p_rom_name, const uint8_t *p_buf, uint32_t size);
 uint32_t     gbRomList(bool (*cb)(const char *p_name, uint32_t size, void *arg), void *arg);
 
 #endif

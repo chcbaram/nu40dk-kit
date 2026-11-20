@@ -26,9 +26,11 @@ static uint8_t    lut_buf[227];         // 0x32 커스텀 LUT (흑백 모드 형
 static bool       fast_ready     = false;   // 커스텀 LUT/전압 설정 완료 여부 (OTP LUT 로드 시 해제)
 static bool       fast_analog_on = false;   // 아날로그 전원 유지 중이면 0x8C 로 갱신
 static uint8_t    fast_frames    = 10;      // 전환 펄스 길이 (프레임, 8ms @125Hz)
-static uint8_t    fast_hold      = 10;      // 유지 픽셀 구동 길이
+static uint8_t    fast_hold      = 0;       // 유지 픽셀 구동 길이 (0 = 구동 안 함. DC 누적으로 패널 잔상 유발)
 
 static const char *mode_str[EPD_MODE_MAX] = {"full", "part", "fast"};
+static uint32_t   busy_err_cnt   = 0;       // BUSY 제한시간 초과 → 자동 복구 횟수
+static uint8_t    last_ctrl      = 0;       // 마지막으로 보낸 0x22 값 (원인 추적용)
 
 // FAST 모드에서 바꾼 부스터 소프트 스타트를 기본값(POR)으로 복구
 static void epdRestoreSoftStart(void)
@@ -124,6 +126,12 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
 
   if (!is_init) return false;
 
+  // 이전 동작이 끝나지 않았으면 잠시 기다리고, 그래도 BUSY 면 복구
+  if (ssd1683IsBusy() && !ssd1683WaitBusy(3000))
+  {
+    epdRecover("busy before update");
+  }
+
   // x 는 바이트 경계로 맞춤
   uint16_t x0 = x & ~7;
   uint16_t x1 = (x + w + 7) & ~7;
@@ -163,6 +171,7 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
 
     data[0] = 0x40; data[1] = 0x00;
     ssd1683WriteCmdData(0x21, data, 2);
+    last_ctrl = full_ctrl;
     ssd1683Activate(full_ctrl);
     fast_ready     = false;                   // OTP LUT 가 다시 로드됨
     fast_analog_on = false;
@@ -182,11 +191,13 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
     if (mode == EPD_MODE_FAST)
     {
       // 아날로그가 이미 켜져 있으면 0x8C (클럭 + 흑백 표시만) 로 부스터 기동 시간을 생략
-      ssd1683Activate(fast_analog_on ? 0x8C : 0xCC);
+      last_ctrl = fast_analog_on ? 0x8C : 0xCC;
+      ssd1683Activate(last_ctrl);
       fast_analog_on = true;
     }
     else
     {
+      last_ctrl = part_ctrl;
       ssd1683Activate(part_ctrl);
       if (part_ctrl & 0x10) fast_ready = false; // LUT 로드 비트가 있으면 커스텀 LUT 가 덮어써짐
     }
@@ -202,7 +213,21 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
   epd_time.total_ms = millis() - pre_ms;
   epd_time.count++;
 
+  if (!ret)
+  {
+    epdRecover(mode_str[mode]);
+  }
   return ret;
+}
+
+// BUSY 가 풀리지 않을 때: 하드웨어 리셋 + 패널 재초기화 (컨트롤러가 가끔 BUSY 에 갇힘, Phase 7 에서 확인)
+void epdRecover(const char *p_reason)
+{
+  busy_err_cnt++;
+  logPrintf("[E_] epd busy timeout (%s, last 0x22=0x%02X, cnt %d) -> reset\n", p_reason, last_ctrl, busy_err_cnt);
+  epdInitPanel();
+  fast_ready     = false;
+  fast_analog_on = false;
 }
 
 bool epdUpdate(epd_mode_t mode)
@@ -271,6 +296,34 @@ void epdWriteLut(void)
   ssd1683WriteCmdData(0x32, lut_buf, sizeof(lut_buf));
 }
 
+// 3색 웨이브폼(0xF7, 약 2.8초)으로 전체 갱신: 오래 떠 있던 화면의 잔상까지 지운다
+bool epdUpdateStrong(void)
+{
+  uint8_t ctrl = full_ctrl;
+  bool    ret;
+
+  full_ctrl = 0xF7;
+  ret = epdUpdate(EPD_MODE_FULL);
+  full_ctrl = ctrl;
+  return ret;
+}
+
+// 검정/흰색 전체 갱신을 3색 웨이브폼(가장 강함)으로 반복해 잔상·잔류 입자 정리
+void epdClean(int count)
+{
+  uint8_t ctrl = full_ctrl;
+
+  full_ctrl = 0xF7;
+  for (int i = 0; i < count; i++)
+  {
+    canvasClear(CANVAS_BLACK);
+    epdUpdate(EPD_MODE_FULL);
+    canvasClear(CANVAS_WHITE);
+    epdUpdate(EPD_MODE_FULL);
+  }
+  full_ctrl = ctrl;
+}
+
 void epdSetFastLut(uint8_t frames, uint8_t hold)
 {
   fast_frames = frames;
@@ -281,8 +334,13 @@ void epdSetFastLut(uint8_t frames, uint8_t hold)
 // 아날로그 전원 끄기 (FAST 모드 사용 후 대기 상태로 둘 때)
 void epdPowerOff(void)
 {
+  if (ssd1683IsBusy()) ssd1683WaitBusy(3000);
+  last_ctrl = 0x03;
   ssd1683Activate(0x03);
-  ssd1683WaitBusy(500);
+  if (!ssd1683WaitBusy(500))
+  {
+    epdRecover("power off");
+  }
   fast_analog_on = false;
 }
 
@@ -378,6 +436,7 @@ void cliEpd(cli_args_t *args)
     cliPrintf("spi     : %d Hz\n", ssd1683GetSpiFreq());
     cliPrintf("busy    : %d\n", epdIsBusy());
     cliPrintf("count   : %d\n", t.count);
+    cliPrintf("recover : %d (last 0x22=0x%02X)\n", busy_err_cnt, last_ctrl);
     cliPrintf("ctrl    : full 0x%02X, part 0x%02X\n", full_ctrl, part_ctrl);
     cliPrintf("fast    : frames %d, hold %d, ready %d, analog %d\n", fast_frames, fast_hold, fast_ready, fast_analog_on);
     cliPrintf("last    : spi %d us, busy %d ms, total %d ms\n", t.spi_us, t.busy_ms, t.total_ms);
@@ -476,19 +535,10 @@ void cliEpd(cli_args_t *args)
   // epd clean [count] : 검정/흰색 전체 갱신을 번갈아 반복해 잔상·잔류 입자 정리 (3색 웨이브폼)
   if (args->argc >= 1 && args->isStr(0, "clean"))
   {
-    int     cnt  = args->argc >= 2 ? args->getData(1) : 2;
-    uint8_t ctrl = full_ctrl;
+    int cnt = args->argc >= 2 ? args->getData(1) : 2;
 
-    full_ctrl = 0xF7;
-    for (int i = 0; i < cnt; i++)
-    {
-      canvasClear(CANVAS_BLACK);
-      epdUpdate(EPD_MODE_FULL);
-      canvasClear(CANVAS_WHITE);
-      epdUpdate(EPD_MODE_FULL);
-      cliPrintf("clean %d/%d\n", i + 1, cnt);
-    }
-    full_ctrl = ctrl;
+    epdClean(cnt);
+    cliPrintf("clean %d done\n", cnt);
     ret = true;
   }
 

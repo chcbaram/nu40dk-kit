@@ -40,6 +40,9 @@ bool epdUpdate(epd_mode_t mode);
 bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 void epdGetTime(epd_time_t *p_time);
 void epdSetFastLut(uint8_t frames, uint8_t hold);
+void epdClean(int count);
+void epdRecover(const char *p_reason);   // BUSY 에 갇혔을 때 하드웨어 리셋 + 재초기화
+bool epdUpdateStrong(void);     // 3색 웨이브폼 전체 갱신 (잔상 제거, 약 2.8초)
 void epdPowerOff(void);
 void epdSleep(void);
 

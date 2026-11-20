@@ -15,10 +15,13 @@ typedef struct
 } gb_run_stat_t;
 
 
-bool gbRunStart(void);      // Flash 의 ROM 으로 실행 시작
+bool gbRunStart(void);      // Flash 의 ROM 으로 실행 시작 (cart RAM 초기화)
+bool gbRunStartEx(bool clear_ram);
 void gbRunStop(void);
 bool gbRunIsRunning(void);
 void gbRunSetPause(bool pause);
+void gbRunWaitDisplayIdle(void);
+void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h);
 bool gbRunIsPaused(void);
 bool gbRunGetMenuRequest(void);   // 메뉴 버튼(Xbox / BTN4 길게) 눌림 여부, 읽으면 지워짐
 void gbRunSetSound(bool enable);

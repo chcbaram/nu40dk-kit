@@ -2,6 +2,31 @@
 
 ![런처 화면 예시](images/launcher_mockup.svg)
 
+## Phase 7 구현 (2026-11-20, `src/ap/modules/launcher/launcher.c`)
+
+| 항목 | 내용 |
+|---|---|
+| 실행 위치 | 메인 스레드 (`apMain()` → `launcherMain()`), 우선순위 6 (`CONFIG_MAIN_THREAD_PRIORITY`). 기본 0 이면 그리기 중 I2S 언더런 |
+| 화면 | MAIN / GAMES / CONTROLLER / SETTINGS / INFO, 게임 중 PAUSE 메뉴 |
+| 갱신 | 메뉴 이동 = `EPD_MODE_PART` (공장 웨이브폼 약 0.6초), 30회마다 FULL, 부팅·게임 종료 후 첫 화면 = `epdUpdateStrong()` (3색 웨이브폼 2.8초), 3초 입력 없으면 `epdPowerOff()` |
+| 입력 | 엣지 + 위/아래/좌/우 자동 반복 (400ms 후 120ms 간격). 보드 BTN1~4, 패드 D-pad·왼쪽 스틱·A/Menu(OK)·B/Xbox(BACK) |
+| ROM 실행 | `gbRomLoad()` (진행 막대 0.7초마다) → 세이브 읽기 → `gbRunStartEx(false)` |
+| 게임 메뉴 | RESUME / SAVE & QUIT / RESET / QUIT (NO SAVE). 게임 화면 위에 상자로 그림 |
+| 세이브 | 배터리 백업 카트리지만 `/saves/<ROM 이름>.sav` (`gbGetSaveSize()`, `gbSaveRead/Write()`) |
+| 설정 | Zephyr settings `game/cfg`: 사운드, 볼륨, 화면 품질(FAST 펄스 10/7/5/3) |
+
+### Phase 7 에서 발견한 문제
+
+| 문제 | 원인 | 수정 |
+|---|---|---|
+| 아무것도 안 눌러도 메뉴 선택 바가 계속 움직임 | 패드가 스틱 데이터를 보내기 전 보고서가 0 → "왼쪽 위로 꺾음" | 보고서 초기값의 스틱을 중앙(32768)으로 (`blePadResetReport`). 게임 입력에도 같은 문제가 있었음 |
+| 런처 배경에 마리오 화면이 겹쳐 보이고 배경이 회색 | **FAST 모드 hold 구동**: 변하지 않은 픽셀까지 초당 7번씩 같은 방향 전압을 걸어 패널에 DC 가 누적 (InkBoy 는 변하지 않은 픽셀을 구동하지 않음) | 게임 FAST 의 hold = 0, 런처는 공장 웨이브폼만 사용, 첫 화면은 강한 갱신 |
+| INFO 화면에서 멈춤 | EPD BUSY 가 풀리지 않아 대기 (5초 제한) | `epdRecover()`: BUSY 제한시간 초과 시 하드웨어 리셋 + 재초기화, 원인 추적 로그 (`epd info` 의 recover 횟수) |
+
+### 남은 문제
+
+- 장시간 hold 구동으로 생긴 마리오 잔상은 `CLEAN SCREEN`(3색 검정/흰색 반복)을 여러 번 해도 옅게 남는다. 패널 내부 전하가 빠지는 데 시간이 걸리는 것으로 보이며, 영구 잔상일 가능성도 있다.
+
 ## LVGL 검토 결과: 사용하지 않음
 
 | 항목 | 판단 |

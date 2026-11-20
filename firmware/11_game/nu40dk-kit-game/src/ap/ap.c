@@ -1,4 +1,5 @@
 #include "ap.h"
+#include "launcher/launcher.h"
 
 LOG_MODULE_REGISTER(ap, LOG_LEVEL_DBG);
 
@@ -11,10 +12,6 @@ void apInit(void)
 
 void apMain(void)
 {
-  while(1)
-  {
-    ledToggle(_DEF_CH1);
-    delay(500);
-  }
+  launcherMain();
 }
 

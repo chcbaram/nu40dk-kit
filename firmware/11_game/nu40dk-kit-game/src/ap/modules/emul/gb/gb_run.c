@@ -52,7 +52,6 @@ static volatile bool disp_ready   = false;   // 디스플레이가 새 프레임
 static volatile bool frame_ready  = false;   // lcd_buf 에 새 프레임이 있음
 static volatile bool req_full     = false;   // 다음 표시를 전체 갱신으로
 static volatile bool is_pause     = false;   // 일시정지 (메뉴)
-static volatile bool req_pause_draw = false; // 디스플레이에 PAUSE 표시 요청
 static volatile bool menu_req     = false;   // 메뉴 요청 (런처가 읽고 지움)
 
 #define MENU_LONG_PRESS_MS  1000            // 보드 BTN4 길게 누르면 메뉴
@@ -191,18 +190,6 @@ static uint8_t readInput(bool *p_menu)
   return joy;
 }
 
-static void drawPause(void)
-{
-  const int w = 160, h = 48;
-  const int x = GB_SCR_X + (GB_SCR_W - w) / 2;
-  const int y = GB_SCR_Y + (GB_SCR_H - h) / 2;
-
-  canvasFillRect(x, y, w, h, CANVAS_WHITE);
-  canvasDrawRect(x, y, w, h, CANVAS_BLACK);
-  canvasDrawRect(x + 2, y + 2, w - 4, h - 4, CANVAS_BLACK);
-  canvasPrintf(x + (w - canvasGetStrWidth("PAUSE")) / 2, y + 8, CANVAS_BLACK, "PAUSE");
-  canvasPrintf(x + (w - canvasGetStrWidth("XBOX: resume")) / 2, y + 26, CANVAS_BLACK, "XBOX: resume");
-}
 
 
 
@@ -239,9 +226,15 @@ bool init(void)
 
 bool gbRunStart(void)
 {
+  return gbRunStartEx(true);
+}
+
+// clear_ram = false: 미리 불러온 세이브(cart RAM)를 유지하고 시작
+bool gbRunStartEx(bool clear_ram)
+{
   gbRunStop();
 
-  if (!gbLoad()) return false;
+  if (!gbLoadEx(clear_ram)) return false;
 
   i2sSetSampleRate(GB_AUDIO_RATE);
 
@@ -277,11 +270,25 @@ void gbRunSetPause(bool pause)
   if (!is_run || is_pause == pause) return;
 
   is_pause = pause;
-  if (pause)
+}
+
+// 디스플레이 스레드가 진행 중인 갱신을 끝낼 때까지 대기 (런처가 캔버스/EPD 를 쓰기 전에 호출)
+void gbRunWaitDisplayIdle(void)
+{
+  for (int i = 0; i < 100; i++)
   {
-    req_pause_draw = true;
-    k_sem_give(&frame_sem);
+    if (disp_ready && !frame_ready) break;
+    k_sleep(K_MSEC(10));
   }
+}
+
+// 게임 화면 영역 (런처가 게임 메뉴를 그 위에 그릴 때 사용)
+void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h)
+{
+  *p_x = GB_SCR_X;
+  *p_y = GB_SCR_Y;
+  *p_w = GB_SCR_W;
+  *p_h = GB_SCR_H;
 }
 
 bool gbRunIsPaused(void)
@@ -358,11 +365,11 @@ void emuThread(void *arg1, void *arg2, void *arg3)
     bool    menu;
     uint8_t joy = readInput(&menu);
 
-    if (menu)
+    if (menu && !is_pause)
     {
-      // 메뉴 버튼: 일시정지 토글 (런처가 붙으면 런처가 menu_req 를 받아 게임 메뉴를 띄운다)
+      // 메뉴 버튼: 일시정지하고 런처에 메뉴 요청 (런처가 게임 메뉴를 그린다)
+      is_pause = true;
       menu_req = true;
-      gbRunSetPause(!is_pause);
     }
     if (is_pause)
     {
@@ -425,14 +432,6 @@ void dispThread(void *arg1, void *arg2, void *arg3)
     k_sem_take(&frame_sem, K_FOREVER);
     if (!is_run) continue;
 
-    if (req_pause_draw)
-    {
-      req_pause_draw = false;
-      for (int i = 0; i < 50 && !disp_ready; i++) k_sleep(K_MSEC(10));   // 진행 중 갱신 대기
-      drawPause();
-      epdUpdateWindow(EPD_MODE_FAST, GB_SCR_X, GB_SCR_Y, GB_SCR_W, GB_SCR_H);
-      if (!frame_ready) continue;
-    }
 
     if (req_full)
     {

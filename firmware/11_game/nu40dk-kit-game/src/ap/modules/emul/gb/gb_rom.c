@@ -16,6 +16,7 @@
 #define GB_ROM_SIZE       PM_ROM_STORAGE_SIZE
 #define GB_ROM_PAGE       4096
 #define GB_ROM_DIR        "/roms"
+#define GB_SAVE_DIR       "/saves"
 
 
 static uint8_t page_buf[GB_ROM_PAGE];
@@ -186,4 +187,73 @@ uint32_t gbRomList(bool (*cb)(const char *p_name, uint32_t size, void *arg), voi
   }
   f_closedir(&dir);
   return cnt;
+}
+
+
+
+// ROM 이름 → 세이브 경로 (/saves/<확장자 뺀 이름>.sav)
+static void makeSavePath(char *p_dst, uint32_t len, const char *p_rom_name)
+{
+  const char *p_base = strrchr(p_rom_name, '/');
+  char        base[64];
+  char       *p_ext;
+
+  snprintf(base, sizeof(base), "%s", p_base ? p_base + 1 : p_rom_name);
+  p_ext = strrchr(base, '.');
+  if (p_ext) *p_ext = 0;
+  snprintf(p_dst, len, "%s/%s.sav", GB_SAVE_DIR, base);
+}
+
+bool gbSaveExists(const char *p_rom_name)
+{
+  char    path[96];
+  FILINFO fno;
+
+  makeSavePath(path, sizeof(path), p_rom_name);
+  return f_stat(path, &fno) == FR_OK;
+}
+
+// 세이브 파일을 cart RAM 으로 읽는다. 파일이 없으면 false
+bool gbSaveRead(const char *p_rom_name, uint8_t *p_buf, uint32_t size)
+{
+  char path[96];
+  FIL  fil;
+  UINT rd = 0;
+
+  if (size == 0) return false;
+  makeSavePath(path, sizeof(path), p_rom_name);
+  if (f_open(&fil, path, FA_READ) != FR_OK) return false;
+  f_read(&fil, p_buf, size, &rd);
+  f_close(&fil);
+  return rd > 0;
+}
+
+bool gbSaveWrite(const char *p_rom_name, const uint8_t *p_buf, uint32_t size)
+{
+  char path[96];
+  FIL  fil;
+  UINT wr = 0;
+
+  if (size == 0) return false;
+  f_mkdir(GB_SAVE_DIR);
+  makeSavePath(path, sizeof(path), p_rom_name);
+  if (f_open(&fil, path, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK) return false;
+  f_write(&fil, p_buf, size, &wr);
+  f_close(&fil);
+  return wr == size;
+}
+
+// ROM 파일 헤더(0x100~0x14F) 읽기: 런처 INFO 패널용
+bool gbRomReadHeader(const char *p_name, uint8_t *p_hdr, uint32_t *p_size)
+{
+  char path[96];
+  FIL  fil;
+  UINT rd = 0;
+
+  makePath(path, sizeof(path), p_name);
+  if (f_open(&fil, path, FA_READ) != FR_OK) return false;
+  *p_size = f_size(&fil);
+  f_read(&fil, p_hdr, 0x150, &rd);
+  f_close(&fil);
+  return rd == 0x150;
 }
