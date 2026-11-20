@@ -104,6 +104,10 @@ static uint32_t         ink_frame_ms = 83;
 static uint8_t          ink_fr       = 0x05;                  // 커스텀 LUT 프레임 속도 125Hz (50Hz 는 체감 차이 없이 스캔만 느려짐)                   // 새 GB 프레임을 받는 최소 간격
 static uint8_t          ink_shade[GB_LCD_HEIGHT][GB_LCD_WIDTH / 4];   // 현재 목표 (2bpp)
 static uint8_t          ink_base[GB_LCD_HEIGHT][GB_LCD_WIDTH / 4];    // 바뀌기 직전 목표 (2bpp): 이 패턴과 다른 디더 점만 구동
+// 회색 모드 이력: ink_base 는 디더링 모드 전용이라 회색 모드에서는 같은 메모리를 '마지막 안정 색 S' (2bpp) 로 쓴다
+#define ink_hist_s          (&ink_base[0][0])
+#define INK_DV_BITS         3         // S 를 떠난 뒤 받은 펄스 (0~7, 포화)
+static uint32_t         ink_dv[INK_DV_BITS][(GB_LCD_WIDTH * GB_LCD_HEIGHT) / 32];
 static uint32_t         ink_cnt[INK_CNT_BITS][INK_WORDS];
 
 // 카운터가 남은 픽셀 (모든 비트 OR)
@@ -126,15 +130,27 @@ static uint8_t          diff_nib[256];                        // 2bpp 바이트 
 static volatile bool    ink_gray     = true;
 static uint32_t         ink_scene_px = (GB_LCD_WIDTH * GB_LCD_HEIGHT) * 40 / 100;  // 장면 전환 기준 (바뀐 픽셀 수, 0 = 끔)
 static uint32_t         scene_ms     = 0;
+static uint32_t         dwell_ms     = 0;
 static uint32_t         ink_quiet_ms  = 0;                    // 조용한 상태가 이만큼 이어지면 정리 (0 = 끔, 기본 끔). 예: gb quiet 1500
 static uint32_t         ink_quiet_px  = 120;                  // 프레임당 바뀐 픽셀이 이보다 적으면 조용함
 static uint32_t         ink_quiet_act = 3000;                 // 직전 정리 뒤 바뀐 픽셀 합이 이 이상일 때만
 static uint32_t         quiet_ms      = 0;
 static uint32_t         quiet_act     = 0;
-static uint8_t          ink_settle[4] = {0, 1, 2, 4};        // 머물던 픽셀이 흰색으로 갈 때 추가 펄스 [-, L, D, K]. gb settle
+static uint8_t          ink_settle[4] = {0, 0, 0, 0};        // 머물던 픽셀이 흰색으로 갈 때 추가 펄스 [-, L, D, K]. gb settle
                                                               // gb calmove 측정 (edge 2 와 함께): 멈췄던 자리 잔상 0.026 → 0.006 (잡음 수준), 과구동 없음
-static uint8_t          ink_thin     = 4;                     // 1px 선이었던 픽셀 추가 펄스 (edge 에 더해). gb thin. 선 잔상 0.012 → 0.007, 8 은 흰 선
-static uint8_t          ink_edge     = 2;                     // 테두리였던 픽셀 추가 펄스 (settle 과 함께). gb edge. 테두리 잔상 0.029 → 0.007
+static uint8_t          ink_thin     = 0;                     // 1px 선이었던 픽셀 추가 펄스 (edge 에 더해). gb thin. 선 잔상 0.012 → 0.007, 8 은 흰 선
+static uint8_t          ink_edge     = 0;                     // 테두리였던 픽셀 추가 펄스 (settle 과 함께). gb edge. 테두리 잔상 0.029 → 0.007
+static bool             ink_hist_on  = true;                  // 이력 보정 (gb hist)
+static uint16_t         ink_dwell_pct = 50;                   // 머문 시간 보너스 비율 % (gb dwell)
+static const uint8_t    ink_dwell_bonus[4][8] =               // [출발 색][머문 시간 0.5 초 단위] → 추가 펄스
+{
+  {0, 0, 0, 0, 0, 0, 0, 0},   // W
+  {0, 0, 0, 1, 1, 1, 1, 1},   // L
+  {0, 0, 1, 1, 1, 2, 2, 2},   // D
+  {0, 1, 2, 2, 3, 3, 3, 4},   // K   (caldwell: 0 초 기준 +2 @1 초, +3 @3 초, +5 @10 초)
+};
+static uint16_t         ink_hist_pct = 100;                   // 되돌아갈 때 받은 펄스 비율 %
+static uint8_t          ink_hist_add = 1;                     // 되돌아갈 때 추가 펄스 (관성 상쇄)
 static uint16_t         ink_rev_pct  = 0;                     // 되돌아갈 때 펄스 비율 % (0 = 보정 안 함). gb retarget
 static bool             ink_same_add = false;                 // 같은 방향으로 더 갈 때 남은 펄스 더하기
 static uint8_t          gray_frames  = 4;                     // 회색 모드 스캔 1 회 프레임 수 (32ms)
@@ -142,11 +158,11 @@ static uint8_t          gray_frames  = 4;                     // 회색 모드 �
                                                               //   한 번 바뀌는 데 걸리는 시간이 짧아져 움직임 잔상이 준다 (16ms x 12 → 32ms x 6)
 static uint8_t          gray_dose[4][4] =
 {
-  //  W  L  D  K   (새)      32ms 펄스 기준. 카메라 캘리브레이션 (gb cal / gb caltable, docs/10_calibration.md)
-  {   0, 1, 3, 9 },   // W (이전)   같은 목표 회색이 출발 색과 상관없이 같은 밝기가 되도록 맞춤
-  {   3, 0, 2, 8 },   // L          (예전 표는 출발 색에 따라 같은 L 이 0.35~0.79 로 달라 얼룩이 남음)
-  {   5, 2, 0, 6 },   // D          검정 방향 +2: 검정 0.09 → 0.04, 잔상 변화 없음 (calmove)
-  {  10, 6, 3, 0 },   // K          검→흰은 첫 펄스가 거의 효과 없음
+  //  W  L  D  K   (새)      32ms 펄스, 강한 전압(게임 중 전체 갱신 F7) 기준. 카메라 캘리브레이션 docs/10_calibration.md
+  {   0, 1, 3, 9 },   // W (이전)
+  {   2, 0, 2, 8 },   // L          흰색 쪽은 강한 전압에서 과해 흰 자국이 남아 줄임 (L 3→2, D 5→4, K 10→6).
+  {   4, 2, 0, 6 },   // D          게임의 검정은 흰→검 9 펄스로 만든 것이라 공장 검정보다 얕다.
+  {   6, 6, 3, 0 },   // K          머문 시간·되돌아감은 이력 보정(gb hist)이 따로 더하거나 뺀다.
 };
 static uint32_t         ink_dir[INK_WORDS];
 
@@ -377,30 +393,75 @@ static void inkPlan(const uint8_t *p_new)
             if (dose > INK_DOSE_MAX) dose = INK_DOSE_MAX;
           }
 
-          if (ink_rev_pct > 0 || ink_same_add)
+          // 이력 보정 (InkBoy history/reversal 방식, gb hist): 픽셀마다 마지막으로 안정됐던 색 S 와
+          //   S 를 떠난 뒤 받은 펄스 dv 를 기록한다.
+          //   - 머물던 픽셀(r = 0): 지금 색 o 를 새 출발점 S 로
+          //   - 이동 중 출발 색 S 로 되돌아감: dv x hist_pct % + hist_add (calrev: 흰→검 k 펄스 뒤 k + 3 필요)
+          //   - 이동 중 같은 방향으로 더 감: 출발 색 기준 표[S][n] - dv
+          bool new_dark = n > o;
+          if (ink_hist_on)
           {
-            int r = 0;
-            for (int k = 0; k < INK_CNT_BITS; k++)
-              if (ink_cnt[k][w] & bit) r |= 1 << k;
-            if (r > 0)
+            int      r    = 0;
+            uint8_t *p_hs = &ink_hist_s[w * 8 + b];
+            int      sh   = 6 - p * 2;
+            uint8_t  hs   = (*p_hs >> sh) & 3;
+            int      dv   = 0;
+            for (int k = 0; k < INK_CNT_BITS; k++) if (ink_cnt[k][w] & bit) r  |= 1 << k;
+            for (int k = 0; k < INK_DV_BITS;  k++) if (ink_dv[k][w]  & bit) dv |= 1 << k;
+
+            if (r == 0)
             {
-              bool cur_dark = (ink_dir[w] & bit) != 0;
-              bool new_dark = n > o;
-              if (cur_dark != new_dark)
-              {
-                if (ink_rev_pct > 0)
-                {
-                  int rev = ((dose - r) * ink_rev_pct + 99) / 100;
-                  if (rev < 1)    rev = 1;
-                  if (rev < dose) dose = rev;
-                }
-              }
-              else if (ink_same_add)
-              {
-                dose += r;
-              }
-              if (dose > INK_DOSE_MAX) dose = INK_DOSE_MAX;
+              // 머물던 픽셀: dv = 머문 시간 (0.5 초 단위, 최대 7). 밝은 쪽으로 떠날 때 머문 만큼 펄스 추가
+              //   카메라 (caldwell): 검정에 0 초 5, 1 초 7, 3 초 8, 10 초 10 펄스 필요
+              if (n < o && ink_dwell_pct > 0)
+                dose += (ink_dwell_bonus[o][dv] * ink_dwell_pct + 50) / 100;
+              hs = o;
+              dv = 0;
             }
+            else
+            {
+              // 이동 중: S 에서 o 쪽(어두운 쪽이면 dark)으로 dv 펄스 간 위치를 기준으로 n 까지
+              bool go_dark = o > hs;
+              bool n_side  = go_dark ? (n > hs) : (n < hs);           // n 이 S 에서 o 쪽에 있나
+              int  need    = gray_dose[hs][n];                        // S 에서 n 까지 펄스
+
+              if (n == hs)
+              {
+                // 출발 색으로 되돌아감
+                dose     = (dv * ink_hist_pct + 99) / 100 + ink_hist_add;
+                new_dark = !go_dark;
+                dv       = 0;
+              }
+              else if (n_side && dv < need)
+              {
+                // 같은 방향으로 더 (n 이 o 너머이거나, S 와 o 사이인데 아직 못 미침)
+                dose     = need - dv;
+                new_dark = go_dark;
+              }
+              else if (n_side)
+              {
+                // S 와 o 사이의 n 을 이미 지나침: 조금 되돌아감 (구름 테두리 → 안쪽 같은 경우)
+                dose     = ((dv - need) * ink_hist_pct + 99) / 100 + (dv > need ? ink_hist_add : 0);
+                new_dark = !go_dark;
+                hs       = n;                                         // 되돌아 n 에 도착하면 그곳이 출발점
+                dv       = 0;
+              }
+              else
+              {
+                // S 를 지나 반대쪽으로: 되돌아온 뒤 S 에서 n 까지
+                dose     = (dv * ink_hist_pct + 99) / 100 + ink_hist_add + gray_dose[hs][n];
+                new_dark = !go_dark;
+                dv       = 0;
+              }
+              if (dose < 0) dose = 0;
+            }
+            *p_hs = (*p_hs & ~(3 << sh)) | (hs << sh);
+            for (int k = 0; k < INK_DV_BITS; k++)
+            {
+              if ((dv >> k) & 1) ink_dv[k][w] |= bit;
+              else               ink_dv[k][w] &= ~bit;
+            }
+            if (dose > INK_DOSE_MAX) dose = INK_DOSE_MAX;
           }
 
           for (int k = 0; k < INK_CNT_BITS; k++)
@@ -408,8 +469,8 @@ static void inkPlan(const uint8_t *p_new)
             if ((dose >> k) & 1) ink_cnt[k][w] |= bit;
             else                 ink_cnt[k][w] &= ~bit;
           }
-          if (n > o) ink_dir[w] |= bit;     // 어두워짐 → 검정 방향
-          else       ink_dir[w] &= ~bit;
+          if (new_dark) ink_dir[w] |= bit;  // 검정 방향 (이력 보정이 방향을 바꿀 수 있음)
+          else          ink_dir[w] &= ~bit;
         }
       }
       memcpy(p_old, p_new, 8);
@@ -511,6 +572,32 @@ static uint32_t inkDecrement(void)
     }
     uint32_t after = inkActive(w);
     remain += __builtin_popcount(after);
+
+    if (ink_hist_on && ink_gray)
+    {
+      // 이번 스캔에 구동한 픽셀의 dv + 1 (7 에서 포화)
+      uint32_t sat   = ink_dv[0][w] & ink_dv[1][w] & ink_dv[2][w];
+      uint32_t carry = before & ~sat;
+      for (int k = 0; k < INK_DV_BITS && carry; k++)
+      {
+        uint32_t old = ink_dv[k][w];
+        ink_dv[k][w] = old ^ carry;
+        carry &= old;
+      }
+      // 도착한 픽셀: 지금 목표가 새 안정 색 S, dv = 0
+      uint32_t fin = before & ~after;
+      for (int k = 0; k < INK_DV_BITS; k++) ink_dv[k][w] &= ~fin;
+      while (fin)
+      {
+        int      j  = __builtin_ctz(fin);
+        int      bb = j >> 2;
+        int      sh = 6 - (j & 3) * 2;
+        uint8_t *ps = &ink_hist_s[w * 8 + bb];
+        uint8_t  t  = ((&ink_shade[0][0])[w * 8 + bb] >> sh) & 3;
+        *ps = (*ps & ~(3 << sh)) | (t << sh);
+        fin &= fin - 1;
+      }
+    }
 
     // 카운터가 0 이 된 픽셀의 묶음은 마스크에서 꺼야 한다
     if (before & ~after) inkUpdateWord(inkWhiteBuf(), w, before & ~after);
@@ -939,6 +1026,34 @@ uint8_t gbRunGetThin(void)
   return ink_thin;
 }
 
+void gbRunSetDwell(uint16_t pct)
+{
+  ink_dwell_pct = pct;
+}
+
+uint16_t gbRunGetDwell(void)
+{
+  return ink_dwell_pct;
+}
+
+void gbRunSetHist(bool on, uint16_t pct, uint8_t add)
+{
+  ink_hist_pct = pct;
+  ink_hist_add = add;
+  if (on != ink_hist_on)
+  {
+    ink_hist_on = on;
+    req_full    = true;                     // 이력 초기화를 위해 전체 갱신
+  }
+}
+
+void gbRunGetHist(bool *p_on, uint16_t *p_pct, uint8_t *p_add)
+{
+  *p_on  = ink_hist_on;
+  *p_pct = ink_hist_pct;
+  *p_add = ink_hist_add;
+}
+
 void gbRunSetSettle(uint8_t l, uint8_t d, uint8_t k)
 {
   ink_settle[1] = l;
@@ -1231,8 +1346,13 @@ static void dispInkMode(void)
     {
       // 회색 모드: 흰 화면(+테두리)을 기준으로 시작해 모든 픽셀을 흰색에서 목표 회색까지 구동
       memset(ink_shade, 0, sizeof(ink_shade));
+      memset(ink_base, 0, sizeof(ink_base));  // 이력: 모든 픽셀이 흰색에서 출발
+      memset(ink_dv, 0, sizeof(ink_dv));
       drawGameCanvas(&ink_shade[0][0]);
-      epdUpdateCold(10);                      // 저온 웨이브폼: 0xFF 보다 흰색이 깨끗함 (약 1.25초)
+      // 3색 강한 갱신 (F7, 2.8초). 흑백 갱신(0xDF/0xFF) 뒤에는 커스텀 펄스의 세기가 약 절반이 된다
+      // (공장 갱신이 구동 전압을 모드별 값으로 바꿈, 3색 모드로 화면을 구동해야 강한 쪽이 됨. 카메라:
+      //  흰→검 9 펄스가 F7 뒤 54, 저온 흑백 뒤 89~93). 펄스 표·보너스는 F7 뒤 기준으로 맞췄다.
+      epdUpdateStrong();
       inkPlan(gbGetLcdBuf());
     }
     else
@@ -1240,7 +1360,7 @@ static void dispInkMode(void)
       drawGameCanvas(gbGetLcdBuf());
       memcpy(ink_shade, gbGetLcdBuf(), sizeof(ink_shade));
       memcpy(ink_base, ink_shade, sizeof(ink_base));
-      epdUpdateCold(10);
+      epdUpdateStrong();                      // 회색 모드와 같은 이유로 F7
     }
     // 마스크 전체 재생성 (캔버스를 이미지로 쓴 뒤라 다시 만든다), 전 영역 전송 필요
     inkBuildMask(inkWhiteBuf());
@@ -1253,6 +1373,22 @@ static void dispInkMode(void)
     remain      = ink_gray ? 1 : 0;
     disp_ready  = true;
     return;
+  }
+
+  // 머문 시간: 0.5 초마다 도착해 있는(카운터 0) 픽셀의 dv + 1 (7 에서 포화). 이동 중 픽셀은 dv = 받은 펄스
+  if (ink_hist_on && ink_gray && millis() - dwell_ms >= 500)
+  {
+    dwell_ms = millis();
+    for (int w = 0; w < INK_WORDS; w++)
+    {
+      uint32_t carry = ~inkActive(w) & ~(ink_dv[0][w] & ink_dv[1][w] & ink_dv[2][w]);
+      for (int k = 0; k < INK_DV_BITS && carry; k++)
+      {
+        uint32_t old = ink_dv[k][w];
+        ink_dv[k][w] = old ^ carry;
+        carry &= old;
+      }
+    }
   }
 
   // 장면 전환(타이틀 → 게임, 스테이지 시작 등): 바뀐 픽셀이 많으면 전체 갱신으로 흰 바탕을 다시 만든다.

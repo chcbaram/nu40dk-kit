@@ -26,6 +26,9 @@ static uint8_t    lut_buf[227];         // 0x32 커스텀 LUT (흑백 모드 형
 static bool       fast_ready     = false;   // 커스텀 LUT/전압 설정 완료 여부 (OTP LUT 로드 시 해제)
 static bool       fast_analog_on = false;   // 아날로그 전원 유지 중이면 0x8C 로 갱신
 static uint8_t    fast_frames    = 10;      // 전환 펄스 길이 (프레임, 8ms @125Hz)
+static bool       lut_cold_strong = false;  // 실험: epdUpdateCold 대신 F7 (epd coldf7 0|1)
+static bool       lut_reload_temp = false;  // 0xB1/0x91/0xB9/0xF1 로는 강한 전압으로 돌아가지 않음 (3색 모드 화면 구동 필요). 실험용
+static uint8_t    lut_reload_ctrl = 0xB1;   // 다시 불러오기에 쓸 0x22 값 (epd reload 1 <hex>)   // 저온 갱신 뒤 실제 온도 설정 다시 로드 (epd opt reload 0|1)
 static int16_t    lut_vcom       = 0x00;    // 커스텀 LUT(게임, 런처 FAST) 동안 0x2C(VCOM) 덮어쓰기 (-1 = OTP 값). 0x00: 계속 스캔해도 흰색 유지
 static uint8_t    fast_hold      = 0;       // 유지 픽셀 구동 길이 (0 = 구동 안 함. DC 누적으로 패널 잔상 유발)
 static uint8_t    lut_frames     = 0;       // 지금 로드된 커스텀 LUT 의 전환 프레임 수
@@ -483,10 +486,21 @@ bool epdUpdateCold(int8_t temp)
   if (!epdWake()) return false;
   if (ssd1683IsBusy() && !ssd1683WaitBusy(3000)) epdRecover("busy before cold");
 
+  if (lut_cold_strong) return epdUpdateStrong();   // 실험: 저온 대신 3색 강한 갱신
   ssd1683WriteCmdData(0x1A, &data, 1);
   full_ctrl = 0xDF;
   ret = epdUpdate(EPD_MODE_FULL);
   full_ctrl = ctrl;
+
+  // 저온 웨이브폼을 불러오면 구동 전압(VSH1/VSL, WS byte 229~231)도 저온용으로 바뀐다. 이 뒤에 쓰는 커스텀
+  // 펄스(게임 회색 모드, 런처 FAST)는 전압을 그대로 써서 같은 펄스 수가 실온보다 약 절반 효과였다
+  // (카메라: 흰→검 9 펄스가 실온 기준 57 → 저온 뒤 93). 실제 온도의 설정을 다시 불러온다 (화면 구동 없음).
+  if (lut_reload_temp)
+  {
+    ssd1683Activate(lut_reload_ctrl);         // 기본 0xB1: 클럭 켬 + 온도 측정 + OTP 설정 로드 + 클럭 끔
+    ssd1683WaitBusy(1000);
+    fast_ready = false;                       // 커스텀 LUT·VCOM 다시 쓰기
+  }
   return ret;
 }
 
@@ -837,6 +851,21 @@ void cliEpd(cli_args_t *args)
   }
 
   // epd opt <fr_hex> <vendor 0|1> : 커스텀 LUT 프레임 속도, 제조사 전압/VCOM 사용
+  if (args->argc >= 1 && args->isStr(0, "coldf7"))
+  {
+    if (args->argc >= 2) lut_cold_strong = args->getData(1) != 0;
+    cliPrintf("cold -> F7 : %d\n", lut_cold_strong);
+    ret = true;
+  }
+
+  if (args->argc >= 1 && args->isStr(0, "reload"))
+  {
+    if (args->argc >= 2) lut_reload_temp = args->getData(1) != 0;
+    if (args->argc >= 3) lut_reload_ctrl = (uint8_t)strtol(args->getStr(2), NULL, 16);
+    cliPrintf("reload after cold : %d, ctrl 0x%02X\n", lut_reload_temp, lut_reload_ctrl);
+    ret = true;
+  }
+
   if (args->argc >= 1 && args->isStr(0, "opt"))
   {
     uint8_t fr; bool vendor;

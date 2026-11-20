@@ -32,6 +32,10 @@ void gbRunWaitDisplayIdle(void);
 void gbRunDrawOverlay(uint16_t y, uint16_t h);   // 게임 위 상자(메뉴)만 구동 (ink 모드)
 void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h);
 bool gbRunIsPaused(void);
+void     gbRunSetDwell(uint16_t pct);       // 머문 시간 보너스 비율 (이력 보정 켬일 때)
+uint16_t gbRunGetDwell(void);
+void     gbRunSetHist(bool on, uint16_t pct, uint8_t add);   // 이력 보정 (출발 색 S, 받은 펄스 dv)
+void     gbRunGetHist(bool *p_on, uint16_t *p_pct, uint8_t *p_add);
 void     gbRunSetEdge(uint8_t n);      // 테두리였던 머물던 픽셀이 흰색으로 갈 때 추가 펄스
 uint8_t  gbRunGetEdge(void);
 void     gbRunSetThin(uint8_t n);      // 1px 선이었던 픽셀 추가 펄스

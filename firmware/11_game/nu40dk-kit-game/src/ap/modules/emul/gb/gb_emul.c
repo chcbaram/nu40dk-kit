@@ -18,6 +18,7 @@
 // PC 샘플링 프로파일러 (gb bench <n> prof): TIMER4 인터럽트에서 끊긴 스레드의 PC 를 모은다
 #define PROF_MAX  256
 static uint32_t          prof_pc[PROF_MAX];
+static uint32_t          cal_scan_ms = 0;
 static uint32_t          prof_lr[PROF_MAX];      // 호출한 쪽 (leaf 함수의 호출자 확인용)
 static volatile uint32_t prof_cnt = 0;
 
@@ -543,6 +544,26 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  if (args->argc >= 1 && args->isStr(0, "dwell"))
+  {
+    if (args->argc >= 2) gbRunSetDwell(args->getData(1));
+    cliPrintf("dwell : %d %%\n", gbRunGetDwell());
+    ret = true;
+  }
+
+  // 이력 보정: gb hist on|off [되돌림 %] [추가 펄스]
+  if (args->argc >= 1 && args->isStr(0, "hist"))
+  {
+    bool on; uint16_t pct; uint8_t add;
+    gbRunGetHist(&on, &pct, &add);
+    if (args->argc >= 2) on  = args->isStr(1, "on");
+    if (args->argc >= 3) pct = args->getData(2);
+    if (args->argc >= 4) add = args->getData(3);
+    gbRunSetHist(on, pct, add);
+    cliPrintf("hist : %s, reverse %d %% + %d\n", on ? "on" : "off", pct, add);
+    ret = true;
+  }
+
   if (args->argc >= 1 && args->isStr(0, "thin"))
   {
     if (args->argc >= 2) gbRunSetThin(args->getData(1));
@@ -810,6 +831,7 @@ void cliGb(cli_args_t *args)
   {
     gbRunSetExtBusy(true);
     uint8_t  frames = args->argc >= 2 ? args->getData(1) : 4;
+    uint32_t gap_ms = args->argc >= 3 ? args->getData(2) : 0;     // 펄스(스캔) 사이 쉬는 시간
     uint32_t size;
     uint8_t *p_buf  = gbRunGetScratch(&size);
     const uint16_t y0 = 90, h = 138, stride = 50, ph = 24, pitch = 38;
@@ -863,11 +885,15 @@ void cliGb(cli_args_t *args)
             int      bx   = (16 + c * 64) / 8;
             for (int y = 0; y < ph; y++) memset(&p_m[(r * pitch + y) * stride + bx], 0xFF, 6);
           }
+        uint32_t t0 = millis();
         epdUpdateMask(p_black, p_white, y0, h, frames);
+        cal_scan_ms = millis() - t0;
+        if (gap_ms) delay(gap_ms);
       }
     }
     epdPowerOff();
     gbRunSetExtBusy(false);
+    cliPrintf("scan %d ms + gap %d ms\n", cal_scan_ms, gap_ms);
     cliPrintf("caltable done : frames %d\n", frames);
     ret = true;
   }

@@ -38,7 +38,7 @@
 | 기능 | 장치 | 핀 | 비고 |
 |---|---|---|---|
 | CLI / 로그 | UART0 | TX P0.06, RX P0.08 | 115200 |
-| USB CLI | USBD CDC-ACM | USB | 유지 |
+| USB CLI | ~~USBD CDC-ACM~~ | USB | 제거 (2026-11-20, RAM 9.5KB 확보. 되돌리려면 hw_def.h `_USE_HW_CDC`/`_USE_HW_USB`, prj.conf) |
 | EPAPER | **SPIM2** | P1.03/04/14 | 8MHz. 처음엔 SPIM3(32MHz) 를 썼으나 errata 198 로 게임 중 전송 데이터 손상 |
 | SD 카드 | SPIM1 | SCK P0.27, MOSI P0.26, MISO P0.04, CS P0.23, CD P1.15 | 8MHz, FatFs |
 | 오디오 | I2S0 → MAX98357 | SCK P1.09, LRCK P1.08, SDOUT P0.19, MUTE P1.10 | 모노 앰프 |
