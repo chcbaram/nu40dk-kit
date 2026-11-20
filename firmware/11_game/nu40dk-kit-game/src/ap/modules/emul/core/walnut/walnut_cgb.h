@@ -3280,6 +3280,24 @@ WGB_HOT void __gb_draw_line(struct gb_s *gb)
  *   이벤트는 원래와 같은 명령에서 일어난다. 계속 변하는 DIV·TIMA 는 읽기 전에, IO 쓰기는 쓰기 전에
  *   모아 둔 사이클을 반영한다 (__gb_tick_sync).
  */
+/* [nu40dk-kit] 명령 가져오기 빠른 경로: PC 가 ROM 에 있으면 __gb_read16 (주소 switch, 부트 ROM 확인)
+ * 을 거치지 않고 ROM 포인터로 직접 읽는다. 뱅크 계산은 __gb_read16 과 같다. 뱅크 경계에 걸치면 원래 경로. */
+static inline __attribute__((always_inline)) uint16_t wgb_fetch16(struct gb_s *gb, uint16_t pc)
+{
+#ifdef WGB_ROM_BASE
+	if(pc < 0x3FFF)
+	{
+		if(gb->hram_io[IO_BOOT] != 0)
+			return WGB_ROM_READ16(gb, pc);
+	}
+	else if(pc >= 0x4000 && pc < 0x7FFF)
+	{
+		return WGB_ROM_READ16(gb, pc + (gb->selected_rom_bank - 1) * ROM_BANK_SIZE);
+	}
+#endif
+	return __gb_read16(gb, pc);
+}
+
 static const uint_fast16_t WGB_TAC_CYCLES[4] = {1024, 16, 64, 256};
 
 static void __gb_tick(struct gb_s *gb, uint_fast16_t inst_cycles)
@@ -3740,7 +3758,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 
 	/* Obtain opcode */
 	
-	oppair = __gb_read16(gb, WGB_CPU.pc.reg++);
+	oppair = wgb_fetch16(gb, WGB_CPU.pc.reg++);   /* [nu40dk-kit] ROM 직접 읽기 */
 	opcode = (uint8_t)oppair; // auto-truncate
 #if (WALNUT_GB_SAFE_DUALFETCH_DMA || WALNUT_GB_SAFE_DUALFETCH_MBC)
   gb->prefetch_invalid=false;

@@ -20,6 +20,7 @@
 
 // ROM 은 Flash(XIP) 에 있으므로 콜백 대신 포인터로 직접 읽는다 (Cortex-M4 는 비정렬 접근 지원)
 static const uint8_t *rom_base;
+#define WGB_ROM_BASE          rom_base      // 명령 가져오기 빠른 경로 (walnut_cgb.h wgb_fetch16)
 #define WGB_ROM_READ(g, a)    (rom_base[(a)])
 #define WGB_ROM_READ16(g, a)  (*(const uint16_t __attribute__((aligned(1))) *)(rom_base + (a)))
 #define WGB_ROM_READ32(g, a)  (*(const uint32_t __attribute__((aligned(1))) *)(rom_base + (a)))
