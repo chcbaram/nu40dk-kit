@@ -190,6 +190,23 @@ void epdGetLutOption(uint8_t *p_fr, bool *p_vendor)
   *p_vendor = lut_vendor;
 }
 
+// 커스텀 LUT 갱신 시작.
+//   아날로그가 꺼져 있을 때 0xCC (아날로그 켜기 + 표시) 한 번으로 시작하면, 강한 갱신 직후·전원 끈 뒤의
+//   첫 갱신이 패널에 적용되지 않았다 (카메라: 상태 줄·닫은 대화창이 그대로 남음). 아날로그를 먼저 켜고
+//   (0xC0) 끝난 뒤 표시(0x8C)를 따로 보낸다.
+static void epdFastActivate(void)
+{
+  if (!fast_analog_on)
+  {
+    ssd1683Activate(0xC0);
+    ssd1683WaitBusy(500);
+  }
+  last_ctrl = 0x8C;
+  ssd1683Activate(0x8C);
+  analog_on      = true;
+  fast_analog_on = true;
+}
+
 bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 {
   uint8_t  data[2];
@@ -256,11 +273,7 @@ bool epdUpdateWindow(epd_mode_t mode, uint16_t x, uint16_t y, uint16_t w, uint16
 
     if (mode == EPD_MODE_FAST)
     {
-      // 아날로그가 이미 켜져 있으면 0x8C (클럭 + 흑백 표시만) 로 부스터 기동 시간을 생략
-      last_ctrl = fast_analog_on ? 0x8C : 0xCC;
-      ssd1683Activate(last_ctrl);
-      analog_on = true;
-      fast_analog_on = true;
+      epdFastActivate();
     }
     else
     {
@@ -323,10 +336,7 @@ bool epdUpdateMask(const uint8_t *p_black, const uint8_t *p_white, uint16_t y, u
 
   data[0] = 0x00; data[1] = 0x00;
   ssd1683WriteCmdData(0x21, data, 2);
-  last_ctrl = fast_analog_on ? 0x8C : 0xCC;
-  ssd1683Activate(last_ctrl);
-  fast_analog_on = true;
-  analog_on      = true;
+  epdFastActivate();
 
   uint32_t busy_ms = millis();
   ret = ssd1683WaitBusy(EPD_PART_TIMEOUT_MS);
@@ -419,6 +429,16 @@ void epdWriteLut(void)
 //   흑백 전체 갱신(0xFF) 한 번으로는 이전 화면이 비쳐 보여, 화면 전환 시 사용한다.
 //   흰색은 캔버스를 건드리지 않고 0xFF 한 줄을 반복 전송해 만든다
 // EPD RAM 두 면(BW, RED)을 모두 0 으로: 커스텀 LUT(hold 0)에서 (0, 0) = 구동 안 함
+// 다음 FAST 갱신의 "이전 이미지"(RED RAM) 를 직접 지정한다 (전체 폭 y ~ y+h 줄).
+//   p_old 는 화면 0 줄부터의 버퍼 (stride 50). 같은 전환을 한 번 더 구동해 덜 바뀐 픽셀을 마저 바꿀 때 쓴다.
+bool epdSetOldImage(const uint8_t *p_old, uint16_t y, uint16_t h)
+{
+  if (!epdWake()) return false;
+  if (ssd1683IsBusy() && !ssd1683WaitBusy(3000)) epdRecover("busy before old image");
+  ssd1683WriteRam(SSD1683_RAM_RED, 0, y, EPD_WIDTH, h, p_old, EPD_STRIDE);
+  return true;
+}
+
 bool epdZeroRam(void)
 {
   static const uint8_t zero_line[EPD_STRIDE] = {0};

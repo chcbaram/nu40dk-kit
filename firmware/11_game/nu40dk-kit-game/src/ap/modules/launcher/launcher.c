@@ -17,6 +17,7 @@
 #include "remote/ble_pad.h"
 #include "game/app_api.h"
 #include "game/rpg/rpg.h"
+#include "game/voice.h"
 #include <zephyr/settings/settings.h>
 #include <stdarg.h>
 
@@ -749,8 +750,11 @@ static void whiteScreen(void)
 static app_key_t apiReadKey(void)            { return (app_key_t)readKey(); }
 static void      apiWaitKeyRelease(void)     { waitKeyRelease(); }
 static uint8_t   apiKeyHeld(void)            { return readKeyBits(); }
-static uint8_t   app_quick_frames = 8;       // 걷기용 짧은 FAST 파형 길이 (ui quick N)
+static uint8_t   app_quick_frames = 16;      // 걷기용 짧은 FAST 파형 길이 (ui quick N)
 static uint8_t   app_lut_frames   = 0;
+static bool      app_fast_part    = false;   // 앱의 FAST(메뉴·대화창) 를 공장 부분 갱신(0.6초)으로 (ui dlg part|fast)
+static bool      app_clean_strong = true;    // 앱의 CLEAN 갱신: true = 3색 강한 갱신(F7, 2.8초), false = 저온(1.3초)
+                                             //   저온(0xDF) 뒤에는 커스텀 펄스가 약 절반 세기라 걷기·대화창 자리에 잔상이 남았다
 static void      apiPowerOff(void)           { epdPowerOff(); }
 static void      apiClear(app_color_t c)     { canvasClear(c == APP_BLACK ? CANVAS_BLACK : CANVAS_WHITE); }
 static void      apiFillRect(int16_t x, int16_t y, int16_t w, int16_t h, app_color_t c)
@@ -775,6 +779,9 @@ static void      apiBeep(uint32_t hz, uint32_t ms)
 {
   if (cfg.sound) i2sPlayBeep(hz, cfg.volume / 2, ms);
 }
+static bool      apiVoicePlay(const char *path) { return cfg.sound ? voicePlay(path) : false; }
+static void      apiVoiceStop(void)          { voiceStop(); }
+static bool      apiVoiceIsPlaying(void)     { return voiceIsPlaying(); }
 static uint32_t  apiMillis(void)             { return millis(); }
 static void      apiDelay(uint32_t ms)       { delay(ms); }
 static void      apiLog(const char *fmt, ...)
@@ -789,7 +796,16 @@ static void      apiLog(const char *fmt, ...)
 static void      apiRefresh(app_refresh_t mode)
 {
   if (mode == APP_REFRESH_STRONG)     epdUpdateStrong();
-  else if (mode == APP_REFRESH_CLEAN) epdUpdateCold(LAUNCHER_COLD_TEMP);
+  else if (mode == APP_REFRESH_CLEAN)
+  {
+    if (app_clean_strong) epdUpdateStrong();
+    else                  epdUpdateCold(LAUNCHER_COLD_TEMP);
+  }
+  else if (mode == APP_REFRESH_FAST && app_fast_part)
+  {
+    epdUpdate(EPD_MODE_PART);
+    app_lut_frames = 0;                       // 공장 LUT 가 커스텀 LUT 를 덮어씀
+  }
   else
   {
     uint8_t frames = (mode == APP_REFRESH_QUICK) ? app_quick_frames : MENU_FAST_FRAMES;
@@ -823,6 +839,19 @@ static void      apiRefreshRect(app_refresh_t mode, int16_t x, int16_t y, int16_
   epdUpdateWindow(EPD_MODE_FAST, x, y, w, h);
 }
 
+static void      apiRefreshFrom(const uint8_t *p_old, int16_t y, int16_t h)
+{
+  if (y < 0 || h <= 0 || y + h > CANVAS_HEIGHT) return;
+  if (app_fast_part) return;                  // 공장 부분 갱신은 한 번이면 된다
+  if (app_lut_frames != MENU_FAST_FRAMES)
+  {
+    epdSetFastLut(MENU_FAST_FRAMES, 0);
+    app_lut_frames = MENU_FAST_FRAMES;
+  }
+  epdSetOldImage(p_old, y, h);
+  epdUpdateWindow(EPD_MODE_FAST, 0, y, CANVAS_WIDTH, h);
+}
+
 static void runApp(const app_def_t *app)
 {
   static const app_api_t api =
@@ -837,6 +866,7 @@ static void runApp(const app_def_t *app)
     .keyHeld        = apiKeyHeld,
     .refresh        = apiRefresh,
     .refreshRect    = apiRefreshRect,
+    .refreshFrom    = apiRefreshFrom,
     .powerOff       = apiPowerOff,
     .clear          = apiClear,
     .fillRect       = apiFillRect,
@@ -844,6 +874,9 @@ static void runApp(const app_def_t *app)
     .print          = apiPrint,
     .strWidth       = apiStrWidth,
     .beep           = apiBeep,
+    .voicePlay      = apiVoicePlay,
+    .voiceStop      = apiVoiceStop,
+    .voiceIsPlaying = apiVoiceIsPlaying,
     .millis         = apiMillis,
     .delay          = apiDelay,
     .log            = apiLog,
@@ -851,9 +884,16 @@ static void runApp(const app_def_t *app)
   app_api_t run_api = api;
 
   run_api.fb = canvasGetBuffer();
+  {
+    uint32_t size = 0;
+    uint8_t *p    = gbRunGetScratch(&size);
+    run_api.scratch      = p;
+    run_api.scratch_size = p != NULL && size > 12800 ? 12800 : 0;   // 뒤쪽은 음성 재생 버퍼 (voice.c)
+  }
   logPrintf("[  ] app start: %s\n", app->name);
   app->main(&run_api);
   logPrintf("[  ] app end: %s\n", app->name);
+  voiceStop();
 
   epdSetFastLut(MENU_FAST_FRAMES, 0);   // 런처 메뉴 파형으로 되돌림
   app_lut_frames = 0;
@@ -987,6 +1027,18 @@ static void cliUi(cli_args_t *args)
   {
     if (args->argc >= 2) app_quick_frames = (uint8_t)constrain(args->getData(1), 4, 60);
     cliPrintf("app quick frames %d (%d ms)\n", app_quick_frames, app_quick_frames * 8);
+    ret = true;
+  }
+  if (args->argc >= 1 && args->isStr(0, "dlg"))
+  {
+    if (args->argc >= 2) app_fast_part = args->isStr(1, "part");
+    cliPrintf("app dialog/menu refresh %s\n", app_fast_part ? "part (factory 0.6s)" : "fast (custom)");
+    ret = true;
+  }
+  if (args->argc >= 1 && args->isStr(0, "clean"))
+  {
+    if (args->argc >= 2) app_clean_strong = args->isStr(1, "strong");
+    cliPrintf("app clean %s\n", app_clean_strong ? "strong" : "cold");
     ret = true;
   }
   if (args->argc == 1 && args->isStr(0, "shot"))

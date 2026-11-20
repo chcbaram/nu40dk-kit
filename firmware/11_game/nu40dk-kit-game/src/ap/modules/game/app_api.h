@@ -42,6 +42,8 @@ typedef struct
   uint16_t height;            // 300
   uint16_t stride;            // 50 (바이트)
   uint8_t *fb;                // 1bpp 화면 버퍼: 비트 1 = 흰색, MSB 가 왼쪽 픽셀
+  uint8_t *scratch;           // 앱이 마음대로 쓰는 RAM (에뮬레이터가 멈춘 동안 빌림), 없으면 NULL
+  uint32_t scratch_size;
 
   // 입력
   app_key_t (*readKey)(void);         // 눌림 + 방향 자동 반복
@@ -51,6 +53,8 @@ typedef struct
   // 화면
   void    (*refresh)(app_refresh_t mode);
   void    (*refreshRect)(app_refresh_t mode, int16_t x, int16_t y, int16_t w, int16_t h);  // FAST/QUICK: 이 영역만 전송
+  void    (*refreshFrom)(const uint8_t *p_old, int16_t y, int16_t h);   // FAST: 이전 이미지를 p_old 로 보고 y~y+h 줄 구동
+                                                                         //   (같은 전환을 다시 구동해 잔상 정리, p_old 는 0 줄부터)
   void    (*powerOff)(void);          // 화면 아날로그 전원 끄기 (그림은 유지)
   void    (*clear)(app_color_t color);
   void    (*fillRect)(int16_t x, int16_t y, int16_t w, int16_t h, app_color_t color);
@@ -60,6 +64,9 @@ typedef struct
 
   // 소리·시간·로그
   void     (*beep)(uint32_t hz, uint32_t ms);
+  bool     (*voicePlay)(const char *path);   // SD 의 WAV (PCM 16bit 모노 16kHz), 화면 갱신 중에도 이어서 재생
+  void     (*voiceStop)(void);
+  bool     (*voiceIsPlaying)(void);
   uint32_t (*millis)(void);
   void     (*delay)(uint32_t ms);
   void     (*log)(const char *fmt, ...);

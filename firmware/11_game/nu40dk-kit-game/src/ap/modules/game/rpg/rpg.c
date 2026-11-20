@@ -19,10 +19,10 @@
 #define MAP_X0        8                         // 12 칸 x 32 = 384, 양옆 8 px
 #define MAP_PX_H      (RPG_MAP_H * TILE)        // 256
 #define STATUS_Y      MAP_PX_H                  // 아래 44 px 상태 줄
-#define CLEAN_AFTER   40                        // FAST 갱신이 이만큼 쌓이면 멈췄을 때 전체 갱신
-#define IDLE_CLEAN_MS 2000
+#define CLEAN_AFTER   120                       // FAST 갱신이 이만큼 쌓이면 멈췄을 때 전체 갱신
+#define IDLE_CLEAN_MS 5000
 #define IDLE_OFF_MS   3000
-#define WALK_STEPS    4                         // 한 칸 = 8 px x 4
+#define WALK_STEPS    2                         // 한 칸 = 16 px x 2 (4 단계는 단계마다 이전 그림이 비쳐 깜빡였다)
 
 enum { DIR_DOWN = 0, DIR_UP, DIR_LEFT, DIR_RIGHT };
 
@@ -68,6 +68,31 @@ static bool             epd_on;
 static uint32_t         rnd = 12345;
 
 
+// 대사 음성: 페이지 글자(줄을 '\n' 으로 이음)의 CRC32 → /rpg/v/XXXXXXXX.WAV (tools/rpg/gen_voice.py)
+static uint32_t crc32Add(uint32_t crc, const char *s)
+{
+  while (*s)
+  {
+    crc ^= (uint8_t)*s++;
+    for (int k = 0; k < 8; k++) crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1)));
+  }
+  return crc;
+}
+
+static void voicePage(const char *const *lines, int n)
+{
+  uint32_t crc = 0xFFFFFFFFu;
+  char     path[32];
+
+  for (int k = 0; k < n; k++)
+  {
+    if (k > 0) crc = crc32Add(crc, "\n");
+    crc = crc32Add(crc, lines[k]);
+  }
+  snprintf(path, sizeof(path), "/rpg/v/%08X.WAV", (unsigned)(crc ^ 0xFFFFFFFFu));
+  api->voicePlay(path);
+}
+
 static uint32_t rand32(void)
 {
   rnd = rnd * 1103515245u + 12345u;
@@ -90,6 +115,45 @@ static void showRect(app_refresh_t mode, int16_t x, int16_t y, int16_t w, int16_
   epd_on  = true;
 }
 
+// 정착 갱신용 기준 화면: 마지막으로 정상 세기 펄스로 그린 지도 영역 (0 ~ MAP_PX_H 줄)
+static bool base_valid = false;
+
+static void baseSave(void)
+{
+  if (api->scratch == NULL || api->scratch_size < (uint32_t)MAP_PX_H * api->stride) return;
+  memcpy(api->scratch, api->fb, (uint32_t)MAP_PX_H * api->stride);
+  base_valid = true;
+}
+
+// 기준 화면 → 지금 화면으로 바뀐 픽셀을 정상 길이 펄스로 한 번 더 구동 (깜빡임 없음)
+static void settle(void)
+{
+  if (!base_valid) return;
+  if (memcmp(api->scratch, api->fb, (uint32_t)MAP_PX_H * api->stride) != 0)
+  {
+    api->refreshFrom(api->scratch, 0, MAP_PX_H);
+    fast_cnt++;
+    last_ms = api->millis();
+    epd_on  = true;
+  }
+  baseSave();
+}
+
+static void show(app_refresh_t mode);
+
+// 장면 전환 (방 이동·전투): 깜빡이는 전체 갱신(2.8초) 대신 FAST 를 두 번 (약 0.8초).
+//   강한 갱신 뒤에는 펄스 세기가 유지되므로 FAST 두 번이면 이전 화면이 거의 지워진다.
+static void transition(void)
+{
+  api->refresh(APP_REFRESH_FAST);
+  if (base_valid) settle();                 // 기준(이전 화면) → 새 화면을 한 번 더
+  else            api->refresh(APP_REFRESH_FAST);
+  baseSave();
+  fast_cnt += 2;
+  last_ms = api->millis();
+  epd_on  = true;
+}
+
 static void show(app_refresh_t mode)
 {
   api->refresh(mode);
@@ -97,6 +161,7 @@ static void show(app_refresh_t mode)
   else                          fast_cnt = 0;
   last_ms = api->millis();
   epd_on  = true;
+  baseSave();
 }
 
 // 입력이 없을 때 할 일: 잔상 정리, 전원 끄기
@@ -322,6 +387,7 @@ static void dialogP(const char *who, int portrait, const char *const *lines)
     }
 
     int16_t y = by + 12;
+    int     page = i;
     for (int n = 0; lines[i] != NULL && lines[i][0] != 0 && n < 3; n++, i++)
     {
       api->print(bx + 14, y, APP_BLACK, "%s", lines[i]);
@@ -329,11 +395,15 @@ static void dialogP(const char *who, int portrait, const char *const *lines)
     }
     if (lines[i] != NULL && lines[i][0] == 0) i++;
     api->print(bx + bw - 20, by + bh - 22, APP_BLACK, ">");
+    voicePage(&lines[page], i - page);
     show(APP_REFRESH_FAST);
     waitOk();
+    api->voiceStop();
   }
+  // 대화창 닫기: 대화창 → 지도 전환을 두 번 구동 (한 번이면 큰 상자 자리에 흔적이 남았다)
   drawMap();
-  show(APP_REFRESH_FAST);
+  api->refresh(APP_REFRESH_FAST);
+  settle();
 }
 
 static void dialog(const char *who, const char *const *lines)
@@ -412,7 +482,7 @@ static bool battle(int enemy, bool *p_run)
   snprintf(m1, sizeof(m1), "%s 이(가) 나타났다!", en->name);
   drawBattle(en, en_hp, cur, m1, boss ? "printf 로는 잡기 어려워 보인다..." : NULL);
   api->beep(440, 80);
-  show(APP_REFRESH_CLEAN);
+  transition();
 
   while (1)
   {
@@ -573,7 +643,7 @@ static void talkNpc(int val)
     {
       g.cleared = true;
       drawMap();
-      show(APP_REFRESH_CLEAN);
+      transition();
       static const char *const e[] = {
         "스택 프레임에서 PC 를 찾았구나.", "널 포인터 하나가 범인이었지.", "",
         "이제 너는 펌웨어 고수다, 바람!", NULL };
@@ -588,7 +658,7 @@ static void talkNpc(int val)
       g.room = RPG_START_ROOM; g.x = RPG_START_X; g.y = RPG_START_Y; g.dir = DIR_DOWN;
       g.hp = g.hp_max;
       drawMap();
-      show(APP_REFRESH_CLEAN);
+      transition();
     }
   }
 }
@@ -662,7 +732,7 @@ static void examine(int x, int y)
 static void enterRoom(void)
 {
   drawMap();
-  show(APP_REFRESH_CLEAN);
+  transition();
 }
 
 // 지금 눌린 방향 (없으면 -1)
@@ -892,6 +962,7 @@ static void rpgMain(const app_api_t *p_api)
           cont = move(d);
         }
         api->readKey();     // 키 상태 다시 맞춤 (뗀 뒤 한 걸음 더 가지 않게)
+        settle();           // 멈추면 걸은 자리를 정상 펄스로 정리
       }
       else if (key == APP_KEY_OK)
       {
