@@ -300,6 +300,40 @@ void cliGb(cli_args_t *args)
     ret = true;
   }
 
+  if (args->argc == 2 && args->isStr(0, "sound"))
+  {
+    gbRunSetSound(args->isStr(1, "on"));
+    cliPrintf("sound %s\n", gbRunGetSound() ? "on" : "off");
+    ret = true;
+  }
+
+  // gb key <a|b|select|start|right|left|up|down>[,..] [ms] : 테스트용 입력
+  if (args->argc >= 2 && args->isStr(0, "key"))
+  {
+    const char *names[8] = {"a", "b", "select", "start", "right", "left", "up", "down"};
+    char        buf[48];
+    uint8_t     keys = 0;
+
+    snprintf(buf, sizeof(buf), "%s", args->getStr(1));
+    for (char *p_tok = strtok(buf, ","); p_tok != NULL; p_tok = strtok(NULL, ","))
+    {
+      for (int i = 0; i < 8; i++)
+        if (strcmp(p_tok, names[i]) == 0) keys |= (1 << i);
+    }
+    uint32_t ms = args->argc >= 3 ? args->getData(2) : 200;
+    gbRunInjectKey(keys, ms);
+    cliPrintf("key 0x%02X, %d ms\n", keys, ms);
+    ret = true;
+  }
+
+  if (args->argc == 2 && args->isStr(0, "win"))
+  {
+    gbRunSetWinFull(args->isStr(1, "full"));
+    gbRunRequestFull();
+    cliPrintf("window %s\n", args->isStr(1, "full") ? "full width (1 DMA)" : "game area (per line)");
+    ret = true;
+  }
+
   if (args->argc == 1 && args->isStr(0, "full"))
   {
     gbRunRequestFull();
@@ -310,8 +344,12 @@ void cliGb(cli_args_t *args)
   if (args->argc == 1 && args->isStr(0, "stat"))
   {
     gb_run_stat_t pre, cur;
+    uint64_t      emu0, disp0, emu1, disp1;
+    k_thread_runtime_stats_t all0, all1;
 
     gbRunGetStat(&pre);
+    gbRunGetThreadCycles(&emu0, &disp0);
+    k_thread_runtime_stats_all_get(&all0);
     while (cliKeepLoop())
     {
       delay(1000);
@@ -322,8 +360,24 @@ void cliGb(cli_args_t *args)
       uint32_t eu = cur.emu_us_sum  - pre.emu_us_sum;
       uint32_t dm = cur.disp_ms_sum - pre.disp_ms_sum;
 
-      cliPrintf("emu %2d fps (%3d %%, %5d us/frame)  disp %d fps (%d ms)\n",
-                ef, ef * 100 / 60, ef ? eu / ef : 0, df, df ? dm / df : 0);
+      uint32_t au = cur.audio_us_sum - pre.audio_us_sum;
+      uint32_t ad = cur.audio_drop   - pre.audio_drop;
+
+      cliPrintf("emu %2d fps (%3d %%, %5d us/frame)  disp %d fps (%d ms)  audio %d us, drop %d\n",
+                ef, ef * 100 / 60, ef ? eu / ef : 0, df, df ? dm / df : 0, ef ? au / ef : 0, ad);
+
+      // CPU 사용률: 전체 실행 사이클 대비 각 스레드 (나머지는 BT, I2S, CLI, 인터럽트 등)
+      gbRunGetThreadCycles(&emu1, &disp1);
+      k_thread_runtime_stats_all_get(&all1);
+      uint64_t total = (all1.execution_cycles - all0.execution_cycles) + (all1.idle_cycles - all0.idle_cycles);
+      if (total > 0)
+      {
+        cliPrintf("    cpu: emu %2d%%  disp %2d%%  other %2d%%  idle %2d%%\n",
+                  (int)((emu1 - emu0) * 100 / total), (int)((disp1 - disp0) * 100 / total),
+                  (int)(((all1.execution_cycles - all0.execution_cycles) - (emu1 - emu0) - (disp1 - disp0)) * 100 / total),
+                  (int)((all1.idle_cycles - all0.idle_cycles) * 100 / total));
+      }
+      emu0 = emu1; disp0 = disp1; all0 = all1;
       pre = cur;
     }
     ret = true;
@@ -383,6 +437,9 @@ void cliGb(cli_args_t *args)
     cliPrintf("gb stop\n");
     cliPrintf("gb stat\n");
     cliPrintf("gb full\n");
+    cliPrintf("gb sound on|off\n");
+    cliPrintf("gb win full|game\n");
+    cliPrintf("gb key <a,b,select,start,right,left,up,down> [ms]\n");
     cliPrintf("gb load <index|file> [force]\n");
     cliPrintf("gb bench <frames> [nolcd] [skip] [core option]\n");
     cliPrintf("gb show [run_frames]\n");

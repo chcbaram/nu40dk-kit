@@ -83,6 +83,8 @@ static int16_t   i2s_volume      = 100;
 static mixer_t   mixer;
 static i2s_cfg_t i2s_cfg;
 static int16_t   i2s_frame_buf[I2S_BUF_FRAME_LEN];
+static bool      need_restart    = false;   // ERROR 복구 후 START 필요
+static uint32_t  i2s_err_cnt     = 0;
 
 
 K_THREAD_STACK_DEFINE(i2s_stack_area, _HW_DEF_RTOS_THREAD_MEM_I2S);
@@ -482,12 +484,24 @@ void i2sThread(void *arg1, void *arg2, void *arg3)
       {
         lock();     
         i2s_ret = i2s_buf_write(i2s_tbl[i2s_ch].p_hw->h_i2s, i2s_frame_buf, i2s_frame_len * 2);
-        if (i2s_ret != 0)
+        if (i2s_ret == 0)
         {
-          if (i2s_ret != -ENOMEM)
+          // 복구 후 첫 버퍼를 넣었으면 다시 시작
+          if (need_restart)
           {
-            i2s_trigger(i2s_tbl[i2s_ch].p_hw->h_i2s, I2S_DIR_TX, I2S_TRIGGER_PREPARE);
+            if (i2s_trigger(i2s_tbl[i2s_ch].p_hw->h_i2s, I2S_DIR_TX, I2S_TRIGGER_START) == 0)
+            {
+              need_restart = false;
+            }
           }
+        }
+        else if (i2s_ret != -ENOMEM && i2s_ret != -EAGAIN)
+        {
+          // 언더런 등으로 ERROR 상태: 큐를 비우고(READY) 다음 버퍼부터 다시 START.
+          // (예전 코드는 PREPARE 만 하고 START 를 안 해서 큐가 가득 찬 채로 오류가 반복됐다)
+          i2s_trigger(i2s_tbl[i2s_ch].p_hw->h_i2s, I2S_DIR_TX, I2S_TRIGGER_DROP);
+          need_restart = true;
+          i2s_err_cnt++;
         }
         unLock();
 
@@ -647,6 +661,7 @@ void cliI2s(cli_args_t *args)
     cliPrintf("i2s buf ms    : %d ms\n", I2S_BUF_MS);
     cliPrintf("i2s frame len : %d \n", i2s_frame_len);
     cliPrintf("i2s volume    : %d \n", i2sGetVolume());
+    cliPrintf("i2s error cnt : %d \n", i2s_err_cnt);
     ret = true;
   }
 

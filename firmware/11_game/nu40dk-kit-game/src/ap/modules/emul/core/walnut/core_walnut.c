@@ -5,13 +5,14 @@
  *  walnut_cgb.h 수정 사항 ([nu40dk-kit] 주석):
  *    - WGB_ROM_READ/16/32 매크로: ROM 읽기를 콜백 대신 포인터 직접 읽기로 바꿀 수 있게 함
  *    - WGB_HOT 속성 자리 (RAM 실행 실험용, 기본 비활성)
+ *  사운드: minigb_apu (emul/apu/minigb_apu, MIT), 16kHz int16 스테레오
  */
 #include "gb_core.h"
 
 #include <string.h>
 
 
-#define ENABLE_SOUND                0
+#define ENABLE_SOUND                1
 #define ENABLE_LCD                  1
 #define WALNUT_GB_12_COLOUR         GB_CGB_SUPPORT
 #define WALNUT_FULL_GBC_SUPPORT     GB_CGB_SUPPORT
@@ -22,6 +23,12 @@ static const uint8_t *rom_base;
 #define WGB_ROM_READ(g, a)    (rom_base[(a)])
 #define WGB_ROM_READ16(g, a)  (*(const uint16_t __attribute__((aligned(1))) *)(rom_base + (a)))
 #define WGB_ROM_READ32(g, a)  (*(const uint32_t __attribute__((aligned(1))) *)(rom_base + (a)))
+
+// 사운드: Walnut 이 사운드 레지스터(0xFF10~0xFF3F)를 읽고 쓸 때 minigb_apu 로 넘긴다
+#include "minigb_apu.h"
+static struct minigb_apu_ctx apu;
+uint8_t audio_read(uint16_t addr)               { return minigb_apu_audio_read(&apu, addr); }
+void    audio_write(uint16_t addr, uint8_t val) { minigb_apu_audio_write(&apu, addr, val); }
 
 struct gb_s;                      // walnut_cgb.h 의 앞쪽 함수 원형이 구조체 정의보다 먼저 나옴
 #include "walnut_cgb.h"
@@ -104,7 +111,19 @@ bool gbCoreLoad(const gb_core_cfg_t *p_cfg)
     return false;
   }
   gb_init_lcd(&gb, lcdDrawLine);
+  minigb_apu_audio_init(&apu);
   return true;
+}
+
+uint32_t gbCoreAudioGetFrame(int16_t *p_buf)
+{
+  minigb_apu_audio_callback(&apu, p_buf);
+  return AUDIO_SAMPLES_TOTAL;
+}
+
+uint32_t gbCoreAudioFrameSamples(void)
+{
+  return AUDIO_SAMPLES_TOTAL;
 }
 
 void gbCoreRunFrame(void)

@@ -37,7 +37,11 @@ target_include_directories(app PRIVATE
   src/hw/driver
   src/lib
   src/ap/modules/emul/gb
+  src/ap/modules/emul/apu/minigb_apu
 )
+
+# minigb_apu: int16 스테레오 11025Hz (gb_run.c GB_AUDIO_RATE 와 같아야 함, 게임 실행 중 I2S 도 이 주파수)
+target_compile_definitions(app PRIVATE MINIGB_APU_AUDIO_FORMAT_S16SYS AUDIO_SAMPLE_RATE=11025)
 
 
 zephyr_linker_sources(SECTIONS src/bsp/ldscript/ldscript.ld)

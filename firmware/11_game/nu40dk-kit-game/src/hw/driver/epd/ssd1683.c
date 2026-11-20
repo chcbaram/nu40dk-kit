@@ -22,6 +22,8 @@ static const struct gpio_dt_spec pin_busy = GPIO_DT_SPEC_GET(DT_NODELABEL(epd_bu
 static const struct gpio_dt_spec pin_res  = GPIO_DT_SPEC_GET(DT_NODELABEL(epd_res),  gpios);
 static const struct gpio_dt_spec pin_dc   = GPIO_DT_SPEC_GET(DT_NODELABEL(epd_dc),   gpios);
 
+#define SSD1683_DMA_CHUNK   4000      // 전체 폭 전송 시 한 번에 보낼 바이트 수 (80 줄)
+
 // RAM 전송용 라인 버퍼 (윈도우 전송 시 한 줄씩 보냄)
 static uint8_t line_buf[SSD1683_LINE_BYTES];
 
@@ -146,8 +148,18 @@ void ssd1683WriteRam(ssd1683_ram_t ram, uint16_t x, uint16_t y, uint16_t w, uint
 
   if (xs == 0 && bytes == fb_stride)
   {
-    // 전체 폭이면 한 번에 DMA 전송
-    ssd1683WriteData(&p_fb[y * fb_stride], (uint32_t)bytes * h);
+    // 전체 폭이면 메모리가 연속이므로 큰 덩어리로 DMA 전송 (줄 단위보다 CPU 부담이 훨씬 적다)
+    // 한 번에 14KB 를 보내면 게임 화면에서 아래쪽 누락/멈춤이 있어 SSD1683_DMA_CHUNK 단위로 나눈다
+    const uint8_t *p_src  = &p_fb[y * fb_stride];
+    uint32_t       remain = (uint32_t)bytes * h;
+
+    while (remain > 0)
+    {
+      uint32_t len = remain > SSD1683_DMA_CHUNK ? SSD1683_DMA_CHUNK : remain;
+      ssd1683WriteData(p_src, len);
+      p_src  += len;
+      remain -= len;
+    }
   }
   else
   {

@@ -54,7 +54,7 @@
 
 #define _USE_HW_MIXER
 #define      HW_MIXER_MAX_CH        2
-#define      HW_MIXER_MAX_BUF_LEN   (48*2*4*4) // 48Khz * Stereo * 4ms * 4
+#define      HW_MIXER_MAX_BUF_LEN   4096       // 16KHz 스테레오 약 128ms (에뮬 프레임 지연 흡수)
 
 #define _USE_HW_I2S
 #define      HW_I2S_LCD             0
@@ -77,7 +77,7 @@
 
 #define _HW_DEF_RTOS_THREAD_PRI_CLI           5
 #define _HW_DEF_RTOS_THREAD_PRI_UART          5
-#define _HW_DEF_RTOS_THREAD_PRI_I2S           5
+#define _HW_DEF_RTOS_THREAD_PRI_I2S           3     // 오디오는 가장 높게 (EPD 갱신 중 언더런 방지)
 #define _HW_DEF_RTOS_THREAD_PRI_SD_MGR        5
 #define _HW_DEF_RTOS_THREAD_PRI_BLEPAD        5
 

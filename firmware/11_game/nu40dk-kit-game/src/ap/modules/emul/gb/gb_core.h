@@ -42,6 +42,8 @@ void        gbCoreSetDrawNext(bool draw);           // 다음 gbCoreRunFrame() �
 void        gbCoreSetOption(const char *p_opt);     // 코어별 실험 옵션 (예: walnut "single")
 bool        gbCoreIsCgb(void);
 bool        gbCoreIsDoubleSpeed(void);
-uint32_t    gbCoreStateSize(void);                  // 코어 상태 구조체 크기 (RAM 확인용)
+uint32_t    gbCoreStateSize(void);
+uint32_t    gbCoreAudioGetFrame(int16_t *p_buf);    // 1 프레임 분량 스테레오 샘플 생성, 반환 = 샘플 수 (L+R)
+uint32_t    gbCoreAudioFrameSamples(void);          // gbCoreAudioGetFrame() 이 만드는 샘플 수                  // 코어 상태 구조체 크기 (RAM 확인용)
 
 #endif

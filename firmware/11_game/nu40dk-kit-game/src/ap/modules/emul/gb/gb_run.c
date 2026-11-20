@@ -59,6 +59,16 @@ static volatile bool menu_req     = false;   // 메뉴 요청 (런처가 읽고 
 
 static gb_run_stat_t stat;
 
+#define GB_AUDIO_CH         0         // 믹서 채널 (효과음은 빈 채널 사용)
+#define GB_AUDIO_MAX        640       // 1 프레임 샘플 수 상한 (11025Hz: 184 x 2 = 368)
+#define GB_AUDIO_RATE       11025     // minigb_apu AUDIO_SAMPLE_RATE 와 같아야 함 (CMakeLists.txt)
+#define SYS_AUDIO_RATE      16000     // 게임 밖 기본 I2S 주파수
+static int16_t       audio_buf[GB_AUDIO_MAX];
+static volatile bool sound_enable = true;
+static volatile uint8_t  key_inject      = 0;     // CLI 테스트용 입력 (gb key)
+static volatile uint32_t key_inject_end  = 0;
+static volatile bool win_full     = true;    // true: 전체 폭(400px) DMA 한 번, false: 게임 영역(320px) 줄 단위
+
 // 2x2 디더 룩업: GB 1 바이트(4 픽셀, 2bit, MSB 왼쪽) → 캔버스 1 바이트(8 픽셀, 1=흰색)
 static uint8_t dither_lut[2][256];
 
@@ -197,6 +207,21 @@ static void drawPause(void)
 
 
 
+/*
+ * 사운드 출력: 1 프레임 분량을 믹서로. 믹서가 가득 차면 버린다.
+ *   (동적 레이트 조절(실제 경과 시간만큼 늘리기)을 시험했으나 비율이 프레임마다 흔들려
+ *    음정이 출렁여 제외. 에뮬이 원래 속도보다 느리면 소리가 끊길 수 있다)
+ */
+static void writeAudio(void)
+{
+  uint32_t n = gbCoreAudioGetFrame(audio_buf);
+
+  if (i2sAvailableForWrite(GB_AUDIO_CH) >= n)
+    i2sWrite(GB_AUDIO_CH, audio_buf, n);
+  else
+    stat.audio_drop++;
+}
+
 bool init(void)
 {
   makeDitherLut();
@@ -218,6 +243,8 @@ bool gbRunStart(void)
 
   if (!gbLoad()) return false;
 
+  i2sSetSampleRate(GB_AUDIO_RATE);
+
   memset(&stat, 0, sizeof(stat));
   is_pause    = false;
   menu_req    = false;
@@ -237,6 +264,7 @@ void gbRunStop(void)
   // 디스플레이 갱신이 끝날 때까지 대기 후 아날로그 전원 끄기
   for (int i = 0; i < 100 && !disp_ready; i++) k_sleep(K_MSEC(10));
   epdPowerOff();
+  i2sSetSampleRate(SYS_AUDIO_RATE);
 }
 
 bool gbRunIsRunning(void)
@@ -269,6 +297,27 @@ bool gbRunGetMenuRequest(void)
   return ret;
 }
 
+void gbRunInjectKey(uint8_t keys, uint32_t ms)
+{
+  key_inject_end = millis() + ms;
+  key_inject     = keys;
+}
+
+void gbRunSetWinFull(bool full)
+{
+  win_full = full;
+}
+
+void gbRunSetSound(bool enable)
+{
+  sound_enable = enable;
+}
+
+bool gbRunGetSound(void)
+{
+  return sound_enable;
+}
+
 void gbRunRequestFull(void)
 {
   req_full = true;
@@ -277,6 +326,17 @@ void gbRunRequestFull(void)
 void gbRunGetStat(gb_run_stat_t *p_stat)
 {
   *p_stat = stat;
+}
+
+// 스레드별 누적 실행 사이클 (CONFIG_THREAD_RUNTIME_STATS)
+void gbRunGetThreadCycles(uint64_t *p_emu, uint64_t *p_disp)
+{
+  k_thread_runtime_stats_t rt;
+
+  k_thread_runtime_stats_get(&emu_thread, &rt);
+  *p_emu = rt.execution_cycles;
+  k_thread_runtime_stats_get(&disp_thread, &rt);
+  *p_disp = rt.execution_cycles;
 }
 
 
@@ -314,6 +374,9 @@ void emuThread(void *arg1, void *arg2, void *arg3)
     // 디스플레이가 기다리고 있고 이전 프레임을 다 가져갔으면 이번 프레임을 렌더링
     bool draw = disp_ready && !frame_ready;
 
+    if (key_inject && (int32_t)(millis() - key_inject_end) < 0) joy |= key_inject;
+    else key_inject = 0;
+
     gbCoreSetJoypad(joy);
     gbCoreSetDrawNext(draw);
 
@@ -323,6 +386,13 @@ void emuThread(void *arg1, void *arg2, void *arg3)
 
     stat.emu_frames++;
     stat.emu_us_sum += exe_us;
+
+    if (sound_enable)
+    {
+      uint32_t pre_audio = micros();
+      writeAudio();
+      stat.audio_us_sum += micros() - pre_audio;
+    }
 
     if (draw)
     {
@@ -378,7 +448,12 @@ void dispThread(void *arg1, void *arg2, void *arg3)
     {
       convertFrame();
       frame_ready = false;                    // lcd_buf 반환 (에뮬은 다음 렌더링 가능)
-      epdUpdateWindow(EPD_MODE_FAST, GB_SCR_X, GB_SCR_Y, GB_SCR_W, GB_SCR_H);
+      // 전체 폭(400px)으로 보내면 RAM 이 연속이라 SPI DMA 한 번에 전송된다
+      // (320px 창은 줄마다 288 번 x 2 전송이 생겨 CPU 를 많이 씀)
+      if (win_full)
+        epdUpdateWindow(EPD_MODE_FAST, 0, GB_SCR_Y, EPD_WIDTH, GB_SCR_H);
+      else
+        epdUpdateWindow(EPD_MODE_FAST, GB_SCR_X, GB_SCR_Y, GB_SCR_W, GB_SCR_H);
     }
 
     epdGetTime(&t);

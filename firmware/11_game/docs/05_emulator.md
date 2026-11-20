@@ -108,6 +108,24 @@ src/ap/modules/emul/
 | 첫 화면 / `gb full` | 흰 배경 + 게임 영역 테두리로 전체 갱신 후 FAST 갱신 |
 | 종료 | `gbRunStop()` 후 `epdPowerOff()` (FAST 모드는 아날로그 전원 유지) |
 
+### Phase 6 측정: 사운드 포함, 스레드별 CPU (`gb stat`)
+
+| 상태 | 에뮬 속도 | 에뮬 CPU | 디스플레이 CPU | 화면 |
+|---|---|---|---|---|
+| SML 타이틀 | 98~100% | 29% | 1% | 7~8fps |
+| SML 실제 플레이 | **85~105%** | 94% | 2% | 6~7fps (갱신 112ms) |
+
+- EPD 전송 방식 비교 (`gb win full|game`)
+
+| 방식 | 디스플레이 CPU | 결과 |
+|---|---|---|
+| 게임 영역 320px 줄 단위 (576번 전송) | 22~24% | 정상이지만 에뮬 71~76% 로 떨어짐 |
+| 전체 폭 400px, 14KB 한 번 DMA | 1% | 화면 아래쪽 누락·멈춤 (원인 미확인) |
+| **전체 폭 400px, 4KB 씩 4번** | **2%** | **정상 (기본값)** |
+
+- 남은 한계: SML 의 무거운 장면은 에뮬 CPU 만으로 프레임당 14~16ms 가 들어 16.7ms 예산에 가깝다. 이때 소리가 가끔 느려지거나 끊긴다 → Phase 8 (에뮬 CPU 최적화) 과제.
+- CLI 추가: `gb sound on|off`, `gb win full|game`, `gb key <a,b,select,start,right,left,up,down> [ms]` (테스트용 입력), `gb stat` 에 스레드별 CPU 표시 (`CONFIG_THREAD_RUNTIME_STATS`)
+
 ### Phase 4 측정 (2026-11-20)
 
 | 게임 | 에뮬 속도 | 프레임 실행 | 화면 갱신 |
