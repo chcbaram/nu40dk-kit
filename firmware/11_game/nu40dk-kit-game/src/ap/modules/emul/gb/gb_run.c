@@ -448,7 +448,7 @@ static uint8_t readInput(bool *p_menu)
     btn4_time = 0;
   }
 
-  if (blePadIsConnected() && blePadGetInfo(&pad))
+  if (blePadIsConnected() && blePadGetInfoLatched(BLE_PAD_LATCH_GAME, &pad))
   {
     if (pad.btn_xbox) menu = true;
 
@@ -724,6 +724,8 @@ void emuThread(void *arg1, void *arg2, void *arg3)
   {
     if (!is_run)
     {
+      xbox_hid_report_t dummy;
+      blePadGetInfoLatched(BLE_PAD_LATCH_GAME, &dummy);   // 런처에서 누른 버튼이 게임 시작 때 들어가지 않도록 비움
       k_sleep(K_MSEC(20));
       next_us = micros();
       continue;

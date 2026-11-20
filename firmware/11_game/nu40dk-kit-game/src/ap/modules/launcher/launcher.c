@@ -25,7 +25,9 @@
 #define UI_CW               8
 #define UI_CH               16
 
-#define FAST_PER_FULL       30        // 부분 갱신 N 번마다 FULL 로 정리
+#define LAUNCHER_COLD_TEMP  10        // 화면 전환 갱신에 쓸 온도 (°C)
+#define FAST_PER_FULL       10        // 부분 갱신 N 번마다 FULL 로 정리 (흰 배경에 점이 쌓이기 전에)
+#define IDLE_CLEAN_MS       5000      // 부분 갱신 뒤 입력이 없으면 전체 갱신으로 정리
 #define IDLE_POWER_OFF_MS   3000      // 입력이 없으면 EPD 아날로그 전원 끄기
 #define REPEAT_DELAY_MS     400
 #define REPEAT_RATE_MS      120
@@ -129,7 +131,7 @@ static uint8_t readKeyBits(void)
   if (buttonGetPressed(_DEF_CH3)) bits |= (1 << KEY_OK);
   if (buttonGetPressed(_DEF_CH4)) bits |= (1 << KEY_BACK);
 
-  if (blePadIsConnected() && blePadGetInfo(&pad))
+  if (blePadIsConnected() && blePadGetInfoLatched(BLE_PAD_LATCH_LAUNCHER, &pad))
   {
     if (pad.dpad == 1 || pad.dpad == 2 || pad.dpad == 8 || pad.left_stick_y < 12000) bits |= (1 << KEY_UP);
     if (pad.dpad == 4 || pad.dpad == 5 || pad.dpad == 6 || pad.left_stick_y > 53000) bits |= (1 << KEY_DOWN);
@@ -268,7 +270,12 @@ static void present(void)
   }
   else if (need_full || fast_cnt >= FAST_PER_FULL)
   {
-    epdUpdate(EPD_MODE_FULL);
+    // 화면 전환·주기 정리: 저온(10°C) 흑백 전체 갱신 (약 1.25초).
+    //   0xFF(현재 온도, 0.67초) 는 이 패널에서 검정이 흐리고 이전 화면이 비친다.
+    //   3색 강한 갱신(F7) 은 선명하지만 2.8초가 걸린다.
+    //   같은 이미지로 부분 갱신을 반복하는 방법은 과구동된 픽셀이 다음 흰색 전환에서
+    //   돌아오지 않아 잔상이 남았다 (실험 결과).
+    epdUpdateCold(LAUNCHER_COLD_TEMP);
     fast_cnt  = 0;
     need_full = false;
   }
@@ -783,8 +790,20 @@ void launcherMain(void)
       {
         pre_state = blePadGetState();
         pre_bat   = blePadGetBattery();
+        // 상단 바는 검정 바 위 흰 글자라 부분 갱신으로 바꾸면 이전 글자가 겹쳐 보인다 → 깨끗한 갱신
+        need_full = true;
         draw();
       }
+    }
+
+    // 부분 갱신은 흰색 그대로인 배경을 구동하지 않아 시간이 지나면 점이 생긴다.
+    // 메뉴를 멈추고 잠시 지나면 전체 갱신으로 정리한다.
+    if (fast_cnt > 0 && millis() - last_draw_ms >= IDLE_CLEAN_MS)
+    {
+      epdUpdateCold(LAUNCHER_COLD_TEMP);
+      fast_cnt     = 0;
+      epd_on       = true;
+      last_draw_ms = millis();
     }
 
     if (epd_on && millis() - last_draw_ms >= IDLE_POWER_OFF_MS)

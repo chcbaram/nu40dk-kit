@@ -396,6 +396,37 @@ void epdWriteLut(void)
   ssd1683WriteCmdData(0x32, lut_buf, sizeof(lut_buf));
 }
 
+// 흰색으로 한 번 지운 뒤 캔버스를 전체 갱신 (약 1.3초)
+//   흑백 전체 갱신(0xFF) 한 번으로는 이전 화면이 비쳐 보여, 화면 전환 시 사용한다.
+//   흰색은 캔버스를 건드리지 않고 0xFF 한 줄을 반복 전송해 만든다
+bool epdUpdateFullClean(void)
+{
+  static const uint8_t white_line[EPD_STRIDE] = { [0 ... EPD_STRIDE - 1] = 0xFF };
+  uint8_t data[2];
+
+  if (!epdWake()) return false;
+  if (ssd1683IsBusy() && !ssd1683WaitBusy(3000)) epdRecover("busy before clean");
+  if (fast_ready) epdRestoreSoftStart();
+
+  for (int ram = 0; ram < 2; ram++)
+  {
+    ssd1683SetWindow(0, 0, EPD_WIDTH, EPD_HEIGHT);
+    ssd1683WriteCmd(ram == 0 ? SSD1683_RAM_BW : SSD1683_RAM_RED);
+    for (int y = 0; y < EPD_HEIGHT; y++) ssd1683WriteData(white_line, EPD_STRIDE);
+  }
+  data[0] = 0x40; data[1] = 0x00;
+  ssd1683WriteCmdData(0x21, data, 2);
+  last_ctrl = full_ctrl;
+  ssd1683Activate(full_ctrl);
+  fast_ready     = false;
+  fast_analog_on = false;
+  analog_on      = (full_ctrl & 0x02) == 0;
+  lut_hold       = 0xFF;
+  if (!ssd1683WaitBusy(EPD_FULL_TIMEOUT_MS)) epdRecover("clean white");
+
+  return epdUpdate(EPD_MODE_FULL);
+}
+
 // 3색 웨이브폼(0xF7, 약 2.8초)으로 전체 갱신: 오래 떠 있던 화면의 잔상까지 지운다
 bool epdUpdateStrong(void)
 {
@@ -403,6 +434,25 @@ bool epdUpdateStrong(void)
   bool    ret;
 
   full_ctrl = 0xF7;
+  ret = epdUpdate(EPD_MODE_FULL);
+  full_ctrl = ctrl;
+  return ret;
+}
+
+// 온도 레지스터를 낮게 지정한 흑백 전체 갱신 (0xDF: 온도 측정 없이 LUT 로드).
+// 저온용 공장 웨이브폼은 구동 시간이 길어 0xFF(0.67초)보다 검정이 진하고 잔상이 적다.
+// 10°C 에서 약 1.25초로 3색 갱신(2.8초)보다 빠르다. 다음 0xFC/0xFF 는 온도를 다시 측정한다.
+bool epdUpdateCold(int8_t temp)
+{
+  uint8_t ctrl = full_ctrl;
+  uint8_t data = (uint8_t)temp;
+  bool    ret;
+
+  if (!epdWake()) return false;
+  if (ssd1683IsBusy() && !ssd1683WaitBusy(3000)) epdRecover("busy before cold");
+
+  ssd1683WriteCmdData(0x1A, &data, 1);
+  full_ctrl = 0xDF;
   ret = epdUpdate(EPD_MODE_FULL);
   full_ctrl = ctrl;
   return ret;
@@ -654,6 +704,21 @@ void cliEpd(cli_args_t *args)
     ret = true;
   }
 
+  // 현재 canvas 를 그대로 다시 갱신 (화면 진하기 실험용)
+  if (args->argc >= 2 && args->isStr(0, "redraw"))
+  {
+    uint32_t cnt = args->argc >= 3 ? args->getData(2) : 1;
+
+    for (uint32_t i = 0; i < cnt; i++)
+    {
+      if (args->isStr(1, "clean"))       epdUpdateFullClean();
+      else if (args->isStr(1, "strong")) epdUpdateStrong();
+      else epdUpdate(getMode(args, 1, EPD_MODE_PART));
+    }
+    cliPrintf("redraw %s x %d\n", args->getStr(1), cnt);
+    ret = true;
+  }
+
   if (args->argc >= 2 && args->isStr(0, "text"))
   {
     canvasClear(CANVAS_WHITE);
@@ -819,6 +884,7 @@ void cliEpd(cli_args_t *args)
     cliPrintf("epd info\n");
     cliPrintf("epd init\n");
     cliPrintf("epd clear [full|part|fast]\n");
+    cliPrintf("epd redraw full|part|clean|strong [n]\n");
     cliPrintf("epd test 0~3 [full|part|fast]   0:checker 1:gray 2:gb 3:text\n");
     cliPrintf("epd text <str>\n");
     cliPrintf("epd spi <MHz>\n");

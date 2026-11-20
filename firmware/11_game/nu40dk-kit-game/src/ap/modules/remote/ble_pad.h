@@ -42,6 +42,11 @@ typedef struct __attribute__((packed))
 } xbox_hid_report_t;
 
 
+#define BLE_PAD_LATCH_LAUNCHER  0
+#define BLE_PAD_LATCH_GAME      1
+#define BLE_PAD_LATCH_MAX       2
+
+
 typedef enum
 {
   BLE_PAD_STATE_OFF = 0,      // BT 초기화 전
@@ -54,6 +59,7 @@ typedef enum
 
 bool            blePadIsConnected(void);
 bool            blePadGetInfo(xbox_hid_report_t *p_report);
+bool            blePadGetInfoLatched(uint8_t user, xbox_hid_report_t *p_report);
 ble_pad_state_t blePadGetState(void);
 const char     *blePadGetStateStr(void);
 void            blePadScanStart(void);

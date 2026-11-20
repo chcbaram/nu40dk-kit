@@ -21,6 +21,7 @@
 ```c
 bool            blePadIsConnected(void);
 bool            blePadGetInfo(xbox_hid_report_t *p_report);   // mutex 로 복사
+bool            blePadGetInfoLatched(uint8_t user, xbox_hid_report_t *p_report); // 현재 + 그동안 눌린 버튼
 ble_pad_state_t blePadGetState(void);        // OFF / IDLE / SCANNING / CONNECTING / CONNECTED
 const char     *blePadGetStateStr(void);
 void            blePadScanStart(void);       // 스캔 허용 (끊기면 자동 재스캔)
@@ -69,6 +70,15 @@ const char     *blePadGetName(void);
 - 버튼: A, B, X, Y, LB, RB, View, Menu, Xbox, LS, RS
 
 
+
+### 버튼 래치 (2026-11-20)
+
+런처는 20ms 마다 현재 상태를 읽어 눌림 엣지를 찾는데, EPD 갱신(0.6~1.25초) 중에는 읽지 않는다. 이 사이에 Xbox 버튼 등을 짧게 눌렀다 떼면 입력을 놓쳤다.
+
+- BLE 알림 콜백에서 버튼 바이트(보고서 13, 14)를 OR 로 모으고, D-pad 는 마지막으로 눌린 방향을 기억한다.
+- `blePadGetInfoLatched(user, ...)` 는 현재 보고서에 래치를 합쳐 돌려주고 래치를 지운다. 런처(`BLE_PAD_LATCH_LAUNCHER`)와 게임(`BLE_PAD_LATCH_GAME`)이 따로 쓴다.
+- 남은 래치가 엉뚱하게 들어가지 않도록: 게임 스레드는 게임이 멈춰 있는 동안 래치를 계속 비우고, 런처는 게임 메뉴 진입 때 `waitKeyRelease()` 로 비운다.
+- 디바운스: 패드는 컨트롤러가 정리한 디지털 값을 바뀔 때만 보내므로 필요 없다. 보드 버튼은 gpio-keys 20ms 디바운스가 있다. 보드 버튼은 래치하지 않아, EPD 갱신 중 짧게 누르면 놓칠 수 있다.
 
 ## 보드 버튼 4개
 

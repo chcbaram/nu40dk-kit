@@ -64,6 +64,8 @@ static uint8_t                         allocated_subs = 0;
 static uint16_t        handle_2a4c            = 0;
 static uint16_t        handle_2a4b            = 0;
 static uint16_t        xbox_report_val_handle = 0;
+static uint8_t           latch_btn[BLE_PAD_LATCH_MAX][2];   // 보고서 13, 14 바이트 (버튼) OR
+static uint8_t           latch_dpad[BLE_PAD_LATCH_MAX];
 static bool            is_subscribed          = false;
 static bt_addr_le_t    bonded_pad_addr;
 static bool            has_bonded_pad = false;
@@ -393,6 +395,14 @@ static uint8_t blePadNotifyCb(struct bt_conn *conn, struct bt_gatt_subscribe_par
   {
     lock();
     memcpy(&xbox_report, data, sizeof(xbox_hid_report_t));
+    // 읽는 쪽이 바쁜 동안(EPD 갱신 등) 눌렀다 뗀 버튼을 놓치지 않도록 래치
+    const uint8_t *p_raw = (const uint8_t *)&xbox_report;
+    for (int i = 0; i < BLE_PAD_LATCH_MAX; i++)
+    {
+      latch_btn[i][0] |= p_raw[13];
+      latch_btn[i][1] |= p_raw[14];
+      if (xbox_report.dpad != 0) latch_dpad[i] = xbox_report.dpad;
+    }
     unLock();
     rx_cnt++;
   }
@@ -713,6 +723,35 @@ int8_t blePadGetRssi(void)
 const char *blePadGetName(void)
 {
   return pad_name;
+}
+
+// 현재 보고서 + 마지막 호출 이후 한 번이라도 눌린 버튼 (user 별로 따로 래치)
+bool blePadGetInfoLatched(uint8_t user, xbox_hid_report_t *p_report)
+{
+  bool ret;
+
+  if (user >= BLE_PAD_LATCH_MAX) return blePadGetInfo(p_report);
+
+  lock();
+  ret = is_connected;
+  if (is_connected)
+  {
+    memcpy(p_report, &xbox_report, sizeof(xbox_report));
+    uint8_t *p_raw = (uint8_t *)p_report;
+    p_raw[13] |= latch_btn[user][0];
+    p_raw[14] |= latch_btn[user][1];
+    if (p_report->dpad == 0) p_report->dpad = latch_dpad[user];
+  }
+  else
+  {
+    blePadResetReport(p_report);
+  }
+  latch_btn[user][0] = 0;
+  latch_btn[user][1] = 0;
+  latch_dpad[user]   = 0;
+  unLock();
+
+  return ret;
 }
 
 bool blePadGetInfo(xbox_hid_report_t *p_report)
