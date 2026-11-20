@@ -39,7 +39,7 @@
 |---|---|---|---|
 | CLI / 로그 | UART0 | TX P0.06, RX P0.08 | 115200 |
 | USB CLI | USBD CDC-ACM | USB | 유지 |
-| EPAPER | **SPIM3** | P1.03/04/14 | 유일한 32MHz SPIM. WS2812를 빼서 확보 |
+| EPAPER | **SPIM2** | P1.03/04/14 | 8MHz. 처음엔 SPIM3(32MHz) 를 썼으나 errata 198 로 게임 중 전송 데이터 손상 |
 | SD 카드 | SPIM1 | SCK P0.27, MOSI P0.26, MISO P0.04, CS P0.23, CD P1.15 | 8MHz, FatFs |
 | 오디오 | I2S0 → MAX98357 | SCK P1.09, LRCK P1.08, SDOUT P0.19, MUTE P1.10 | 모노 앰프 |
 | 버튼 4개 | GPIO (gpio-keys) | P0.31, P1.07, P1.06, P1.05 | Active Low, 20ms 디바운스 |
@@ -61,10 +61,10 @@ nRF52840은 SPIM0/TWIM0, SPIM1/TWIM1이 같은 자원을 공유한다.
 |---|---|---|
 | SPIM0 | 8MHz | 미사용 (I2C0 제거로 비어 있음) |
 | SPIM1 | 8MHz | SD 카드 |
-| SPIM2 | 8MHz | 미사용 |
-| SPIM3 | **32MHz** | EPAPER |
+| SPIM2 | 8MHz | **EPAPER** (Phase 8, errata 198 회피) |
+| SPIM3 | 32MHz | 미사용 (errata 198: CPU 와 같은 RAM 블록 접근 시 TX 데이터 손상) |
 
-EPAPER SPI는 **8MHz** 로 확정했다 (Phase 8). 16MHz 는 정지 화면에서는 괜찮았지만 게임 중(에뮬레이터가 RAM 을 계속 쓰는 동안) 화면 아래쪽 일부가 갱신되지 않았다. SPIM3 errata 198 또는 16MHz 홀드 시간 위반으로 본다.
+EPAPER SPI는 **SPIM2, 8MHz** 로 확정했다 (Phase 8). SPIM3 는 nRF52840 errata 198 로 에뮬레이터가 RAM 을 많이 쓸 때 전송 데이터가 손상되어 화면 아래쪽이 갱신되지 않았다. 16MHz 는 정지 화면에서는 괜찮았지만 게임 중(에뮬레이터가 RAM 을 계속 쓰는 동안) 화면 아래쪽 일부가 갱신되지 않았다. SPIM3 errata 198 또는 16MHz 홀드 시간 위반으로 본다.
 (이전 기록) EPAPER SPI는 16MHz로 정했었다. 32MHz에서는 무작위 점(비트 오류)이 생긴다. nRF52840 SPIM은 8/16/32MHz 단계만 지원하므로 20MHz를 요청해도 16MHz로 동작한다.
 
 SSD1683 SPI 쓰기 타이밍 (데이터시트 Table 12-1):

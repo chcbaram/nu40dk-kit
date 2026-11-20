@@ -452,10 +452,10 @@ void cliGb(cli_args_t *args)
       uint32_t pp = cur.ink_pending - pre.ink_pending;
 
       if (gbRunGetDispMode())
-        cliPrintf("    ink cpu: plan %d us/frame, mask %d us/scan, dec %d us/scan\n",
+        cliPrintf("    ink cpu: plan %d us/frame, dec %d us/scan, rows %d/scan\n",
                   df ? (cur.ink_plan_us - pre.ink_plan_us) / df : 0,
-                  sc ? (cur.ink_mask_us - pre.ink_mask_us) / sc : 0,
-                  sc ? (cur.ink_dec_us  - pre.ink_dec_us)  / sc : 0);
+                  sc ? (cur.ink_dec_us  - pre.ink_dec_us)  / sc : 0,
+                  sc ? (cur.ink_rows    - pre.ink_rows)    / sc : 0);
       if (gbRunGetDispMode())
         cliPrintf("emu %2d fps (%3d %%, %5d us/frame)  ink: frames %d, scans %d (%d ms, %d px)  audio %d us\n",
                   ef, ef * 100 / 60, ef ? eu / ef : 0, df, sc, sc ? dm / sc : 0, sc ? pp / sc : 0, ef ? au / ef : 0);

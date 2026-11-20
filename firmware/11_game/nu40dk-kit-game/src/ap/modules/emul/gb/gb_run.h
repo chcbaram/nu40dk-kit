@@ -16,7 +16,8 @@ typedef struct
   uint32_t ink_pending;     // ink 모드 스캔당 구동 GB 픽셀 합
   uint32_t ink_plan_us;     // 변화 감지 시간 합
   uint32_t ink_mask_us;     // 마스크 생성 시간 합
-  uint32_t ink_dec_us;      // 카운터 감소 시간 합
+  uint32_t ink_dec_us;      // 카운터 감소 시간 합 (마스크 증분 갱신 포함)
+  uint32_t ink_rows;        // 전송한 줄 수 합
 } gb_run_stat_t;
 
 

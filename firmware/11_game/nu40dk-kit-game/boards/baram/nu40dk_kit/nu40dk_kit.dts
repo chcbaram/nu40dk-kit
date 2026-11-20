@@ -156,14 +156,14 @@
     };
   };
 
-  spi3_default: spi3_default {
+  spi2_default: spi2_default {
     group1 {
       psels = <NRF_PSEL(SPIM_SCK, 1, 4)>,
               <NRF_PSEL(SPIM_MOSI, 1, 14)>;
     };
   };
 
-  spi3_sleep: spi3_sleep {
+  spi2_sleep: spi2_sleep {
     group1 {
       psels = <NRF_PSEL(SPIM_SCK, 1, 4)>,
               <NRF_PSEL(SPIM_MOSI, 1, 14)>;
@@ -210,13 +210,14 @@ zephyr_udc0: &usbd {
 	};  
 };
 
-/* 4.2" EPAPER (SSD1683), SPIM3 */
-&spi3 {
+/* 4.2" EPAPER (SSD1683), SPIM2
+ *   SPIM3(32MHz) 는 nRF52840 errata 198 로 CPU 가 같은 RAM 블록을 쓰는 동안 전송 데이터가 손상되어
+ *   게임 중 화면 아래쪽이 갱신되지 않았다. 8MHz 로 쓰므로 errata 가 없는 SPIM2 로 옮김 (핀 동일) */
+&spi2 {
   status = "okay";
-  max-frequency = <DT_FREQ_M(32)>;
   cs-gpios = <&gpio1 3 GPIO_ACTIVE_LOW>;
-  pinctrl-0 = <&spi3_default>;
-  pinctrl-1 = <&spi3_sleep>;
+  pinctrl-0 = <&spi2_default>;
+  pinctrl-1 = <&spi2_sleep>;
   pinctrl-names = "default", "sleep";
 
   epd_spi: epd@0 {

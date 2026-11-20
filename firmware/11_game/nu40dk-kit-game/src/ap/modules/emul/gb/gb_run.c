@@ -90,7 +90,7 @@ static volatile uint8_t disp_mode    = DISP_MODE_INK;
 static volatile bool    disp_busy    = false;                 // EPD 갱신 중
 static uint8_t          ink_budget   = 8;                     // 명암이 바뀐 블록에 줄 펄스 수 (1~7)
 static uint8_t          ink_frames   = 3;                     // 스캔 1 회 펄스 길이 (프레임, 8ms)
-static uint32_t         ink_frame_ms = 100;
+static uint32_t         ink_frame_ms = 83; 
 static uint8_t          ink_fr       = 0x05;                  // 커스텀 LUT 프레임 속도 125Hz (50Hz 는 체감 차이 없이 스캔만 느려짐)                   // 새 GB 프레임을 받는 최소 간격
 static uint8_t          ink_shade[GB_LCD_HEIGHT][GB_LCD_WIDTH / 4];   // 현재 목표 (2bpp)
 static uint8_t          ink_base[GB_LCD_HEIGHT][GB_LCD_WIDTH / 4];    // 바뀌기 직전 목표 (2bpp): 이 패턴과 다른 디더 점만 구동
@@ -174,6 +174,81 @@ static void drawGameCanvas(const uint8_t *p_src)
   convertFrameFrom(p_src);
 }
 
+/*
+ * 마스크 증분 갱신
+ *   마스크는 스캔마다 지우지 않고 유지한다. 4 픽셀 묶음(마스크 4 바이트) 단위로 필요한 곳만 다시 계산한다.
+ *   전송은 매 스캔 전체 (EPD 가 구동 후 RAM 을 바꾸므로 바뀐 줄만 보내면 화면이 깨짐).
+ */
+static int16_t ink_dirty_min = 0;          // 마스크가 바뀐 줄 범위 (게임 영역 기준 0~287)
+static int16_t ink_dirty_max = -1;
+
+static inline void inkMarkDirty(int y)      // GB 줄 → 화면 2 줄
+{
+  int r0 = y * 2;
+  if (ink_dirty_max < ink_dirty_min) { ink_dirty_min = r0; ink_dirty_max = r0 + 1; return; }
+  if (r0 < ink_dirty_min)     ink_dirty_min = r0;
+  if (r0 + 1 > ink_dirty_max) ink_dirty_max = r0 + 1;
+}
+
+// GB 줄 y, 4 픽셀 묶음 gx(0~39) 의 마스크 4 바이트를 현재 카운터/목표로 다시 계산
+static void inkUpdateGroup(uint8_t *p_white, int y, int gx)
+{
+  int      w      = y * (GB_LCD_WIDTH / 32) + gx / 8;
+  int      sh     = (gx % 8) * 4;
+  uint8_t  nib    = ((ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w]) >> sh) & 0xF;
+  int      bx     = GB_SCR_X / 8 + gx;
+  uint8_t *pb0    = &ink_black[(y * 2) * EPD_STRIDE + bx];
+  uint8_t *pw0    = &p_white[(y * 2) * EPD_STRIDE + bx];
+  uint8_t  b0 = 0, b1 = 0, w0 = 0, w1 = 0;
+
+  if (nib)
+  {
+    uint8_t act = expand4[nib];
+
+    if (ink_gray)
+    {
+      uint8_t dir = (ink_dir[w] >> sh) & 0xF;
+      b0 = b1 = expand4[nib & dir];
+      w0 = w1 = expand4[nib & ~dir];
+    }
+    else
+    {
+      uint8_t v  = ink_shade[y][gx];
+      uint8_t bv = ink_base[y][gx];
+      uint8_t t0 = dither_lut[0][v];
+      uint8_t t1 = dither_lut[1][v];
+      uint8_t d0 = act & (t0 ^ dither_lut[0][bv]);
+      uint8_t d1 = act & (t1 ^ dither_lut[1][bv]);
+      w0 = t0 & d0;  b0 = ~t0 & d0;
+      w1 = t1 & d1;  b1 = ~t1 & d1;
+    }
+  }
+
+  if (pb0[0] != b0 || pb0[EPD_STRIDE] != b1 || pw0[0] != w0 || pw0[EPD_STRIDE] != w1)
+  {
+    pb0[0] = b0;  pb0[EPD_STRIDE] = b1;
+    pw0[0] = w0;  pw0[EPD_STRIDE] = w1;
+    inkMarkDirty(y);
+  }
+}
+
+// 32 픽셀 워드 w 에서 nib_mask(8 묶음 x 4bit) 에 해당하는 묶음들을 다시 계산
+static void inkUpdateWord(uint8_t *p_white, int w, uint32_t pix_mask)
+{
+  int y   = w / (GB_LCD_WIDTH / 32);
+  int gx0 = (w % (GB_LCD_WIDTH / 32)) * 8;
+
+  for (int g = 0; g < 8; g++, pix_mask >>= 4)
+  {
+    if (pix_mask & 0xF) inkUpdateGroup(p_white, y, gx0 + g);
+  }
+}
+
+static uint8_t *inkWhiteBuf(void)
+{
+  return canvasGetBuffer() + GB_SCR_Y * EPD_STRIDE;   // 캔버스를 흰색 마스크 버퍼로 사용
+}
+
 // 새 프레임과 현재 목표를 비교해 명암이 바뀐 GB 픽셀의 카운터를 예산으로 설정
 //   32 픽셀(8 바이트)을 32bit 두 개로 비교해 같으면 건너뛰고, 다르면 바이트당 룩업 한 번
 static void inkPlan(const uint8_t *p_new)
@@ -213,6 +288,7 @@ static void inkPlan(const uint8_t *p_new)
         }
       }
       memcpy(p_old, p_new, 8);
+      inkUpdateWord(inkWhiteBuf(), w, 0xFFFFFFFF);
       continue;
     }
 
@@ -232,6 +308,7 @@ static void inkPlan(const uint8_t *p_new)
       ink_cnt[k][w] = (ink_cnt[k][w] & ~changed) | (((ink_budget >> k) & 1) ? changed : 0);
     }
     memcpy(p_old, p_new, 8);
+    inkUpdateWord(inkWhiteBuf(), w, changed);
   }
 }
 
@@ -297,15 +374,21 @@ static uint32_t inkDecrement(void)
 
   for (int w = 0; w < INK_WORDS; w++)
   {
-    uint32_t borrow = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w];
+    uint32_t before = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w];
+    uint32_t borrow = before;
 
+    if (before == 0) continue;
     for (int k = 0; k < INK_CNT_BITS && borrow; k++)
     {
       uint32_t old = ink_cnt[k][w];
       ink_cnt[k][w] = old ^ borrow;
       borrow &= ~old;
     }
-    remain += __builtin_popcount(ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w]);
+    uint32_t after = ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w];
+    remain += __builtin_popcount(after);
+
+    // 카운터가 0 이 된 픽셀의 묶음은 마스크에서 꺼야 한다
+    if (before & ~after) inkUpdateWord(inkWhiteBuf(), w, before & ~after);
   }
   return remain;
 }
@@ -662,8 +745,17 @@ void emuThread(void *arg1, void *arg2, void *arg3)
       continue;
     }
 
-    // 디스플레이가 기다리고 있고 이전 프레임을 다 가져갔으면 이번 프레임을 렌더링
-    bool draw = disp_ready && !frame_ready;
+    // 렌더링 여부
+    //   frame 모드: 디스플레이가 기다리고 있고 이전 프레임을 다 가져갔을 때
+    //   ink 모드  : 일정 간격(ink_frame_ms)마다 에뮬레이터가 스스로 그려 둔다. 디스플레이는 스캔을
+    //               시작할 때 가장 최근 프레임을 가져간다 (요청을 스캔 끝에 하면 2 스캔에 1 프레임밖에 못 받음)
+    static uint32_t draw_ms = 0;
+    bool draw;
+    if (disp_mode == DISP_MODE_INK && !req_full)
+      draw = !frame_ready && (millis() - draw_ms >= ink_frame_ms);
+    else
+      draw = disp_ready && !frame_ready;
+    if (draw) draw_ms = millis();
 
     if (key_inject && (int32_t)(millis() - key_inject_end) < 0) joy |= key_inject;
     else key_inject = 0;
@@ -781,6 +873,10 @@ static void dispInkMode(void)
       memcpy(ink_base, ink_shade, sizeof(ink_base));
       epdUpdate(EPD_MODE_FULL);
     }
+    // 마스크 전체 재생성 (캔버스를 이미지로 쓴 뒤라 다시 만든다), 전 영역 전송 필요
+    inkBuildMask(inkWhiteBuf());
+    ink_dirty_min = 0;
+    ink_dirty_max = GB_SCR_H - 1;
     frame_ready = false;
     req_full    = false;
     disp_busy   = false;
@@ -815,11 +911,16 @@ static void dispInkMode(void)
     return;
   }
 
-  uint8_t *p_white = canvasGetBuffer() + GB_SCR_Y * EPD_STRIDE;   // 캔버스를 흰색 마스크 버퍼로 사용
-  uint32_t t1 = micros();
-  uint32_t pending = inkBuildMask(p_white);
-  stat.ink_mask_us += micros() - t1;
+  uint8_t *p_white = inkWhiteBuf();
+  uint32_t pending = remain;
 
+  if (planned)
+  {
+    // 새 계획 뒤 남은 구동 수 다시 계산
+    pending = 0;
+    for (int w = 0; w < INK_WORDS; w++)
+      pending += __builtin_popcount(ink_cnt[0][w] | ink_cnt[1][w] | ink_cnt[2][w] | ink_cnt[3][w]);
+  }
   if (pending == 0)
   {
     remain = 0;
@@ -827,8 +928,17 @@ static void dispInkMode(void)
     return;
   }
 
+  // 전송은 매 스캔 게임 영역 전체 (두 면). 바뀐 줄만 보내면 화면이 깨졌다:
+  // SSD168x 는 구동(0x0C) 후 RAM 을 BW↔RED 로 복사하는 것으로 보여 (InkBoy host_fakes 주석),
+  // EPD RAM 이 이전 마스크를 유지한다고 가정할 수 없다. 마스크 "생성" 만 증분으로 한다.
+  int16_t y0 = 0, h = GB_SCR_H;
+  ink_dirty_min = 0;
+  ink_dirty_max = -1;
+  stat.ink_rows += h;
+
   disp_busy = true;
-  epdUpdateMask(ink_black, p_white, GB_SCR_Y, GB_SCR_H, ink_gray ? gray_frames : ink_frames);
+  epdUpdateMask(ink_black + y0 * EPD_STRIDE, p_white + y0 * EPD_STRIDE, GB_SCR_Y + y0, h,
+                ink_gray ? gray_frames : ink_frames);
   disp_busy = false;
   uint32_t t2 = micros();
   remain = inkDecrement();

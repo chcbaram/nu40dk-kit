@@ -289,8 +289,12 @@ bool epdUpdateMask(const uint8_t *p_black, const uint8_t *p_white, uint16_t y, u
   epdCustomLutSetup(frames, 0);
 
   // p_black/p_white 는 y 줄부터 시작하는 버퍼이므로 y 를 0 으로 넘기고 창만 y 로 맞춘다
-  ssd1683WriteRam(SSD1683_RAM_RED, 0, y, EPD_WIDTH, h, p_black - y * EPD_STRIDE, EPD_STRIDE);
-  ssd1683WriteRam(SSD1683_RAM_BW,  0, y, EPD_WIDTH, h, p_white - y * EPD_STRIDE, EPD_STRIDE);
+  // h = 0 이면 전송 없이 EPD RAM 의 기존 마스크로 구동만 한다
+  if (h > 0)
+  {
+    ssd1683WriteRam(SSD1683_RAM_RED, 0, y, EPD_WIDTH, h, p_black - y * EPD_STRIDE, EPD_STRIDE);
+    ssd1683WriteRam(SSD1683_RAM_BW,  0, y, EPD_WIDTH, h, p_white - y * EPD_STRIDE, EPD_STRIDE);
+  }
   epd_time.spi_us = micros() - pre_us;
 
   data[0] = 0x00; data[1] = 0x00;
