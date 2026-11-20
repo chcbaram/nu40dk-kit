@@ -437,6 +437,9 @@ static void dialogP(const char *who, int portrait, const char *const *lines)
       api->print(nx + 8, by - 18, APP_WHITE, "%s", who);
     }
 
+    // 두 번째 쪽부터: 글자를 비운 대화창을 먼저 보인다 (같은 자리 글자가 겹쳐 보이지 않게)
+    if (i > 0) show(APP_REFRESH_FAST);
+
     int16_t y = by + 12;
     int     page = i;
     for (int n = 0; lines[i] != NULL && lines[i][0] != 0 && n < 3; n++, i++)
@@ -519,6 +522,16 @@ static void drawBattle(const enemy_t *en, int16_t en_hp, int cur, const char *m1
   }
 }
 
+// 전투 메시지 바꾸기: 메시지 칸을 먼저 비운 화면을 한 번 보이고 새 메시지를 그린다.
+//   같은 자리에서 글자를 바로 바꾸면 이전 글자가 덜 지워져 겹쳐 보였다.
+static void battleMsg(const enemy_t *en, int16_t en_hp, int cur, const char *m1, const char *m2)
+{
+  drawBattle(en, en_hp, cur, NULL, NULL);
+  show(APP_REFRESH_FAST);
+  drawBattle(en, en_hp, cur, m1, m2);
+  show(APP_REFRESH_FAST);
+}
+
 // 반환: true = 이김, false = 짐 또는 도망 (p_run 으로 구분)
 static bool battle(int enemy, bool *p_run)
 {
@@ -537,7 +550,8 @@ static bool battle(int enemy, bool *p_run)
 
   while (1)
   {
-    // 명령 고르기
+    // 명령 고르기 (메시지는 한 번만 바꾸고, 커서 이동은 같은 메시지로 다시 그린다)
+    battleMsg(en, en_hp, cur, "무엇을 할까?", NULL);
     while (1)
     {
       app_key_t key = waitKey();
@@ -584,18 +598,16 @@ static bool battle(int enemy, bool *p_run)
     {
       if (!boss && randRange(0, 99) < 70)
       {
-        drawBattle(en, en_hp, cur, "버그를 TODO 로 미뤄 두고 도망쳤다...", NULL);
-        show(APP_REFRESH_FAST);
+        battleMsg(en, en_hp, cur, "버그를 TODO 로 미뤄 두고 도망쳤다...", NULL);
         api->delay(900);
         *p_run = true;
         return false;
       }
       snprintf(m1, sizeof(m1), boss ? "보스에게서는 도망칠 수 없다!" : "도망치지 못했다!");
     }
-    drawBattle(en, en_hp, cur, m1, m2[0] ? m2 : NULL);
     api->beep(cur == 2 ? 880 : 660, 40);
-    show(APP_REFRESH_FAST);
-    api->delay(700);
+    battleMsg(en, en_hp, cur, m1, m2[0] ? m2 : NULL);
+    api->delay(400);
 
     if (en_hp <= 0)
     {
@@ -604,9 +616,8 @@ static bool battle(int enemy, bool *p_run)
       g.hp = g.hp_max;
       snprintf(m1, sizeof(m1), "%s 을(를) 고쳤다!", en->name);
       snprintf(m2, sizeof(m2), "레벨 업! Lv%d, 최대 HP %d", g.lv, g.hp_max);
-      drawBattle(en, 0, -1, m1, m2);
       api->beep(1047, 120);
-      show(APP_REFRESH_FAST);
+      battleMsg(en, 0, -1, m1, m2);
       waitOk();
       return true;
     }
@@ -616,15 +627,13 @@ static bool battle(int enemy, bool *p_run)
     g.hp -= d;
     snprintf(m1, sizeof(m1), "%s: %s", en->name, en->attack_msg);
     snprintf(m2, sizeof(m2), "바람은 %d 데미지를 입었다.", d);
-    drawBattle(en, en_hp, cur, m1, m2);
     api->beep(220, 60);
-    show(APP_REFRESH_FAST);
-    api->delay(700);
+    battleMsg(en, en_hp, cur, m1, m2);
+    api->delay(400);
 
     if (g.hp <= 0)
     {
-      drawBattle(en, en_hp, -1, "바람의 시스템이 리셋되었다...", "부트로더 마을에서 다시 시작한다.");
-      show(APP_REFRESH_FAST);
+      battleMsg(en, en_hp, -1, "바람의 시스템이 리셋되었다...", "부트로더 마을에서 다시 시작한다.");
       waitOk();
       return false;
     }
