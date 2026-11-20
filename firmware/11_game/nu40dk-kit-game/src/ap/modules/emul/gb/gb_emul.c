@@ -316,6 +316,7 @@ void cliGb(cli_args_t *args)
       NRF_NVMC->IHIT  = 0;
       NRF_NVMC->IMISS = 0;
 
+      uint32_t idle0    = gbCoreGetIdleCycles();
       uint32_t start_us = micros();
       if (bench_prof) profStart(19993);           // 프레임 주기와 겹치지 않게 약 20ms 간격
 
@@ -375,9 +376,12 @@ void cliGb(cli_args_t *args)
         cliPrintf("\nprof end\n");
       }
       if (bench_audio) cliPrintf("audio %d us/frame (excluded from emu time), crc %08X\n", audio_sum / frames, audio_crc);
+      cliPrintf("idle skip %d cycles/frame (%d %%)\n", (gbCoreGetIdleCycles() - idle0) / frames,
+                (gbCoreGetIdleCycles() - idle0) / frames * 100 / 70224);
     }
     lcd_enable = true;
     gbCoreSetOption("dual");
+    gbCoreSetOption("idle");
     ret = true;
   }
 

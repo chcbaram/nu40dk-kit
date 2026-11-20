@@ -39,6 +39,7 @@ void        gbCoreRunFrame(void);
 void        gbCoreSetJoypad(uint8_t pressed);
 void        gbCoreSetFrameSkip(bool enable);        // 2 프레임에 1 번만 렌더링
 void        gbCoreSetDrawNext(bool draw);           // 다음 gbCoreRunFrame() 의 렌더링 여부 (프레임 단위 제어)
+uint32_t    gbCoreGetIdleCycles(void);              // 대기 루프 건너뛰기로 넘긴 GB 사이클 누적
 void        gbCoreSetOption(const char *p_opt);     // 코어별 실험 옵션 (예: walnut "single")
 bool        gbCoreIsCgb(void);
 bool        gbCoreIsDoubleSpeed(void);

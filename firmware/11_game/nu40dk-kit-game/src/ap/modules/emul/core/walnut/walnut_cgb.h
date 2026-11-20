@@ -100,6 +100,7 @@
 static uint32_t wgb_tick_pending = 0;
 static uint32_t wgb_tick_next    = 0;
 static void __gb_tick_sync(struct gb_s *gb);
+static uint32_t wgb_tick_seq = 0;   /* [nu40dk-kit] tick·sync·인터럽트마다 증가 (대기 루프 건너뛰기 판단) */
 WGB_HOT uint8_t __gb_read(struct gb_s *gb, uint16_t addr);
 WGB_HOT void __gb_write(struct gb_s *gb, uint_fast16_t addr, uint8_t val);
 void __gb_write16(struct gb_s *gb, uint_fast16_t addr, uint16_t val);
@@ -3302,6 +3303,7 @@ static const uint_fast16_t WGB_TAC_CYCLES[4] = {1024, 16, 64, 256};
 
 static void __gb_tick(struct gb_s *gb, uint_fast16_t inst_cycles)
 {
+	wgb_tick_seq++;
 	do
 	{
 		/* DIV register timing */
@@ -3665,6 +3667,7 @@ static void __gb_tick_next(struct gb_s *gb)
 
 static void __gb_tick_sync(struct gb_s *gb)
 {
+	wgb_tick_seq++;
 	if(wgb_tick_pending)
 	{
 		uint_fast16_t c = wgb_tick_pending;
@@ -3673,6 +3676,131 @@ static void __gb_tick_sync(struct gb_s *gb)
 	}
 	wgb_tick_next = 0;      /* 다음 명령 뒤에 다시 계산 */
 }
+
+/* [nu40dk-kit] 대기 루프 건너뛰기 (idle loop skip)
+ *   HALT 대신 "메모리 읽기 → 검사 → 제자리 점프" 로 플래그를 기다리는 게임(Donkey Kong 등)은
+ *   매 프레임 수만 사이클을 헛돈다. 그런 루프는 다음 타이머·LCD 이벤트(wgb_tick_next) 전까지
+ *   읽는 값이 바뀔 수 없으므로, 이벤트를 넘지 않는 만큼의 반복 사이클을 한 번에 더한다.
+ *   반복 단위로만 건너뛰므로 실행 결과는 그대로 실행한 것과 같다 (gb bench audio crc 로 확인).
+ *   대상: ROM 안의 뒤로 JR 루프. 몸체는 A 로 읽기(LDH/LD (a16)/(HL)/(BC)/(DE)), BIT, CP, AND, OR A 만.
+ *   쓰기·레지스터 증감·호출이 있으면 대상 아님. IME 가 켜진 채 인터럽트가 대기 중이면 건너뛰지 않는다. */
+#define WGB_IDLE_USE_HL 0x01
+#define WGB_IDLE_USE_BC 0x02
+#define WGB_IDLE_USE_DE 0x04
+
+static uint16_t wgb_idle_start = 0xFFFF;
+static uint16_t wgb_idle_jr    = 0xFFFF;
+static uint16_t wgb_idle_bank  = 0;
+static uint8_t  wgb_idle_cyc   = 0;     /* 0 = 대기 루프 아님 */
+static uint8_t  wgb_idle_use   = 0;
+static uint16_t wgb_idle_armed_jr  = 0xFFFF;
+static uint32_t wgb_idle_armed_seq = 0;
+static bool     wgb_idle_off   = false; /* 비교용 끄기 (gb bench ... noidle) */
+static uint32_t wgb_idle_skips = 0;     /* 통계: 건너뛴 사이클 합 */
+
+/* 이벤트 사이에 값이 변하지 않는 주소인가 (DIV/TIMA, 사운드 레지스터 제외) */
+static inline bool wgb_idle_addr_ok(uint16_t a)
+{
+	if(a < 0xFF00) return true;
+	if(a >= 0xFF04 && a <= 0xFF07) return false;
+	if(a >= 0xFF10 && a <= 0xFF3F) return false;
+	return true;
+}
+
+static uint8_t wgb_idle_scan(struct gb_s *gb, uint16_t pc, uint16_t end, uint8_t *use)
+{
+	uint32_t cyc = 0;
+	bool     a_set = false;
+	*use = 0;
+
+	while(pc < end)
+	{
+		uint8_t op = __gb_read(gb, pc);
+		switch(op)
+		{
+		case 0xF0: /* LDH A,(n) */
+			if(!wgb_idle_addr_ok(0xFF00 | __gb_read(gb, pc + 1))) return 0;
+			a_set = true; cyc += 12; pc += 2; break;
+		case 0xFA: /* LD A,(a16) */
+			if(!wgb_idle_addr_ok(__gb_read(gb, pc + 1) | (__gb_read(gb, pc + 2) << 8))) return 0;
+			a_set = true; cyc += 16; pc += 3; break;
+		case 0x7E: *use |= WGB_IDLE_USE_HL; a_set = true; cyc += 8; pc += 1; break;
+		case 0x0A: *use |= WGB_IDLE_USE_BC; a_set = true; cyc += 8; pc += 1; break;
+		case 0x1A: *use |= WGB_IDLE_USE_DE; a_set = true; cyc += 8; pc += 1; break;
+		case 0xA7: /* AND A */
+		case 0xB7: /* OR A  */
+			cyc += 4; pc += 1; break;
+		case 0xFE: /* CP n */
+			cyc += 8; pc += 2; break;
+		case 0xE6: /* AND n : A 를 바꾸므로 같은 반복에서 A 를 먼저 읽어야 한다 */
+			if(!a_set) return 0;
+			cyc += 8; pc += 2; break;
+		case 0xBE: /* CP (HL) */
+			*use |= WGB_IDLE_USE_HL; cyc += 8; pc += 1; break;
+		case 0xCB:
+		{
+			uint8_t cb = __gb_read(gb, pc + 1);
+			if(cb < 0x40 || cb > 0x7F) return 0;            /* BIT 만 */
+			if((cb & 7) == 6) { *use |= WGB_IDLE_USE_HL; cyc += 12; }
+			else if((cb & 7) == 7) cyc += 8;                 /* BIT n,A */
+			else return 0;
+			pc += 2; break;
+		}
+		default:
+			if(op >= 0xB8 && op <= 0xBD) { cyc += 4; pc += 1; break; }   /* CP r */
+			return 0;
+		}
+	}
+	if(pc != end) return 0;
+	cyc += 12;                                   /* JR (taken) */
+	return cyc > 255 ? 0 : (uint8_t)cyc;
+}
+
+/* 뒤로 가는 JR 을 탄 직후 호출 (자주 불리지 않게 함수로 분리). 더할 사이클을 돌려준다. */
+static __attribute__((noinline)) uint32_t wgb_idle_skip(struct gb_s *gb, uint16_t target, uint16_t jr,
+							 const struct cpu_registers_s *r, uint32_t cur)
+{
+	if(jr >= 0x8000 || gb->hram_io[IO_BOOT] == 0 || wgb_idle_off)
+		return 0;
+	/* 같은 루프를 tick·인터럽트 없이 한 바퀴 돈 뒤에만 건너뛴다.
+	 * (인터럽트에서 돌아온 직후의 JR 은 인터럽트 전 검사 결과로 점프하므로 기다리던 값이 이미 바뀌었을 수 있다) */
+	if(jr != wgb_idle_armed_jr || wgb_tick_seq != wgb_idle_armed_seq)
+	{
+		wgb_idle_armed_jr  = jr;
+		wgb_idle_armed_seq = wgb_tick_seq;
+		return 0;
+	}
+	uint16_t bank = jr >= 0x4000 ? gb->selected_rom_bank : 0;
+	if(target != wgb_idle_start || jr != wgb_idle_jr || bank != wgb_idle_bank)
+	{
+		wgb_idle_start = target;
+		wgb_idle_jr    = jr;
+		wgb_idle_bank  = bank;
+		wgb_idle_cyc   = wgb_idle_scan(gb, target, jr, &wgb_idle_use);
+	}
+	uint32_t loop = wgb_idle_cyc;
+	if(loop == 0)
+		return 0;
+	if(gb->gb_ime && (gb->hram_io[IO_IF] & gb->hram_io[IO_IE] & ANY_INTR))
+		return 0;
+	if((wgb_idle_use & WGB_IDLE_USE_HL) && !wgb_idle_addr_ok(r->hl.reg)) return 0;
+	if((wgb_idle_use & WGB_IDLE_USE_BC) && !wgb_idle_addr_ok(r->bc.reg)) return 0;
+	if((wgb_idle_use & WGB_IDLE_USE_DE) && !wgb_idle_addr_ok(r->de.reg)) return 0;
+
+	uint32_t used = wgb_tick_pending + cur;
+	if(wgb_tick_next <= used + loop)
+		return 0;
+	uint32_t n = (wgb_tick_next - used - 1) / loop;
+	wgb_idle_skips += n * loop;
+	return n * loop;
+}
+
+/* 짧은 뒤로 JR (-3 ~ -10 바이트: 몸체 1~8 바이트) 만 확인한다.
+ * 방금 대기 루프가 아니라고 판정한 JR(복사 루프 등)은 함수 호출 없이 바로 넘긴다. */
+#define WGB_IDLE_JR(temp) \
+	do { if(WGB_UNLIKELY((temp) <= -3 && (temp) >= -10) && \
+		!((uint16_t)(WGB_CPU.pc.reg - (temp) - 2) == wgb_idle_jr && wgb_idle_cyc == 0)) wgb_tick_pending += wgb_idle_skip(gb, WGB_CPU.pc.reg, \
+		(uint16_t)(WGB_CPU.pc.reg - (temp) - 2), &WGB_CPU, inst_cycles); } while(0)
 
 /* [nu40dk-kit] GB 레지스터를 프레임 루프의 지역 변수(R)로 다룬다. 주소가 밖으로 나가지 않아
  * __gb_read 등을 호출한 뒤에도 컴파일러가 ARM 레지스터에 값을 유지할 수 있다. */
@@ -3721,6 +3849,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 
 		/* Disable interrupts */
 		gb->gb_ime = false;
+		wgb_tick_seq++;
 
 		/* Push Program Counter */
 		__gb_write(gb, --WGB_CPU.sp.reg, WGB_CPU.pc.bytes.p);
@@ -3961,6 +4090,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 		int8_t temp = (int8_t) (uint8_t)(oppair >> 8);
 	  WGB_CPU.pc.reg++;
 		WGB_CPU.pc.reg += temp;
+		WGB_IDLE_JR(temp);
 		opcode = __gb_read(gb, WGB_CPU.pc.reg);
 		break;
 	}
@@ -4018,6 +4148,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 	    WGB_CPU.pc.reg++;
 			WGB_CPU.pc.reg += temp;
 			inst_cycles += 4;
+			WGB_IDLE_JR(temp);
 		}
 		else
 			WGB_CPU.pc.reg++;
@@ -4109,6 +4240,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 	    WGB_CPU.pc.reg++;
 			WGB_CPU.pc.reg += temp;
 			inst_cycles += 4;
+			WGB_IDLE_JR(temp);
 		}
 		else
 			WGB_CPU.pc.reg++;
@@ -4165,6 +4297,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 	    WGB_CPU.pc.reg++;
 			WGB_CPU.pc.reg += temp;
 			inst_cycles += 4;
+			WGB_IDLE_JR(temp);
 		}
 		else
 			WGB_CPU.pc.reg++;
@@ -4239,6 +4372,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 	    WGB_CPU.pc.reg++;
 			WGB_CPU.pc.reg += temp;
 			inst_cycles += 4;
+			WGB_IDLE_JR(temp);
 		}
 		else
 			WGB_CPU.pc.reg++;
@@ -5670,6 +5804,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 
 		/* Disable interrupts */
 		gb->gb_ime = false;
+		wgb_tick_seq++;
 
 		/* Push Program Counter */
 		__gb_write(gb, --WGB_CPU.sp.reg, WGB_CPU.pc.bytes.p);
@@ -5858,6 +5993,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 	{
 		int8_t temp = (int8_t) __gb_read(gb, WGB_CPU.pc.reg++);
 		WGB_CPU.pc.reg += temp;
+		WGB_IDLE_JR(temp);
 		break;
 	}
 
@@ -5907,6 +6043,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 			int8_t temp = (int8_t) __gb_read(gb, WGB_CPU.pc.reg++);
 			WGB_CPU.pc.reg += temp;
 			inst_cycles += 4;
+			WGB_IDLE_JR(temp);
 		}
 		else
 			WGB_CPU.pc.reg++;
@@ -5982,6 +6119,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 			int8_t temp = (int8_t) __gb_read(gb, WGB_CPU.pc.reg++);
 			WGB_CPU.pc.reg += temp;
 			inst_cycles += 4;
+			WGB_IDLE_JR(temp);
 		}
 		else
 			WGB_CPU.pc.reg++;
@@ -6029,6 +6167,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 			int8_t temp = (int8_t) __gb_read(gb, WGB_CPU.pc.reg++);
 			WGB_CPU.pc.reg += temp;
 			inst_cycles += 4;
+			WGB_IDLE_JR(temp);
 		}
 		else
 			WGB_CPU.pc.reg++;
@@ -6086,6 +6225,7 @@ static inline __attribute__((always_inline)) void __gb_step_cpu(struct gb_s *gb,
 			int8_t temp = (int8_t) __gb_read(gb, WGB_CPU.pc.reg++);
 			WGB_CPU.pc.reg += temp;
 			inst_cycles += 4;
+			WGB_IDLE_JR(temp);
 		}
 		else
 			WGB_CPU.pc.reg++;

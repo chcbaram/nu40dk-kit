@@ -158,6 +158,13 @@ void gbCoreSetOption(const char *p_opt)
 {
   if (strcmp(p_opt, "single") == 0) run_dualfetch = false;
   if (strcmp(p_opt, "dual") == 0)   run_dualfetch = true;
+  if (strcmp(p_opt, "idle") == 0)   wgb_idle_off = false;    // 대기 루프 건너뛰기 (기본)
+  if (strcmp(p_opt, "noidle") == 0) wgb_idle_off = true;
+}
+
+uint32_t gbCoreGetIdleCycles(void)
+{
+  return wgb_idle_skips;
 }
 
 bool gbCoreIsCgb(void)
