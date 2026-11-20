@@ -48,7 +48,8 @@ void epdGetLutOption(uint8_t *p_fr, bool *p_vendor);
 void epdRecover(const char *p_reason);   // BUSY 에 갇혔을 때 하드웨어 리셋 + 재초기화
 bool epdUpdateStrong(void);              // 3색 웨이브폼 전체 갱신 (잔상 제거, 약 2.8초)
 bool epdUpdateFullClean(void);           // 흰색으로 지운 뒤 전체 갱신 (약 1.3초)
-bool epdUpdateCold(int8_t temp);         // 저온 웨이브폼 흑백 전체 갱신 (10°C 약 1.25초)
+bool epdUpdateCold(int8_t temp);
+bool epdZeroRam(void);                   // RAM 두 면을 0 (마스크 구동에서 구동 안 함)         // 저온 웨이브폼 흑백 전체 갱신 (10°C 약 1.25초)
 void epdPowerOff(void);
 void epdSleep(void);
 bool epdWake(void);              // 딥슬립 중이면 리셋 + 재초기화 (갱신 함수들이 자동 호출)

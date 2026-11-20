@@ -29,6 +29,7 @@ void gbRunStop(void);
 bool gbRunIsRunning(void);
 void gbRunSetPause(bool pause);
 void gbRunWaitDisplayIdle(void);
+void gbRunDrawOverlay(uint16_t y, uint16_t h);   // 게임 위 상자(메뉴)만 구동 (ink 모드)
 void gbRunGetScreenRect(int16_t *p_x, int16_t *p_y, int16_t *p_w, int16_t *p_h);
 bool gbRunIsPaused(void);
 void     gbRunSetEdge(uint8_t n);      // 테두리였던 머물던 픽셀이 흰색으로 갈 때 추가 펄스

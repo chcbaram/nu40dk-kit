@@ -415,6 +415,22 @@ void epdWriteLut(void)
 // 흰색으로 한 번 지운 뒤 캔버스를 전체 갱신 (약 1.3초)
 //   흑백 전체 갱신(0xFF) 한 번으로는 이전 화면이 비쳐 보여, 화면 전환 시 사용한다.
 //   흰색은 캔버스를 건드리지 않고 0xFF 한 줄을 반복 전송해 만든다
+// EPD RAM 두 면(BW, RED)을 모두 0 으로: 커스텀 LUT(hold 0)에서 (0, 0) = 구동 안 함
+bool epdZeroRam(void)
+{
+  static const uint8_t zero_line[EPD_STRIDE] = {0};
+
+  if (!epdWake()) return false;
+  if (ssd1683IsBusy() && !ssd1683WaitBusy(3000)) epdRecover("busy before zero");
+  for (int ram = 0; ram < 2; ram++)
+  {
+    ssd1683SetWindow(0, 0, EPD_WIDTH, EPD_HEIGHT);
+    ssd1683WriteCmd(ram == 0 ? SSD1683_RAM_BW : SSD1683_RAM_RED);
+    for (int y = 0; y < EPD_HEIGHT; y++) ssd1683WriteData(zero_line, EPD_STRIDE);
+  }
+  return true;
+}
+
 bool epdUpdateFullClean(void)
 {
   static const uint8_t white_line[EPD_STRIDE] = { [0 ... EPD_STRIDE - 1] = 0xFF };

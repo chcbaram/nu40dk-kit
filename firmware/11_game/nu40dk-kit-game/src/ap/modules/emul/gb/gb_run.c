@@ -799,6 +799,41 @@ void gbRunWaitDisplayIdle(void)
   }
 }
 
+/*
+ * 게임 위에 그린 상자(일시정지 메뉴 등)를 화면에 내보낸다.
+ *   ink 모드에서는 EPD RAM 에 이미지가 아니라 구동 마스크가 있어서, 공장 부분 갱신(0xFC)을 쓰면
+ *   상자 바깥까지 마스크대로 패널 전체가 구동되어 회색 점무늬 → 검게 변했다.
+ *   RAM 두 면을 0(구동 안 함)으로 지우고, 상자 영역(y~y+h)만 캔버스 그대로 검정/흰색 마스크로
+ *   펄스 n 번 (게임과 같은 커스텀 LUT). 바깥은 전혀 구동하지 않는다. ink_black 을 마스크 버퍼로 빌림.
+ */
+void gbRunDrawOverlay(uint16_t y, uint16_t h)
+{
+  if (disp_mode != DISP_MODE_INK)
+  {
+    epdUpdateWindow(EPD_MODE_PART, 0, y, EPD_WIDTH, h);
+    return;
+  }
+
+  const uint8_t *p_cv = canvasGetBuffer();
+  uint32_t       half = sizeof(ink_black) / 2;
+  if ((uint32_t)h * EPD_STRIDE > half) h = half / EPD_STRIDE;
+  uint8_t *p_black = ink_black;
+  uint8_t *p_white = ink_black + half;
+
+  for (uint32_t i = 0; i < (uint32_t)h * EPD_STRIDE; i++)
+  {
+    uint8_t c  = p_cv[y * EPD_STRIDE + i];     // bit 1 = 흰색
+    p_black[i] = ~c;
+    p_white[i] = c;
+  }
+  epdZeroRam();
+  for (int i = 0; i < 8; i++)
+  {
+    epdUpdateMask(p_black, p_white, y, h, gray_frames);
+  }
+  epdPowerOff();
+}
+
 void gbRunSetGray(bool enable)
 {
   ink_gray = enable;

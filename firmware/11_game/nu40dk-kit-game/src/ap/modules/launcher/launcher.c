@@ -164,8 +164,20 @@ static uint8_t readKeyBits(void)
 //   엣지는 (현재 | 래치) 로 찾아 갱신 중 짧게 누른 키도 받는다.
 //   자동 반복과 이전 상태는 현재 상태만 쓴다. 래치를 "누르고 있음"으로 보면 갱신(0.6초) 직후
 //   반복 조건(400ms)을 넘어 D-pad 한 번에 두 칸 움직였다.
+static volatile ui_key_t inject_key = KEY_NONE;   // CLI 'ui key' 로 넣은 키 (시험용)
+static uint8_t           move_mode  = 0;           // 메뉴 이동 갱신: 0 = FAST 파형, 1 = 공장 부분 갱신 (ui mode)
+#define MENU_FAST_FRAMES 45                         // FAST 파형 길이 (8ms 프레임). 카메라 비교: 10 은 지나간 줄에 회색 바,
+                                                    //   45(0.41초) 는 깨끗함, 공장 부분 갱신 0.6초
+
 static ui_key_t readKey(void)
 {
+  if (inject_key != KEY_NONE)
+  {
+    ui_key_t k = inject_key;
+    inject_key = KEY_NONE;
+    return k;
+  }
+
   static uint8_t  pre_bits = 0xFF;      // 시작 시 이미 눌린 키는 무시
   static uint32_t press_ms = 0;
   static uint32_t repeat_ms = 0;
@@ -306,7 +318,7 @@ static void present(void)
     //   공장 부분 갱신(0.6초)은 반응이 한 박자 늦게 보였다. 예전 FAST 의 패널 잔상은 바뀌지 않은
     //   픽셀까지 구동한 hold 때문이었고 지금은 hold 0. 검정이 덜 진한 것은 10회마다·멈춘 뒤 5초의
     //   저온 전체 갱신이 정리한다.
-    epdUpdate(EPD_MODE_FAST);
+    epdUpdate(move_mode == 0 ? EPD_MODE_FAST : EPD_MODE_PART);
     fast_cnt++;
   }
   epd_on       = true;
@@ -642,7 +654,7 @@ static bool gameMenu(void)
           canvasPrintf(x + 16, ty, CANVAS_BLACK, "  %s", game_items[i]);
         }
       }
-      epdUpdateWindow(EPD_MODE_PART, 0, y, 400, h);
+      gbRunDrawOverlay(y, h);               // 메뉴 상자만 구동 (바깥 게임 화면은 건드리지 않음)
     }
 
     ui_key_t key = readKey();
@@ -792,8 +804,40 @@ static bool handleKey(ui_key_t key)
 /*---------------------------------------------------------------------------
  * 메인 루프
  *-------------------------------------------------------------------------*/
+#ifdef _USE_HW_CLI
+// 런처 시험용: ui key up|down|left|right|ok|back, ui mode fast|part
+static void cliUi(cli_args_t *args)
+{
+  bool ret = false;
+
+  if (args->argc == 2 && args->isStr(0, "key"))
+  {
+    const char *names[] = {"up", "down", "left", "right", "ok", "back"};
+    const ui_key_t keys[] = {KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_OK, KEY_BACK};
+    for (int i = 0; i < 6; i++)
+      if (args->isStr(1, names[i])) { inject_key = keys[i]; ret = true; }
+    if (ret) cliPrintf("ui key %s\n", args->getStr(1));
+  }
+  if (args->argc >= 1 && args->isStr(0, "mode"))
+  {
+    if (args->argc >= 2) move_mode = args->isStr(1, "fast") ? 0 : 1;
+    cliPrintf("ui mode %s\n", move_mode == 0 ? "fast" : "part");
+    ret = true;
+  }
+  if (!ret)
+  {
+    cliPrintf("ui key up|down|left|right|ok|back\n");
+    cliPrintf("ui mode fast|part\n");
+  }
+}
+#endif
+
 void launcherMain(void)
 {
+#ifdef _USE_HW_CLI
+  cliAdd("ui", cliUi);
+#endif
+  epdSetFastLut(MENU_FAST_FRAMES, 0);
   // BT 모듈이 settings_load() 를 끝낼 때까지 잠시 대기 후 설정 적용
   delay(500);
   cfgApply();
