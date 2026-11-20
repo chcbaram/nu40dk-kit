@@ -7,6 +7,7 @@
 #include "ap_def.h"
 #include "gb_rom.h"
 #include <ff.h>
+#include <strings.h>
 #include <pm_config.h>
 #include <zephyr/storage/flash_map.h>
 

@@ -36,6 +36,15 @@ target_include_directories(app PRIVATE
   src/hw
   src/hw/driver
   src/lib
+  src/ap/modules/emul/gb
 )
+
+# 에뮬레이터 코어 선택 (sysbuild 이므로 이미지 이름을 붙임):
+#   west build ... -- -Dnu40dk-kit-game_GB_CORE=2   (1 walnut, 2 peanut, 3 gnuboy)
+zephyr_get(GB_CORE)
+if(DEFINED GB_CORE)
+  message(STATUS "GB_CORE = ${GB_CORE}")
+  target_compile_definitions(app PRIVATE GB_CORE=${GB_CORE})
+endif()
 
 zephyr_linker_sources(SECTIONS src/bsp/ldscript/ldscript.ld)
