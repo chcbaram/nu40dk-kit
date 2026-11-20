@@ -8,7 +8,6 @@
  */
 #include "gb_core.h"
 
-#if GB_CORE == GB_CORE_WALNUT
 #include <string.h>
 
 
@@ -154,5 +153,3 @@ uint32_t gbCoreStateSize(void)
 {
   return sizeof(gb);
 }
-
-#endif

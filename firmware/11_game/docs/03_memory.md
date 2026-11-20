@@ -23,6 +23,16 @@
 
 다음에 더 줄일 수 있는 것: 스레드 스택(main 8KB, 시스템 워크큐 8KB, CLI 8KB, sd_mgr 6KB). Thread analyzer로 실측한 뒤 조정한다.
 
+## Phase 3 후 (2026-11-20)
+
+| 항목 | 값 |
+|---|---|
+| FLASH (app) | 407KB / 504KB |
+| RAM | 186KB / 256KB (여유 약 70KB) |
+| Walnut `struct gb_s` (GB 전용) | 16.9KB (GBC 지원 시 약 50KB) |
+| cart RAM | 32KB |
+| LCD 2bpp 버퍼 | 5.6KB |
+
 ## 예정 사용처 (Phase 1~7)
 
 | 용도 | 크기 |

@@ -24,7 +24,7 @@ NU40DK-KIT(nRF52840)에 WeAct 4.2" 흑백 EPAPER(SSD1683, 400×300)를 연결해
 | 0 | 프로젝트 골격 (10_xbox 기반, 불필요 모듈 제거) | **완료** — 부팅·CLI·SD·I2S·Xbox 패드 연결 확인 |
 | 1 | EPAPER 기본 드라이버 (SPI3, 전체 갱신, 텍스트) | **완료** — 전체 2.8초, 부분 0.6초(1.66fps), 4단계 디더 확인 |
 | 2 | 고속 갱신·회색 실험 (부분 갱신, LUT, 디더) | **완료** — FAST 모드 8.4fps (커스텀 LUT), 전체 0.68초 |
-| 3 | 에뮬레이터 코어 (Peanut-GB, ROM→Flash, 벤치마크) | 예정 |
+| 3 | 에뮬레이터 코어 (Walnut-CGB, ROM→Flash, 벤치마크) | **완료** — GB 전용 SML 108%, DK 37%, SD→Flash 로딩 |
 | 4 | 화면 연동 (라인 콜백 → 2×2 디더 → EPD) | 예정 |
 | 5 | 입력 (Xbox 패드, 보드 버튼, ble_pad 확장) | 예정 |
 | 6 | 사운드 (minigb_apu → I2S 믹서) | 예정 |
@@ -40,3 +40,4 @@ NU40DK-KIT(nRF52840)에 WeAct 4.2" 흑백 EPAPER(SSD1683, 400×300)를 연결해
 | 2026-11-20 | 타당성 검토, 구현 계획 수립, Phase 0 골격 생성 |
 | 2026-11-20 | Phase 1 EPAPER 드라이버 (SSD1683, canvas, CLI) |
 | 2026-11-20 | Phase 2 고속 갱신 (커스텀 LUT FAST 모드, SPI 16MHz) |
+| 2026-11-20 | Phase 3 에뮬레이터 (Walnut-CGB GB 전용, Peanut/gnuboy 비교) |

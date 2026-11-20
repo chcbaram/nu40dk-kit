@@ -3,8 +3,7 @@
 
 /*
  * 에뮬레이터 코어 공통 인터페이스
- *   각 코어 폴더(core_walnut, core_peanut, core_gnuboy)가 이 함수들을 구현한다.
- *   gb_config.h 의 GB_CORE 로 선택된 코어만 빌드된다.
+ *   코어 폴더(core_walnut)가 이 함수들을 구현한다.
  */
 #include <stdint.h>
 #include <stdbool.h>

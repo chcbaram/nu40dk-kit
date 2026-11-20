@@ -3,7 +3,7 @@
  *
  *  Game Boy 에뮬레이터 공통부 (코어와 무관)
  *
- *  - 코어  : gb_config.h 의 GB_CORE 로 선택 (core_walnut / core_peanut / core_gnuboy)
+ *  - 코어  : core_walnut (gb_core.h 인터페이스)
  *  - ROM  : Flash rom_storage 파티션 (0x7E000, 512KB) 을 XIP 로 직접 읽는다
  *  - LCD  : 코어의 라인 콜백에서 4 단계(2bit) 회색으로 160x144 버퍼에 저장
  *  - CLI  : gb info / list / load / bench / show
