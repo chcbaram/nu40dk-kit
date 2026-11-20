@@ -831,14 +831,17 @@ static void runQuiz(const rpg_quiz_t *q, const char *who)
     if (key == APP_KEY_DOWN) cur = (cur + 1) % 3;
     if (key == APP_KEY_OK)
     {
+      // 문답 상자(검은 선택 막대 포함)를 지도로 두 번 구동해 지운 뒤 대답 (바로 바꾸면 상자가 겹쳐 남았다)
+      api->voiceStop();
+      sceneSnap();
+      drawMap();
+      transition();
       if (cur == q->ans)
       {
-        api->voiceStop();
         api->beep(1047, 80);
         dialogP(who, -1, q->right);
         return;
       }
-      api->voiceStop();
       api->beep(220, 80);
       dialogP(who, -1, q->wrong);
       ask = true;
