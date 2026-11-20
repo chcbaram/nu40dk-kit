@@ -1,0 +1,15 @@
+# Flash 1MB 배치 (Partition Manager static)
+#   app          : 0x00000 ~ 0x7E000 (504KB)
+#   rom_storage  : 0x7E000 ~ 0xFE000 (512KB)  GB ROM, XIP 로 직접 실행
+#   settings     : 0xFE000 ~ 0x100000 (8KB)   BT 본딩 (NVS)
+rom_storage:
+  address: 0x7E000
+  end_address: 0xFE000
+  region: flash_primary
+  size: 0x80000
+
+settings_storage:
+  address: 0xFE000
+  end_address: 0x100000
+  region: flash_primary
+  size: 0x2000
