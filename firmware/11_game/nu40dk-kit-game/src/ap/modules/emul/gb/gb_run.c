@@ -367,7 +367,8 @@ static void inkPlan(const uint8_t *p_new)
           // settle 보너스: 남은 펄스가 0 (도착해서 머물던 픽셀)이고 흰색으로 갈 때 펄스 추가.
           //   카메라 측정: 검정에 오래 머물수록 흰색으로 덜 돌아온다 (0초 5펄스, 1초 7, 10초 10 필요).
           //   멈췄던 자리에 잔상이 남던 원인. 움직이는 중인 픽셀(r > 0)은 해당 없음.
-          if (n == 0 && o > 0 && ink_settle[o] > 0)
+          // 테두리·선 보너스는 머문 픽셀 보너스(ink_settle)가 0 이어도 따로 적용 (이력 모델로 바꾸며 settle 을 0 으로 둬서 같이 꺼졌었음)
+          if (n == 0 && o > 0 && (ink_settle[o] > 0 || ink_edge > 0 || ink_thin > 0))
           {
             bool settled = true;
             for (int k = 0; k < INK_CNT_BITS; k++)
