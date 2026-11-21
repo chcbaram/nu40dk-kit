@@ -1,5 +1,82 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="440" viewBox="0 0 900 440" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="500" viewBox="0 0 940 500" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
 <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>
-<rect width="900" height="440" fill="#ffffff"/>
-<text x="450" y="30" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">11_game 시스템 블럭도</text><rect x="300" y="60" width="300" height="360" rx="12" fill="#fff8e6" stroke="#c98a00" stroke-width="2"/><text x="450" y="88" font-size="17" font-weight="bold" fill="#111" text-anchor="middle">nRF52840</text><text x="450" y="106" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">Cortex-M4F 64MHz · 256KB RAM · 1MB Flash</text><rect x="320" y="122" width="260" height="58" rx="8" fill="#ffffff" stroke="#c98a00" stroke-width="1.5"/><text x="450.0" y="147.0" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">런처</text><text x="450.0" y="165.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">레트로 터미널 UI</text><rect x="320" y="192" width="260" height="58" rx="8" fill="#ffffff" stroke="#c98a00" stroke-width="1.5"/><text x="450.0" y="217.0" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">에뮬레이터</text><text x="450.0" y="235.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">Peanut-GB + minigb_apu</text><rect x="320" y="262" width="260" height="58" rx="8" fill="#ffffff" stroke="#c98a00" stroke-width="1.5"/><text x="450.0" y="287.0" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">ble_pad</text><text x="450.0" y="305.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">Xbox HID over GATT</text><rect x="320" y="332" width="260" height="58" rx="8" fill="#ffffff" stroke="#c98a00" stroke-width="1.5"/><text x="450.0" y="357.0" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">드라이버</text><text x="450.0" y="375.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">epd · i2s/mixer · sd/fatfs · button · cli</text><rect x="40" y="70" width="200" height="70" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/><text x="140.0" y="101.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">4.2" EPAPER</text><text x="140.0" y="119.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">SSD1683 · 400×300 1bpp</text><rect x="40" y="170" width="200" height="60" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/><text x="140.0" y="196.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">MAX98357 앰프</text><text x="140.0" y="214.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">I2S 모노 → 스피커</text><rect x="40" y="260" width="200" height="60" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/><text x="140.0" y="286.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">microSD</text><text x="140.0" y="304.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">ROM(.gb), 세이브(.sav)</text><rect x="40" y="350" width="200" height="60" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/><text x="140.0" y="376.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">버튼 4개</text><text x="140.0" y="394.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">P0.31 P1.07 P1.06 P1.05</text><line x1="300" y1="105" x2="240" y2="105" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/><text x="270.0" y="99.0" font-size="11" fill="#555" text-anchor="middle">SPIM3 (P1.03/04/14)</text><text x="140" y="158" font-size="10" font-weight="normal" fill="#777" text-anchor="middle">+ BUSY/RES/DC (P1.00~02)</text><line x1="300" y1="200" x2="240" y2="200" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/><text x="270.0" y="194.0" font-size="11" fill="#555" text-anchor="middle">I2S0</text><line x1="300" y1="290" x2="240" y2="290" stroke="#333" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/><text x="270.0" y="284.0" font-size="11" fill="#555" text-anchor="middle">SPIM1</text><line x1="240" y1="380" x2="300" y2="380" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/><text x="270.0" y="374.0" font-size="11" fill="#555" text-anchor="middle">GPIO</text><rect x="680" y="90" width="180" height="70" rx="8" fill="#eefbef" stroke="#3a9a4a" stroke-width="1.5"/><text x="770.0" y="121.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">Xbox 컨트롤러</text><text x="770.0" y="139.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">BLE HID</text><rect x="680" y="200" width="180" height="60" rx="8" fill="#f3eefb" stroke="#7a4ab6" stroke-width="1.5"/><text x="770.0" y="226.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">PC (CLI)</text><text x="770.0" y="244.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">UART0 / USB CDC</text><rect x="680" y="300" width="180" height="60" rx="8" fill="#f3eefb" stroke="#7a4ab6" stroke-width="1.5"/><text x="770.0" y="326.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">ST-LINK</text><text x="770.0" y="344.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">SWD 플래시 · 디버그</text><line x1="680" y1="125" x2="600" y2="125" stroke="#333" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/><text x="640.0" y="119.0" font-size="11" fill="#555" text-anchor="middle">BLE 2.4GHz</text><line x1="680" y1="230" x2="600" y2="230" stroke="#333" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/><line x1="680" y1="330" x2="600" y2="330" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/><text x="640.0" y="324.0" font-size="11" fill="#555" text-anchor="middle">SWD</text>
+<rect width="940" height="500" fill="#ffffff"/>
+<text x="470" y="30" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">11_game 시스템 블럭도</text>
+
+<!-- MCU -->
+<rect x="310" y="55" width="320" height="430" rx="12" fill="#fff8e6" stroke="#c98a00" stroke-width="2"/>
+<text x="470" y="82" font-size="17" font-weight="bold" fill="#111" text-anchor="middle">nRF52840</text>
+<text x="470" y="100" font-size="11" fill="#555" text-anchor="middle">Cortex-M4F 64MHz · 256KB RAM · 1MB Flash</text>
+
+<rect x="330" y="114" width="280" height="56" rx="8" fill="#ffffff" stroke="#c98a00" stroke-width="1.5"/>
+<text x="470" y="137" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">런처</text>
+<text x="470" y="155" font-size="11" fill="#444" text-anchor="middle">EMUL · GAMES · CONTROLLER · SETTINGS · INFO</text>
+
+<rect x="330" y="180" width="135" height="70" rx="8" fill="#ffffff" stroke="#c98a00" stroke-width="1.5"/>
+<text x="397" y="203" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">GB 에뮬레이터</text>
+<text x="397" y="221" font-size="11" fill="#444" text-anchor="middle">Walnut-CGB</text>
+<text x="397" y="237" font-size="11" fill="#444" text-anchor="middle">+ minigb_apu</text>
+
+<rect x="475" y="180" width="135" height="70" rx="8" fill="#ffffff" stroke="#c98a00" stroke-width="1.5"/>
+<text x="542" y="203" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">GAMES: RPG</text>
+<text x="542" y="221" font-size="11" fill="#444" text-anchor="middle">바람의 펌웨어 수련기</text>
+<text x="542" y="237" font-size="11" fill="#444" text-anchor="middle">앱 API · 음성 재생</text>
+
+<rect x="330" y="260" width="280" height="56" rx="8" fill="#ffffff" stroke="#c98a00" stroke-width="1.5"/>
+<text x="470" y="283" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">EPD 구동</text>
+<text x="470" y="301" font-size="11" fill="#444" text-anchor="middle">커스텀 LUT · 픽셀별 이력 모델 · 마스크 구동</text>
+
+<rect x="330" y="326" width="280" height="56" rx="8" fill="#ffffff" stroke="#c98a00" stroke-width="1.5"/>
+<text x="470" y="349" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">ble_pad</text>
+<text x="470" y="367" font-size="11" fill="#444" text-anchor="middle">Xbox HID over GATT · 키 이벤트 큐</text>
+
+<rect x="330" y="392" width="280" height="76" rx="8" fill="#ffffff" stroke="#c98a00" stroke-width="1.5"/>
+<text x="470" y="415" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">드라이버 (Zephyr / NCS)</text>
+<text x="470" y="433" font-size="11" fill="#444" text-anchor="middle">ssd1683 · i2s/mixer · sd/fatfs</text>
+<text x="470" y="450" font-size="11" fill="#444" text-anchor="middle">button · uart/cli · flash(rom_storage)</text>
+
+<!-- left peripherals -->
+<rect x="30" y="70" width="210" height="70" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/>
+<text x="135" y="98" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">4.2" EPAPER</text>
+<text x="135" y="116" font-size="11" fill="#444" text-anchor="middle">WeAct · SSD1683 · 400×300 1bpp</text>
+<text x="135" y="158" font-size="10" fill="#777" text-anchor="middle">+ BUSY/RES/DC (P1.00~02)</text>
+<line x1="310" y1="105" x2="240" y2="105" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="275" y="97" font-size="11" fill="#555" text-anchor="middle">SPIM2 8MHz</text>
+
+<rect x="30" y="180" width="210" height="60" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/>
+<text x="135" y="206" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">MAX98357 앰프</text>
+<text x="135" y="224" font-size="11" fill="#444" text-anchor="middle">I2S 모노 → 스피커</text>
+<line x1="310" y1="210" x2="240" y2="210" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="275" y="202" font-size="11" fill="#555" text-anchor="middle">I2S0</text>
+
+<rect x="30" y="280" width="210" height="70" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/>
+<text x="135" y="306" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">microSD</text>
+<text x="135" y="324" font-size="11" fill="#444" text-anchor="middle">/roms · /saves · /rpg/v (음성)</text>
+<line x1="310" y1="315" x2="240" y2="315" stroke="#333" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="275" y="307" font-size="11" fill="#555" text-anchor="middle">SPIM1</text>
+
+<rect x="30" y="390" width="210" height="60" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/>
+<text x="135" y="416" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">버튼 4개 · LED</text>
+<text x="135" y="434" font-size="11" fill="#444" text-anchor="middle">P0.31 P1.07 P1.06 P1.05 · P0.14</text>
+<line x1="240" y1="420" x2="310" y2="420" stroke="#333" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="275" y="412" font-size="11" fill="#555" text-anchor="middle">GPIO</text>
+
+<!-- right -->
+<rect x="710" y="300" width="200" height="70" rx="8" fill="#eefbef" stroke="#3a9a4a" stroke-width="1.5"/>
+<text x="810" y="328" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">Xbox 컨트롤러</text>
+<text x="810" y="346" font-size="11" fill="#444" text-anchor="middle">BLE HID · 배터리 표시</text>
+<line x1="710" y1="345" x2="630" y2="350" stroke="#333" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="670" y="340" font-size="11" fill="#555" text-anchor="middle">BLE</text>
+
+<rect x="710" y="150" width="200" height="60" rx="8" fill="#f3eefb" stroke="#7a4ab6" stroke-width="1.5"/>
+<text x="810" y="176" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">PC (CLI)</text>
+<text x="810" y="194" font-size="11" fill="#444" text-anchor="middle">UART0 115200 (baram-term)</text>
+<line x1="710" y1="180" x2="630" y2="180" stroke="#333" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="670" y="172" font-size="11" fill="#555" text-anchor="middle">UART0</text>
+
+<rect x="710" y="400" width="200" height="60" rx="8" fill="#f3eefb" stroke="#7a4ab6" stroke-width="1.5"/>
+<text x="810" y="426" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">ST-LINK</text>
+<text x="810" y="444" font-size="11" fill="#444" text-anchor="middle">SWD 플래시 (pyOCD) · 디버그</text>
+<line x1="710" y1="430" x2="630" y2="430" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="670" y="422" font-size="11" fill="#555" text-anchor="middle">SWD</text>
 </svg>

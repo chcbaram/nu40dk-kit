@@ -65,7 +65,8 @@
 
 ```
 MAIN
-├── GAMES        SD /roms/*.gb 목록 → 선택 → Flash 복사(진행률) → 실행
+├── EMUL (Game Boy)  SD /roms/*.gb 목록 → 선택 → Flash 복사(진행률) → 실행
+├── GAMES        전용 게임 (RPG "바람의 펌웨어 수련기", 앱 API 로 런처 기능 사용)
 ├── CONTROLLER   스캔/연결, 상태(RSSI, 배터리), 페어링 삭제
 ├── SETTINGS     디더 방식, 갱신 모드, 잔상 정리 주기, 볼륨
 └── INFO         펌웨어 버전, 메모리, SD 상태

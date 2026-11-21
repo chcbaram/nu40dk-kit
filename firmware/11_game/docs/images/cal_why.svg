@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="670" viewBox="0 0 940 670" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker></defs>
+<rect width="940" height="670" fill="#ffffff"/>
+<text x="470" y="30" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">왜 캘리브레이션이 필요한가</text>
+<rect x="20" y="50" width="430" height="270" rx="10" fill="#fafafa" stroke="#bbb"/>
+<text x="34" y="74" font-size="14" font-weight="bold" fill="#111" text-anchor="start">① 회색 = 입자를 중간에 세우기 (펄스 수 = 밝기)</text>
+<rect x="37" y="90" width="76" height="150" rx="30" fill="#e9f0f8" stroke="#6a8fbf" stroke-width="1.5"/>
+<circle cx="55" cy="118" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="75" cy="118" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="95" cy="118" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="60" cy="134" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="80" cy="134" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="100" cy="134" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="55" cy="196" r="7" fill="#222"/>
+<circle cx="75" cy="196" r="7" fill="#222"/>
+<circle cx="95" cy="196" r="7" fill="#222"/>
+<circle cx="60" cy="212" r="7" fill="#222"/>
+<circle cx="80" cy="212" r="7" fill="#222"/>
+<circle cx="100" cy="212" r="7" fill="#222"/>
+<rect x="45" y="250" width="60" height="22" fill="#f5f5f5" stroke="#888"/>
+<text x="75" y="290" font-size="11" font-weight="bold" fill="#222" text-anchor="middle">0 펄스 → 1.00</text>
+<rect x="142" y="90" width="76" height="150" rx="30" fill="#e9f0f8" stroke="#6a8fbf" stroke-width="1.5"/>
+<circle cx="160" cy="132" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="180" cy="132" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="200" cy="132" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="165" cy="148" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="185" cy="148" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="205" cy="148" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="160" cy="177" r="7" fill="#222"/>
+<circle cx="180" cy="177" r="7" fill="#222"/>
+<circle cx="200" cy="177" r="7" fill="#222"/>
+<circle cx="165" cy="193" r="7" fill="#222"/>
+<circle cx="185" cy="193" r="7" fill="#222"/>
+<circle cx="205" cy="193" r="7" fill="#222"/>
+<rect x="150" y="250" width="60" height="22" fill="#c6c6c6" stroke="#888"/>
+<text x="180" y="290" font-size="11" font-weight="bold" fill="#222" text-anchor="middle">1 펄스 → 0.80</text>
+<rect x="247" y="90" width="76" height="150" rx="30" fill="#e9f0f8" stroke="#6a8fbf" stroke-width="1.5"/>
+<circle cx="265" cy="158" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="285" cy="158" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="305" cy="158" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="270" cy="174" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="290" cy="174" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="310" cy="174" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="265" cy="142" r="7" fill="#222"/>
+<circle cx="285" cy="142" r="7" fill="#222"/>
+<circle cx="305" cy="142" r="7" fill="#222"/>
+<circle cx="270" cy="158" r="7" fill="#222"/>
+<circle cx="290" cy="158" r="7" fill="#222"/>
+<circle cx="310" cy="158" r="7" fill="#222"/>
+<rect x="255" y="250" width="60" height="22" fill="#6f6f6f" stroke="#888"/>
+<text x="285" y="290" font-size="11" font-weight="bold" fill="#222" text-anchor="middle">3 펄스 → 0.43</text>
+<rect x="352" y="90" width="76" height="150" rx="30" fill="#e9f0f8" stroke="#6a8fbf" stroke-width="1.5"/>
+<circle cx="370" cy="179" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="390" cy="179" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="410" cy="179" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="375" cy="195" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="395" cy="195" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="415" cy="195" r="7" fill="#ffffff" stroke="#888"/>
+<circle cx="370" cy="113" r="7" fill="#222"/>
+<circle cx="390" cy="113" r="7" fill="#222"/>
+<circle cx="410" cy="113" r="7" fill="#222"/>
+<circle cx="375" cy="129" r="7" fill="#222"/>
+<circle cx="395" cy="129" r="7" fill="#222"/>
+<circle cx="415" cy="129" r="7" fill="#222"/>
+<rect x="360" y="250" width="60" height="22" fill="#292929" stroke="#888"/>
+<text x="390" y="290" font-size="11" font-weight="bold" fill="#222" text-anchor="middle">6 펄스 → 0.13</text>
+<text x="235" y="312" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">위쪽이 화면 앞면. 짧은 펄스(32ms)를 몇 번 주고 멈추면 입자가 중간에 선다</text>
+<rect x="470" y="50" width="450" height="270" rx="10" fill="#fafafa" stroke="#bbb"/>
+<text x="484" y="74" font-size="14" font-weight="bold" fill="#111" text-anchor="start">② 펄스 1개가 움직이는 양이 일정하지 않다 (측정)</text>
+<rect x="530" y="90" width="360" height="170" fill="#fff" stroke="#999"/>
+<text x="530.0" y="275" font-size="10" font-weight="normal" fill="#666" text-anchor="middle">0</text>
+<text x="602.0" y="275" font-size="10" font-weight="normal" fill="#666" text-anchor="middle">2</text>
+<text x="674.0" y="275" font-size="10" font-weight="normal" fill="#666" text-anchor="middle">4</text>
+<text x="746.0" y="275" font-size="10" font-weight="normal" fill="#666" text-anchor="middle">6</text>
+<text x="818.0" y="275" font-size="10" font-weight="normal" fill="#666" text-anchor="middle">8</text>
+<text x="890.0" y="275" font-size="10" font-weight="normal" fill="#666" text-anchor="middle">10</text>
+<text x="524" y="264" font-size="10" font-weight="normal" fill="#666" text-anchor="end">0</text>
+<line x1="530" y1="260.0" x2="890" y2="260.0" stroke="#eee"/>
+<text x="524" y="179.0" font-size="10" font-weight="normal" fill="#666" text-anchor="end">0.5</text>
+<line x1="530" y1="175.0" x2="890" y2="175.0" stroke="#eee"/>
+<text x="524" y="94" font-size="10" font-weight="normal" fill="#666" text-anchor="end">1</text>
+<line x1="530" y1="90.0" x2="890" y2="90.0" stroke="#eee"/>
+<text x="710.0" y="290" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">펄스 수</text>
+<text x="490" y="161.0" font-size="11" font-weight="normal" fill="#555" text-anchor="start">밝기</text>
+<polyline points="530.0,90.0 566.0,124.0 602.0,159.7 638.0,186.9 674.0,212.4 710.0,229.4 746.0,237.9 818.0,249.8 890.0,251.5" fill="none" stroke="#3b6fb6" stroke-width="2.5"/>
+<circle cx="530.0" cy="90.0" r="3" fill="#3b6fb6"/>
+<circle cx="566.0" cy="124.0" r="3" fill="#3b6fb6"/>
+<circle cx="602.0" cy="159.7" r="3" fill="#3b6fb6"/>
+<circle cx="638.0" cy="186.9" r="3" fill="#3b6fb6"/>
+<circle cx="674.0" cy="212.4" r="3" fill="#3b6fb6"/>
+<circle cx="710.0" cy="229.4" r="3" fill="#3b6fb6"/>
+<circle cx="746.0" cy="237.9" r="3" fill="#3b6fb6"/>
+<circle cx="818.0" cy="249.8" r="3" fill="#3b6fb6"/>
+<circle cx="890.0" cy="251.5" r="3" fill="#3b6fb6"/>
+<text x="623.6" y="147.8" font-size="12" font-weight="bold" fill="#3b6fb6" text-anchor="start">흰 → 검</text>
+<polyline points="530.0,256.6 566.0,260.0 602.0,232.8 638.0,198.8 674.0,164.8 710.0,146.1 746.0,125.7 782.0,113.8 818.0,108.7 890.0,98.5" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<circle cx="530.0" cy="256.6" r="3" fill="#c0392b"/>
+<circle cx="566.0" cy="260.0" r="3" fill="#c0392b"/>
+<circle cx="602.0" cy="232.8" r="3" fill="#c0392b"/>
+<circle cx="638.0" cy="198.8" r="3" fill="#c0392b"/>
+<circle cx="674.0" cy="164.8" r="3" fill="#c0392b"/>
+<circle cx="710.0" cy="146.1" r="3" fill="#c0392b"/>
+<circle cx="746.0" cy="125.7" r="3" fill="#c0392b"/>
+<circle cx="782.0" cy="113.8" r="3" fill="#c0392b"/>
+<circle cx="818.0" cy="108.7" r="3" fill="#c0392b"/>
+<circle cx="890.0" cy="98.5" r="3" fill="#c0392b"/>
+<text x="731.5999999999999" y="175.0" font-size="12" font-weight="bold" fill="#c0392b" text-anchor="start">검 → 흰</text>
+<text x="535.4" y="202.2" font-size="10" font-weight="normal" fill="#c0392b" text-anchor="start">첫 펄스는</text>
+<text x="535.4" y="215.8" font-size="10" font-weight="normal" fill="#c0392b" text-anchor="start">효과 없음</text>
+<line x1="551.6" y1="222.6" x2="566.0" y2="254.9" stroke="#c0392b" stroke-dasharray="3,2"/>
+<text x="789.2" y="231.1" font-size="10" font-weight="normal" fill="#3b6fb6" text-anchor="start">끝 근처는 덜 움직임</text>
+<text x="695" y="312" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">방향마다, 출발 위치마다 한 펄스의 효과가 다르다</text>
+<rect x="20" y="335" width="900" height="300" rx="10" fill="#fafafa" stroke="#bbb"/>
+<text x="34" y="359" font-size="14" font-weight="bold" fill="#111" text-anchor="start">③ 같은 회색을 목표로 해도 어디서 출발했는지에 따라 밝기가 다르다 → 움직인 자리에 얼룩</text>
+<text x="45" y="375" font-size="13" font-weight="bold" fill="#111" text-anchor="start">캘리 전 (눈으로 맞춘 표)</text>
+<rect x="45" y="387" width="90" height="56" fill="#c4c4c4" stroke="#888"/>
+<text x="90" y="461" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">흰→연회색</text>
+<text x="90" y="476" font-size="11" font-weight="bold" fill="#333" text-anchor="middle">0.79</text>
+<rect x="155" y="387" width="90" height="56" fill="#5c5c5c" stroke="#888"/>
+<text x="200" y="461" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">검→연회색</text>
+<text x="200" y="476" font-size="11" font-weight="bold" fill="#333" text-anchor="middle">0.35</text>
+<rect x="265" y="387" width="90" height="56" fill="#909090" stroke="#888"/>
+<text x="310" y="461" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">흰→진회색</text>
+<text x="310" y="476" font-size="11" font-weight="bold" fill="#333" text-anchor="middle">0.57</text>
+<rect x="375" y="387" width="90" height="56" fill="#2b2b2b" stroke="#888"/>
+<text x="420" y="461" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">검→진회색</text>
+<text x="420" y="476" font-size="11" font-weight="bold" fill="#333" text-anchor="middle">0.14</text>
+<text x="45" y="499" font-size="11" font-weight="bold" fill="#c0392b" text-anchor="start">같은 목표인데 차이 0.43 / 0.45  (검에서 온 연회색이 진회색보다 어둡다)</text>
+<text x="485" y="375" font-size="13" font-weight="bold" fill="#111" text-anchor="start">캘리 후 (카메라로 측정해 고친 표)</text>
+<rect x="485" y="387" width="90" height="56" fill="#c4c4c4" stroke="#888"/>
+<text x="530" y="461" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">흰→연회색</text>
+<text x="530" y="476" font-size="11" font-weight="bold" fill="#333" text-anchor="middle">0.79</text>
+<rect x="595" y="387" width="90" height="56" fill="#bdbdbd" stroke="#888"/>
+<text x="640" y="461" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">검→연회색</text>
+<text x="640" y="476" font-size="11" font-weight="bold" fill="#333" text-anchor="middle">0.76</text>
+<rect x="705" y="387" width="90" height="56" fill="#686868" stroke="#888"/>
+<text x="750" y="461" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">흰→진회색</text>
+<text x="750" y="476" font-size="11" font-weight="bold" fill="#333" text-anchor="middle">0.40</text>
+<rect x="815" y="387" width="90" height="56" fill="#5a5a5a" stroke="#888"/>
+<text x="860" y="461" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">검→진회색</text>
+<text x="860" y="476" font-size="11" font-weight="bold" fill="#333" text-anchor="middle">0.34</text>
+<text x="485" y="499" font-size="11" font-weight="bold" fill="#2e7d32" text-anchor="start">차이 0.05 / 0.08 로 줄어 얼룩이 거의 안 보임</text>
+<rect x="45" y="520" width="190" height="66" fill="#c4c4c4" stroke="#888"/>
+<rect x="67" y="536" width="34" height="34" fill="#5c5c5c" />
+<rect x="175" y="536" width="34" height="34" fill="#222"/>
+<line x1="107" y1="553" x2="169" y2="553" stroke="#555" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="140" y="602" font-size="10" font-weight="normal" fill="#555" text-anchor="middle">연회색 바탕에서 검은 캐릭터가 지나간 자리</text>
+<text x="250" y="560" font-size="12" font-weight="bold" fill="#c0392b" text-anchor="start">→ 얼룩</text>
+<rect x="485" y="520" width="190" height="66" fill="#c4c4c4" stroke="#888"/>
+<rect x="507" y="536" width="34" height="34" fill="#bdbdbd" />
+<rect x="615" y="536" width="34" height="34" fill="#222"/>
+<line x1="547" y1="553" x2="609" y2="553" stroke="#555" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="580" y="602" font-size="10" font-weight="normal" fill="#555" text-anchor="middle">같은 장면, 고친 표</text>
+<text x="690" y="560" font-size="12" font-weight="bold" fill="#2e7d32" text-anchor="start">→ 깨끗</text>
+<text x="470" y="656" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">게다가 패널·온도·사용 이력마다 반응이 달라 눈으로는 12가지 전환을 고르게 맞출 수 없다 → 카메라로 밝기를 숫자로 잰다</text>
+</svg>

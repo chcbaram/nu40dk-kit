@@ -2,6 +2,21 @@
 
 ![에뮬레이터 데이터 흐름](images/emulator_flow.svg)
 
+## 최종 구성 (2026-11-21)
+
+| 항목 | 내용 |
+|---|---|
+| 코어 | Walnut-CGB, GB(DMG) 전용 빌드 (`GB_CGB_SUPPORT 0`) |
+| ROM | SD `/roms` → Flash `rom_storage` 512KB 복사, XIP 포인터로 직접 읽기 (`WGB_ROM_READ` 매크로) |
+| 실행 | 스레드 `gb_emu` (우선순위 7), 59.73Hz 페이싱. 화면이 새 프레임을 기다릴 때만 줄 렌더링 |
+| 속도 최적화 | 레지스터 지역 변수, 타이밍 일괄 처리, 배경 타일 그리기, 대기 루프 건너뛰기(`gb opt idle`, 기본 켬) (09 문서) |
+| 화면 | 스레드 `gb_disp` (우선순위 4). 회색 모드: 픽셀별 이력 모델로 펄스를 계획해 마스크 구동, 장면 전환·정리는 F7 전체 갱신 (04, 10 문서) |
+| 사운드 | minigb_apu 22.05kHz → `i2sWrite` → 믹서 → I2S (07 문서) |
+| 세이브 | cart RAM(최대 32KB) ↔ SD `/saves/<rom>.sav`. 시작할 때 읽고, 게임 메뉴 SAVE & QUIT 에서 저장 |
+| 결과 | Super Mario Land 사운드 켬 100%, Donkey Kong 약 75% |
+
+이 아래는 단계별 기록이다.
+
 ## Phase 3 결과 (2026-11-20)
 
 ### 최종 선택: Walnut-CGB, GB(DMG) 전용 빌드
@@ -49,7 +64,7 @@
 - 자세한 내용과 측정은 09 문서 2-1
 - 사용 버전: Mr-PauI/Walnut-CGB `a42c186` (2026-08-17)
 
-## 처음 검토: Game Boy (DMG) — Peanut-GB + minigb_apu
+## 처음 검토 (Phase 0): Game Boy (DMG) — Peanut-GB + minigb_apu
 
 | 후보 | RAM | 판단 |
 |---|---|---|
@@ -75,8 +90,8 @@
 1. 런처에서 SD 카드 `/roms/*.gb`를 고른다.
 2. 헤더 CRC를 비교해 `rom_storage` Flash 파티션에 이미 같은 ROM이 있으면 건너뛴다.
 3. 다르면 Flash를 지우고 복사한다(진행률 표시).
-4. Peanut-GB의 `rom_read(addr)` 콜백은 XIP 포인터 `rom_base[addr]`를 반환한다.
-5. Cart RAM은 RAM 버퍼(최대 32KB)에 두고, 게임 종료 시 SD에 `<rom>.sav`로 저장한다.
+4. 코어는 XIP 포인터 `rom_base[addr]`를 직접 읽는다 (`WGB_ROM_READ` 매크로).
+5. Cart RAM은 RAM 버퍼(최대 32KB)에 두고, SD `/saves/<rom>.sav`로 저장한다.
 
 ## 폴더 구조
 
@@ -148,7 +163,7 @@ src/ap/modules/emul/
 | `gb stat` | 1초마다 에뮬 fps / 속도 / 화면 fps |
 | `gb full` | 다음 표시를 전체 갱신 (잔상 정리) |
 
-## 성능 리스크와 대응 (Phase 3에서 확인)
+## 성능 리스크와 대응 (Phase 0 계획, 결과는 위 Phase 3 와 09 문서)
 
 64MHz Cortex-M4에서 GB를 원래 속도로 돌릴 수 있는지가 가장 큰 불확실성이다. `gb bench`로 화면 없이 측정한 뒤 다음 순서로 대응한다.
 
