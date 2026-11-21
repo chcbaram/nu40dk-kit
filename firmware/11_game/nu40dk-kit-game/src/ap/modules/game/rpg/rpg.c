@@ -22,7 +22,7 @@
 #define STATUS_Y      MAP_PX_H                  // 아래 44 px 상태 줄
 #define CLEAN_AFTER   120                       // FAST 갱신이 이만큼 쌓이면 멈췄을 때 전체 갱신
 #define IDLE_CLEAN_MS 5000
-#define IDLE_OFF_MS   3000
+#define IDLE_OFF_MS   60000                     // 고전압 끄기 (3초였을 때 대사를 읽다 넘기면 켠 직후 첫 갱신이 약해 앞 글자가 덜 지워졌다)
 #define HOLD_WALK_MS  250                       // 이만큼 누르고 있어야 이어 걷는다 (톡 누르면 한 칸)
 #define WALK_STEPS    1                         // 한 칸에 한 번 그린다 (반 칸 그림을 넣으면 한 번 눌러 두 번 움직이는 것처럼 보였다)
 

@@ -200,6 +200,7 @@ static void epdFastActivate(void)
   {
     ssd1683Activate(0xC0);
     ssd1683WaitBusy(500);
+    delay(20);                                // 부스터 전압이 안정될 때까지 (켠 직후 첫 갱신이 약했다)
   }
   last_ctrl = 0x8C;
   ssd1683Activate(0x8C);
