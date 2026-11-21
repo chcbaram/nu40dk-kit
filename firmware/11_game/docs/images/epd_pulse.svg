@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="540" viewBox="0 0 980 540" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="540" fill="#ffffff"/>
+<text x="490.0" y="32" font-size="17" font-weight="bold" fill="#111" text-anchor="middle">"검정 방향 펄스"란: 검은 입자를 끌어오는 전압을 32ms 걸었다 끊기</text>
+<text x="20" y="70" font-size="13" font-weight="bold" fill="#3d4a5c" text-anchor="start">① 픽셀 전압</text>
+<text x="20" y="86" font-size="10" font-weight="normal" fill="#777" text-anchor="start">(VCOM 기준)</text>
+<line x1="130" y1="90" x2="760" y2="90" stroke="#e3e6eb" stroke-dasharray="4,3"/>
+<text x="122" y="94" font-size="10.5" font-weight="bold" fill="#c0392b" text-anchor="end">+15V</text>
+<line x1="130" y1="135" x2="760" y2="135" stroke="#e3e6eb" stroke-dasharray="0"/>
+<text x="122" y="139" font-size="10.5" font-weight="bold" fill="#777" text-anchor="end">0V</text>
+<line x1="130" y1="180" x2="760" y2="180" stroke="#e3e6eb" stroke-dasharray="4,3"/>
+<text x="122" y="184" font-size="10.5" font-weight="bold" fill="#3b6fb6" text-anchor="end">−15V</text>
+<polyline points="130,135 150,135 150,90 240,90 240,135 270,135 270,90 360,90 360,135 390,135 390,90 480,90 480,135 760,135" fill="none" stroke="#c0392b" stroke-width="2.6" stroke-linejoin="round"/>
+<rect x="150" y="90" width="90" height="45" fill="#c0392b" opacity="0.08"/>
+<text x="195.0" y="82" font-size="10.5" font-weight="bold" fill="#c0392b" text-anchor="middle">펄스 1 · 32ms</text>
+<rect x="270" y="90" width="90" height="45" fill="#c0392b" opacity="0.08"/>
+<text x="315.0" y="82" font-size="10.5" font-weight="bold" fill="#c0392b" text-anchor="middle">펄스 2 · 32ms</text>
+<rect x="390" y="90" width="90" height="45" fill="#c0392b" opacity="0.08"/>
+<text x="435.0" y="82" font-size="10.5" font-weight="bold" fill="#c0392b" text-anchor="middle">펄스 3 · 32ms</text>
+<text x="620.0" y="125" font-size="10.5" font-weight="bold" fill="#3a9a4a" text-anchor="middle">0V: 구동 안 함</text>
+<text x="20" y="230" font-size="13" font-weight="bold" fill="#3d4a5c" text-anchor="start">② 보이는 밝기</text>
+<line x1="130" y1="212" x2="760" y2="212" stroke="#eef0f3"/>
+<text x="122" y="216" font-size="10" font-weight="normal" fill="#777" text-anchor="end">1</text>
+<line x1="130" y1="263.0" x2="760" y2="263.0" stroke="#eef0f3"/>
+<text x="122" y="267.0" font-size="10" font-weight="normal" fill="#777" text-anchor="end">0.5</text>
+<line x1="130" y1="314" x2="760" y2="314" stroke="#eef0f3"/>
+<text x="122" y="318" font-size="10" font-weight="normal" fill="#777" text-anchor="end">0</text>
+<polyline points="130,212.0 150,212.0 240,232.4 270,232.4 360,253.8 390,253.8 480,270.1 760,270.1" fill="none" stroke="#333" stroke-width="2.6" stroke-linejoin="round"/>
+<text x="246" y="226.39999999999998" font-size="11" font-weight="bold" fill="#222" text-anchor="start">0.80</text>
+<text x="366" y="247.82" font-size="11" font-weight="bold" fill="#222" text-anchor="start">0.59</text>
+<text x="486" y="264.14" font-size="11" font-weight="bold" fill="#222" text-anchor="start">0.43</text>
+<text x="134" y="206" font-size="11" font-weight="bold" fill="#222" text-anchor="start">1.00 흰색</text>
+<text x="640" y="262.14" font-size="10.5" font-weight="normal" fill="#3a9a4a" text-anchor="middle">멈춘 자리에서 유지 (전력 0)</text>
+<line x1="150" y1="188" x2="150" y2="322" stroke="#d8dde4" stroke-dasharray="2,3"/>
+<line x1="240" y1="188" x2="240" y2="322" stroke="#d8dde4" stroke-dasharray="2,3"/>
+<line x1="270" y1="188" x2="270" y2="322" stroke="#d8dde4" stroke-dasharray="2,3"/>
+<line x1="360" y1="188" x2="360" y2="322" stroke="#d8dde4" stroke-dasharray="2,3"/>
+<line x1="390" y1="188" x2="390" y2="322" stroke="#d8dde4" stroke-dasharray="2,3"/>
+<line x1="480" y1="188" x2="480" y2="322" stroke="#d8dde4" stroke-dasharray="2,3"/>
+<text x="20" y="345" font-size="13" font-weight="bold" fill="#3d4a5c" text-anchor="start">③ 입자 위치 (위쪽이 보는 쪽)</text>
+<rect x="47" y="352" width="76" height="5" fill="#cfe3f5"/>
+<rect x="51" y="360" width="68" height="96" rx="30" fill="#f4f7fb" stroke="#8aa0b8"/>
+<circle cx="67" cy="375" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="85" cy="375" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="103" cy="375" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="67" cy="395" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="85" cy="395" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="103" cy="395" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="67" cy="415" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="85" cy="415" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="103" cy="415" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="67" cy="435" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="85" cy="435" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="103" cy="435" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<rect x="47" y="459" width="76" height="5" fill="#9aa6b8"/>
+<text x="85" y="482" font-size="10.5" font-weight="bold" fill="#333" text-anchor="middle">처음</text>
+<rect x="202" y="352" width="76" height="5" fill="#cfe3f5"/>
+<rect x="206" y="360" width="68" height="96" rx="30" fill="#f4f7fb" stroke="#8aa0b8"/>
+<circle cx="222" cy="375" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="240" cy="375" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="258" cy="375" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="222" cy="395" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="240" cy="395" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="258" cy="395" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="222" cy="415" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="240" cy="415" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="258" cy="415" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="222" cy="435" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="240" cy="435" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="258" cy="435" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<rect x="202" y="459" width="76" height="5" fill="#9aa6b8"/>
+<text x="240" y="482" font-size="10.5" font-weight="bold" fill="#333" text-anchor="middle">펄스 1 뒤</text>
+<rect x="322" y="352" width="76" height="5" fill="#cfe3f5"/>
+<rect x="326" y="360" width="68" height="96" rx="30" fill="#f4f7fb" stroke="#8aa0b8"/>
+<circle cx="342" cy="375" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="360" cy="375" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="378" cy="375" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="342" cy="395" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="360" cy="395" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="378" cy="395" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="342" cy="415" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="360" cy="415" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="378" cy="415" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="342" cy="435" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="360" cy="435" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="378" cy="435" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<rect x="322" y="459" width="76" height="5" fill="#9aa6b8"/>
+<text x="360" y="482" font-size="10.5" font-weight="bold" fill="#333" text-anchor="middle">펄스 2 뒤</text>
+<rect x="442" y="352" width="76" height="5" fill="#cfe3f5"/>
+<rect x="446" y="360" width="68" height="96" rx="30" fill="#f4f7fb" stroke="#8aa0b8"/>
+<circle cx="462" cy="375" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="480" cy="375" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="498" cy="375" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="462" cy="395" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="480" cy="395" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="498" cy="395" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="462" cy="415" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="480" cy="415" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<circle cx="498" cy="415" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="462" cy="435" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="480" cy="435" r="7" fill="#fff" stroke="#777" stroke-width="1"/>
+<circle cx="498" cy="435" r="7" fill="#222" stroke="#777" stroke-width="0"/>
+<rect x="442" y="459" width="76" height="5" fill="#9aa6b8"/>
+<text x="480" y="482" font-size="10.5" font-weight="bold" fill="#333" text-anchor="middle">펄스 3 뒤 = 진회색</text>
+<rect x="790" y="60" width="170" height="270" rx="10" fill="#f7f9fc" stroke="#d5dae1"/>
+<text x="875" y="84" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">전압 세 가지</text>
+<text x="806" y="112" font-size="15" font-weight="bold" fill="#c0392b" text-anchor="start">+15V</text>
+<text x="862" y="112" font-size="12" font-weight="bold" fill="#c0392b" text-anchor="start">검정 방향</text>
+<text x="806" y="132" font-size="11" font-weight="normal" fill="#444" text-anchor="start">검은 입자가 앞으로</text>
+<text x="806" y="149" font-size="11" font-weight="normal" fill="#444" text-anchor="start">→ 어두워짐</text>
+<text x="806" y="184" font-size="15" font-weight="bold" fill="#3b6fb6" text-anchor="start">−15V</text>
+<text x="862" y="184" font-size="12" font-weight="bold" fill="#3b6fb6" text-anchor="start">흰색 방향</text>
+<text x="806" y="204" font-size="11" font-weight="normal" fill="#444" text-anchor="start">흰 입자가 앞으로</text>
+<text x="806" y="221" font-size="11" font-weight="normal" fill="#444" text-anchor="start">→ 밝아짐</text>
+<text x="806" y="256" font-size="15" font-weight="bold" fill="#3a9a4a" text-anchor="start">0V</text>
+<text x="862" y="256" font-size="12" font-weight="bold" fill="#3a9a4a" text-anchor="start">구동 안 함</text>
+<text x="806" y="276" font-size="11" font-weight="normal" fill="#444" text-anchor="start">입자가 멈춤</text>
+<text x="806" y="293" font-size="11" font-weight="normal" fill="#444" text-anchor="start">→ 그대로 유지</text>
+<rect x="20" y="500" width="940" height="32" rx="8" fill="#fff8e6" stroke="#e8cf8f"/>
+<text x="490" y="521" font-size="11.5" font-weight="bold" fill="#6b4e00" text-anchor="middle">펄스 수 = 움직인 거리 = 밝기.  같은 펄스라도 출발 위치·방향·머문 시간에 따라 움직이는 양이 달라 → 표(캘리브레이션)로 횟수를 정한다</text>
+</svg>

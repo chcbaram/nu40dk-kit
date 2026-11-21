@@ -1,66 +1,68 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="980" height="560" viewBox="0 0 980 560" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="470" viewBox="0 0 980 470" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
 <defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
-<rect width="980" height="560" fill="#ffffff"/>
-<text x="490.0" y="32" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">EPAPER 갱신 파이프라인 (최종)</text>
-<text x="20" y="62" font-size="13" font-weight="bold" fill="#3b6fb6" text-anchor="start">게임 화면 (회색 모드, gb_disp 스레드)</text>
-<rect x="20" y="75" width="160" height="100" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
-<text x="100.0" y="113.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">lcd_buf</text>
-<text x="100.0" y="132.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">GB 160×144 · 2bpp</text>
-<text x="100.0" y="148.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">새 목표 밝기</text>
-<rect x="215" y="75" width="160" height="100" rx="10" fill="#fff4dc" stroke="#c98a00" stroke-width="1.5" filter="url(#sh)"/>
-<text x="295.0" y="104.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">펄스 계획</text>
-<text x="295.0" y="123.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">픽셀별 이력 모델</text>
-<text x="295.0" y="139.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">출발 색·받은 펄스</text>
-<text x="295.0" y="155.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">머문 시간 → 펄스 수</text>
-<line x1="180" y1="125" x2="215" y2="125" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
-<rect x="410" y="75" width="160" height="100" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
-<text x="490.0" y="104.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">펄스 카운터</text>
-<text x="490.0" y="123.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">ink_cnt 5bit</text>
-<text x="490.0" y="139.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">비트 슬라이스</text>
-<text x="490.0" y="155.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">바뀐 픽셀만</text>
-<line x1="375" y1="125" x2="410" y2="125" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
-<rect x="605" y="75" width="160" height="100" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
-<text x="685.0" y="104.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">스캔 마스크</text>
-<text x="685.0" y="123.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">검정/흰색 방향</text>
-<text x="685.0" y="139.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">2×2 확대 320×288</text>
-<text x="685.0" y="155.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">바뀐 줄 범위만</text>
-<line x1="570" y1="125" x2="605" y2="125" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
-<rect x="800" y="75" width="160" height="100" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
-<text x="880.0" y="104.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">epdUpdateMask</text>
-<text x="880.0" y="123.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">SPIM2 8MHz 4KB×4</text>
-<text x="880.0" y="139.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">커스텀 LUT 32ms</text>
-<text x="880.0" y="155.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">정지 화면 구동 0</text>
-<line x1="765" y1="125" x2="800" y2="125" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
-<text x="490" y="200" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">스캔(32ms)마다 카운터가 남은 픽셀만 한 펄스씩 구동 → 카운터 0 이 되면 멈춤. 장면 전환(40% 이상 바뀜)·정리 때는 F7 전체 갱신</text>
-<text x="20" y="240" font-size="13" font-weight="bold" fill="#3b6fb6" text-anchor="start">갱신 모드</text>
-<rect x="20" y="255" width="300" height="120" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
-<text x="170.0" y="294.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">마스크 구동</text>
-<text x="170.0" y="313.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">epdUpdateMask</text>
-<text x="170.0" y="329.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">스캔 1회 32ms</text>
-<text x="170.0" y="345.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">게임 화면</text>
-<rect x="340" y="255" width="300" height="120" rx="10" fill="#f0f0f0" stroke="#666" stroke-width="1.5" filter="url(#sh)"/>
-<text x="490.0" y="294.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">F7 강한 갱신</text>
-<text x="490.0" y="313.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">epdUpdateStrong</text>
-<text x="490.0" y="329.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">2.8초</text>
-<text x="490.0" y="345.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">부팅·게임 종료·장면 전환</text>
-<rect x="660" y="255" width="300" height="120" rx="10" fill="#f0f0f0" stroke="#666" stroke-width="1.5" filter="url(#sh)"/>
-<text x="810.0" y="294.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">저온 전체</text>
-<text x="810.0" y="313.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">epdUpdateCold(10°C)</text>
-<text x="810.0" y="329.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">1.25초</text>
-<text x="810.0" y="345.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">런처 화면 전환·정리</text>
-<rect x="20" y="395" width="300" height="120" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
-<text x="170.0" y="434.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">FAST 45</text>
-<text x="170.0" y="453.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">epdUpdate(FAST)</text>
-<text x="170.0" y="469.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">약 0.4초</text>
-<text x="170.0" y="485.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">런처 메뉴 이동·RPG 대화</text>
-<rect x="340" y="395" width="300" height="120" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
-<text x="490.0" y="434.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">QUICK 8</text>
-<text x="490.0" y="453.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">epdUpdate(FAST)</text>
-<text x="490.0" y="469.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">약 0.1초</text>
-<text x="490.0" y="485.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">RPG 걷기</text>
-<rect x="660" y="395" width="300" height="120" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
-<text x="810.0" y="434.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">FLASH</text>
-<text x="810.0" y="453.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">epdUpdateFlash</text>
-<text x="810.0" y="469.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">약 1.2초</text>
-<text x="810.0" y="485.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">RPG 방 이동·전투·대화 닫기</text>
+<rect width="980" height="470" fill="#ffffff"/>
+<text x="490.0" y="32" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">게임 화면이 EPAPER 에 그려지는 과정</text>
+<rect x="20" y="118" width="170" height="150" rx="12" fill="#fff4dc" stroke="#c98a00" stroke-width="1.5" filter="url(#sh)"/>
+<circle cx="42" cy="140" r="13" fill="#c98a00"/>
+<text x="42" y="145" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">1</text>
+<text x="115.0" y="146" font-size="13.5" font-weight="bold" fill="#111" text-anchor="middle">화면 받기</text>
+<text x="105.0" y="174" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">에뮬레이터가 그린 GB 화면</text>
+<text x="105.0" y="190" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">(4단계 회색, 160×144)</text>
+<text x="105.0" y="214" font-size="10" font-weight="normal" fill="#8a94a3" text-anchor="middle">lcd_buf</text>
+<rect x="30" y="228" width="150" height="28" rx="6" fill="#ffffff" stroke="#e1e5eb"/>
+<text x="105.0" y="247" font-size="11" font-weight="bold" fill="#c0392b" text-anchor="middle">예: 이 픽셀이 흰색 → 진회색</text>
+<rect x="212" y="118" width="170" height="150" rx="12" fill="#fff4dc" stroke="#c98a00" stroke-width="1.5" filter="url(#sh)"/>
+<circle cx="234" cy="140" r="13" fill="#c98a00"/>
+<text x="234" y="145" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">2</text>
+<text x="307.0" y="146" font-size="13.5" font-weight="bold" fill="#111" text-anchor="middle">몇 번 밀지 계산</text>
+<text x="297.0" y="174" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">바뀐 픽셀만 골라</text>
+<text x="297.0" y="190" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">출발 색·목표 색·이력으로</text>
+<text x="297.0" y="214" font-size="10" font-weight="normal" fill="#8a94a3" text-anchor="middle">펄스 계획 inkPlan</text>
+<rect x="222" y="228" width="150" height="28" rx="6" fill="#ffffff" stroke="#e1e5eb"/>
+<text x="297.0" y="247" font-size="11" font-weight="bold" fill="#c0392b" text-anchor="middle">예: 검정 쪽으로 3번</text>
+<line x1="190" y1="193.0" x2="212" y2="193.0" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="404" y="118" width="170" height="150" rx="12" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<circle cx="426" cy="140" r="13" fill="#3b6fb6"/>
+<text x="426" y="145" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">3</text>
+<text x="499.0" y="146" font-size="13.5" font-weight="bold" fill="#111" text-anchor="middle">할 일 적어 두기</text>
+<text x="489.0" y="174" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">픽셀마다</text>
+<text x="489.0" y="190" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">남은 횟수를 기록</text>
+<text x="489.0" y="214" font-size="10" font-weight="normal" fill="#8a94a3" text-anchor="middle">카운터 ink_cnt</text>
+<rect x="414" y="228" width="150" height="28" rx="6" fill="#ffffff" stroke="#e1e5eb"/>
+<text x="489.0" y="247" font-size="11" font-weight="bold" fill="#c0392b" text-anchor="middle">예: 남은 횟수 3</text>
+<line x1="382" y1="193.0" x2="404" y2="193.0" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="596" y="118" width="170" height="150" rx="12" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<circle cx="618" cy="140" r="13" fill="#3b6fb6"/>
+<text x="618" y="145" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">4</text>
+<text x="691.0" y="146" font-size="13.5" font-weight="bold" fill="#111" text-anchor="middle">이번에 밀 픽셀 표시</text>
+<text x="681.0" y="174" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">남은 횟수가 있는 픽셀을</text>
+<text x="681.0" y="190" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">검정 표 / 흰색 표에 체크</text>
+<text x="681.0" y="214" font-size="10" font-weight="normal" fill="#8a94a3" text-anchor="middle">스캔 마스크</text>
+<rect x="606" y="228" width="150" height="28" rx="6" fill="#ffffff" stroke="#e1e5eb"/>
+<text x="681.0" y="247" font-size="11" font-weight="bold" fill="#c0392b" text-anchor="middle">예: 검정 표에 ✓</text>
+<line x1="574" y1="193.0" x2="596" y2="193.0" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="788" y="118" width="170" height="150" rx="12" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<circle cx="810" cy="140" r="13" fill="#3b6fb6"/>
+<text x="810" y="145" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">5</text>
+<text x="883.0" y="146" font-size="13.5" font-weight="bold" fill="#111" text-anchor="middle">패널에 보내고 밀기</text>
+<text x="873.0" y="174" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">두 표를 컨트롤러 RAM 에</text>
+<text x="873.0" y="190" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">보내고 32ms 펄스 한 번</text>
+<text x="873.0" y="214" font-size="10" font-weight="normal" fill="#8a94a3" text-anchor="middle">epdUpdateMask</text>
+<rect x="798" y="228" width="150" height="28" rx="6" fill="#ffffff" stroke="#e1e5eb"/>
+<text x="873.0" y="247" font-size="11" font-weight="bold" fill="#c0392b" text-anchor="middle">예: 밝기 1.00 → 0.80</text>
+<line x1="766" y1="193.0" x2="788" y2="193.0" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<path d="M20,102 L20,92 L382,92 L382,102" fill="none" stroke="#c98a00" stroke-width="2"/>
+<rect x="51.0" y="68" width="300" height="20" rx="10" fill="#ffffff"/>
+<text x="201.0" y="83" font-size="12" font-weight="bold" fill="#c98a00" text-anchor="middle">새 GB 프레임이 올 때만 (약 83ms 마다)</text>
+<path d="M404,102 L404,92 L958,92 L958,102" fill="none" stroke="#3b6fb6" stroke-width="2"/>
+<rect x="531.0" y="68" width="300" height="20" rx="10" fill="#ffffff"/>
+<text x="681.0" y="83" font-size="12" font-weight="bold" fill="#3b6fb6" text-anchor="middle">남은 일이 있으면 계속 반복 (스캔 한 번 32ms + 전송)</text>
+<path d="M873.0,268 L873.0,308 L681.0,308 L681.0,270" fill="none" stroke="#3b6fb6" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#ah)"/>
+<rect x="627.0" y="298" width="300" height="20" rx="10" fill="#eef3fb" stroke="#bcd0ea"/>
+<text x="777.0" y="312" font-size="11" font-weight="bold" fill="#3b6fb6" text-anchor="middle">밀었으면 남은 횟수 −1 → 0 이 될 때까지 4·5 반복</text>
+<rect x="20" y="338" width="940" height="118" rx="12" fill="#fbfaf5" stroke="#e5dcc0"/>
+<text x="40" y="364" font-size="13" font-weight="bold" fill="#6b4e00" text-anchor="start">비유: 칠판에 그림을 옮기는 조수</text>
+<text x="40" y="388" font-size="11.5" font-weight="normal" fill="#4a3d10" text-anchor="start">① 사진사(에뮬레이터)가 새 사진을 건넨다 → ② 지난 사진과 비교해 "이 칸은 3번 더 어둡게" 같은 작업 지시서를 쓴다</text>
+<text x="40" y="408" font-size="11.5" font-weight="normal" fill="#4a3d10" text-anchor="start">③ 칸마다 남은 횟수를 적어 둔다 → ④⑤ 조수가 한 바퀴 돌며 남은 칸만 붓질 한 번씩, 횟수를 하나씩 지운다</text>
+<text x="40" y="428" font-size="11.5" font-weight="normal" fill="#4a3d10" text-anchor="start">사진이 자주 와도 조수는 자기 속도로 붓질만 계속하고, 할 일이 없으면 쉰다 (정지 화면 = 붓질 0 = 전력 0)</text>
 </svg>
