@@ -17,7 +17,7 @@ NU40DK-KIT(nRF52840)에 WeAct 4.2" 흑백 EPAPER(SSD1683, 400×300)를 연결해
 | [07_audio.md](07_audio.md) | 사운드 출력 경로 |
 | [08_launcher.md](08_launcher.md) | 런처 UI(레트로 터미널), 메뉴 구조 |
 | [09_optimization.md](09_optimization.md) | 최적화: 측정 도구, 에뮬·사운드·EPD, 스레드 우선순위, ink 모드(픽셀별 펄스 카운터) |
-| [10_calibration.md](10_calibration.md) | 회색 모드 카메라 캘리브레이션: 필요한 이유(그림), 원리, 측정 화면(`gb cal`, `caltable`, `calrev`, `caldwell`, `calmove`, `calcycle`), 사진 분석, 구동 전압 상태, 이력 모델, 최종 기본값 |
+| [10_calibration.md](10_calibration.md) | 회색 모드 카메라 캘리브레이션: 한눈에 보기(과정·조절값·시험별 질문·발견 요약, 그림), 필요한 이유, 원리, 측정 화면(`gb cal`, `caltable`, `calrev`, `caldwell`, `calmove`, `calcycle`), 사진 분석, 구동 전압 상태, 이력 모델, 최종 기본값 |
 
 ## 진행 현황
 

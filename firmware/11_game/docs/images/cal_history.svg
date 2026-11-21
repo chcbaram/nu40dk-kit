@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="400" viewBox="0 0 980 400" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="400" fill="#ffffff"/>
+<text x="490.0" y="32" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">같은 펄스인데 결과가 다르다: 픽셀의 "이력"이 밝기를 바꾼다</text>
+<rect x="20" y="55" width="300" height="320" rx="12" fill="#fafafa" stroke="#cfd5de"/>
+<text x="170" y="82" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">① 되돌아올 때</text>
+<text x="170" y="102" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">검정 쪽 3번 민 픽셀을 흰색으로 되돌리기</text>
+<rect x="50" y="120" width="110" height="110" rx="4" fill="#9c9c9c" stroke="#888"/>
+<text x="105" y="250" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">흰색 쪽 3번</text>
+<text x="105" y="266" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">(받은 만큼)</text>
+<text x="105" y="286" font-size="13" font-weight="bold" fill="#222" text-anchor="middle">0.62</text>
+<rect x="180" y="120" width="110" height="110" rx="4" fill="#eeeeee" stroke="#888"/>
+<text x="235" y="250" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">흰색 쪽 6번</text>
+<text x="235" y="266" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">(3 + 3)</text>
+<text x="235" y="286" font-size="13" font-weight="bold" fill="#222" text-anchor="middle">0.97</text>
+<text x="170" y="332" font-size="11.5" font-weight="bold" fill="#c0392b" text-anchor="middle">받은 만큼으로는 부족 → k + 3 번</text>
+<text x="170" y="349" font-size="11.5" font-weight="bold" fill="#c0392b" text-anchor="middle">(되돌림 보정)</text>
+<rect x="340" y="55" width="300" height="320" rx="12" fill="#fafafa" stroke="#cfd5de"/>
+<text x="490" y="82" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">② 오래 머문 뒤</text>
+<text x="490" y="102" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">검정을 흰색으로 (흰색 쪽 5번)</text>
+<rect x="370" y="120" width="110" height="110" rx="4" fill="#eeeeee" stroke="#888"/>
+<text x="425" y="250" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">검정에 0초</text>
+<text x="425" y="266" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">머문 뒤</text>
+<text x="425" y="286" font-size="13" font-weight="bold" fill="#222" text-anchor="middle">0.97</text>
+<rect x="500" y="120" width="110" height="110" rx="4" fill="#cfcfcf" stroke="#888"/>
+<text x="555" y="250" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">검정에 10초</text>
+<text x="555" y="266" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">머문 뒤</text>
+<text x="555" y="286" font-size="13" font-weight="bold" fill="#222" text-anchor="middle">0.84</text>
+<text x="490" y="332" font-size="11.5" font-weight="bold" fill="#c0392b" text-anchor="middle">오래 머물수록 덜 돌아옴</text>
+<text x="490" y="349" font-size="11.5" font-weight="bold" fill="#c0392b" text-anchor="middle">→ 머문 시간 보너스</text>
+<rect x="660" y="55" width="300" height="320" rx="12" fill="#fafafa" stroke="#cfd5de"/>
+<text x="810" y="82" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">③ 직전 전체 갱신</text>
+<text x="810" y="102" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">흰색에서 검정 쪽 9번 (카메라 원시값)</text>
+<rect x="690" y="120" width="110" height="110" rx="4" fill="#3b3b3b" stroke="#888"/>
+<text x="745" y="250" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">직전 F7</text>
+<text x="745" y="266" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">(3색 갱신)</text>
+<text x="745" y="286" font-size="13" font-weight="bold" fill="#222" text-anchor="middle">53</text>
+<rect x="820" y="120" width="110" height="110" rx="4" fill="#5e5e5e" stroke="#888"/>
+<text x="875" y="250" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">직전 흑백</text>
+<text x="875" y="266" font-size="11" font-weight="normal" fill="#333" text-anchor="middle">(0xDF) 갱신</text>
+<text x="875" y="286" font-size="13" font-weight="bold" fill="#222" text-anchor="middle">89~93</text>
+<text x="810" y="332" font-size="11.5" font-weight="bold" fill="#c0392b" text-anchor="middle">흑백 갱신 뒤에는 펄스 세기가 절반</text>
+<text x="810" y="349" font-size="11.5" font-weight="bold" fill="#c0392b" text-anchor="middle">→ 게임 중 전체 갱신을 F7 로 통일</text>
+</svg>

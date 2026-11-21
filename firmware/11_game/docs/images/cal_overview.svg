@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="360" viewBox="0 0 980 360" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="360" fill="#ffffff"/>
+<text x="490.0" y="32" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">캘리브레이션 한 바퀴: 그리고 → 찍고 → 재고 → 고친다</text>
+<rect x="20" y="80" width="200" height="130" rx="12" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<circle cx="42" cy="102" r="13" fill="#3b6fb6"/>
+<text x="42" y="107" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">1</text>
+<text x="130.0" y="108" font-size="12.5" font-weight="bold" fill="#111" text-anchor="middle">보드가 시험 화면을 그린다</text>
+<text x="120.0" y="140" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">펄스 수를 바꾼 패치들,</text>
+<text x="120.0" y="157" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">움직이는 도형 등</text>
+<text x="120.0" y="188" font-size="10" font-weight="normal" fill="#8a94a3" text-anchor="middle">gb cal / caltable / calmove …</text>
+<rect x="265" y="80" width="200" height="130" rx="12" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<circle cx="287" cy="102" r="13" fill="#3b6fb6"/>
+<text x="287" y="107" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">2</text>
+<text x="375.0" y="108" font-size="12.5" font-weight="bold" fill="#111" text-anchor="middle">카메라로 패널을 찍는다</text>
+<text x="365.0" y="140" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">정면 20cm 고정</text>
+<text x="365.0" y="157" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">아이폰·웹캠</text>
+<text x="365.0" y="188" font-size="10" font-weight="normal" fill="#8a94a3" text-anchor="middle">imagesnap</text>
+<line x1="220" y1="145.0" x2="265" y2="145.0" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="510" y="80" width="200" height="130" rx="12" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<circle cx="532" cy="102" r="13" fill="#3b6fb6"/>
+<text x="532" y="107" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">3</text>
+<text x="620.0" y="108" font-size="12.5" font-weight="bold" fill="#111" text-anchor="middle">사진에서 밝기를 숫자로</text>
+<text x="610.0" y="140" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">모서리 표시로 위치 맞춤,</text>
+<text x="610.0" y="157" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">순흑=0 · 순백=1 로 환산</text>
+<text x="610.0" y="188" font-size="10" font-weight="normal" fill="#8a94a3" text-anchor="middle">measure_*.py</text>
+<line x1="465" y1="145.0" x2="510" y2="145.0" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="755" y="80" width="200" height="130" rx="12" fill="#fff4dc" stroke="#c98a00" stroke-width="1.5" filter="url(#sh)"/>
+<circle cx="777" cy="102" r="13" fill="#c98a00"/>
+<text x="777" y="107" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">4</text>
+<text x="865.0" y="108" font-size="12.5" font-weight="bold" fill="#111" text-anchor="middle">펄스 수·보정값을 고친다</text>
+<text x="855.0" y="140" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">같은 목표 = 같은 밝기,</text>
+<text x="855.0" y="157" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">지나간 자리 = 바탕과 같게</text>
+<text x="855.0" y="188" font-size="10" font-weight="normal" fill="#8a94a3" text-anchor="middle">gb dose / dwell / route …</text>
+<line x1="710" y1="145.0" x2="755" y2="145.0" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<path d="M855.0,210 L855.0,246 L120.0,246 L120.0,212" fill="none" stroke="#c98a00" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#ah)"/>
+<rect x="320.0" y="235" width="340" height="22" rx="11" fill="#fff4dc" stroke="#e8cf8f"/>
+<text x="490.0" y="250" font-size="11.5" font-weight="bold" fill="#8a5a00" text-anchor="middle">차이가 충분히 작아질 때까지 반복 (도구: tools/cal/*.sh)</text>
+<rect x="20" y="276" width="940" height="70" rx="12" fill="#f7f9fc" stroke="#d5dae1"/>
+<text x="40" y="302" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">왜 카메라인가: 눈으로는 "조금 어둡다" 정도만 안다. 12가지 전환과 이력 보정을 고르게 맞추려면 밝기를 0.01 단위 숫자로 비교해야 한다.</text>
+<text x="40" y="324" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">마지막 확인은 실제 게임 화면(tools/cal/game.sh): 화면 버퍼로 "보여야 할 화면"을 만들고 사진과 픽셀마다 비교해 잔상을 점수로 낸다.</text>
+</svg>
