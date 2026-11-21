@@ -1,73 +1,65 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="940" height="470" viewBox="0 0 940 470" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
-<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>
-<rect width="940" height="470" fill="#ffffff"/>
-<text x="470" y="30" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">에뮬레이터 데이터 흐름</text>
-
-<!-- ROM -->
-<rect x="20" y="60" width="170" height="60" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/>
-<text x="105" y="86" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">SD /roms/*.gb</text>
-<text x="105" y="104" font-size="11" fill="#444" text-anchor="middle">런처에서 선택 · FatFs</text>
-<line x1="190" y1="90" x2="250" y2="90" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/>
-<text x="220" y="84" font-size="11" fill="#555" text-anchor="middle">복사</text>
-<rect x="250" y="60" width="200" height="60" rx="8" fill="#ffe9b8" stroke="#c98a00" stroke-width="1.5"/>
-<text x="350" y="86" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">rom_storage Flash</text>
-<text x="350" y="104" font-size="11" fill="#444" text-anchor="middle">512KB · 같은 ROM 이면 건너뜀</text>
-
-<!-- core -->
-<rect x="270" y="165" width="260" height="120" rx="8" fill="#fff8e6" stroke="#c98a00" stroke-width="1.5"/>
-<text x="400" y="190" font-size="15" font-weight="bold" fill="#111" text-anchor="middle">Walnut-CGB (DMG 전용)</text>
-<text x="400" y="209" font-size="11" fill="#444" text-anchor="middle">스레드 gb_emu (우선순위 7) · 59.73Hz 페이싱</text>
-<text x="400" y="226" font-size="11" fill="#444" text-anchor="middle">ROM 포인터 직접 읽기 · 레지스터 지역 변수</text>
-<text x="400" y="243" font-size="11" fill="#444" text-anchor="middle">타이밍 일괄 처리 · 대기 루프 건너뛰기</text>
-<text x="400" y="260" font-size="11" fill="#444" text-anchor="middle">화면이 기다릴 때만 줄 렌더링</text>
-<line x1="350" y1="120" x2="380" y2="165" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/>
-<text x="410" y="146" font-size="11" fill="#555" text-anchor="start">XIP</text>
-
-<!-- input -->
-<rect x="20" y="175" width="190" height="70" rx="8" fill="#eefbef" stroke="#3a9a4a" stroke-width="1.5"/>
-<text x="115" y="201" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">입력</text>
-<text x="115" y="219" font-size="11" fill="#444" text-anchor="middle">Xbox BLE 패드 (ble_pad)</text>
-<text x="115" y="235" font-size="11" fill="#444" text-anchor="middle">보드 버튼 4개</text>
-<line x1="210" y1="210" x2="270" y2="210" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/>
-<text x="240" y="204" font-size="11" fill="#555" text-anchor="middle">joypad</text>
-
-<!-- lcd buffer -->
-<rect x="590" y="60" width="160" height="60" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/>
-<text x="670" y="86" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">lcd_buf</text>
-<text x="670" y="104" font-size="11" fill="#444" text-anchor="middle">160×144 · 2bpp</text>
-<line x1="530" y1="185" x2="610" y2="120" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/>
-<text x="548" y="140" font-size="11" fill="#555" text-anchor="middle">줄 콜백</text>
-
-<!-- display thread -->
-<rect x="600" y="150" width="320" height="120" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/>
-<text x="760" y="175" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">스레드 gb_disp (우선순위 4)</text>
-<text x="760" y="194" font-size="11" fill="#444" text-anchor="middle">회색 모드: 픽셀별 이력 모델 → 펄스 계획</text>
-<text x="760" y="211" font-size="11" fill="#444" text-anchor="middle">(머문 시간·되돌림·테두리·wbias 보정)</text>
-<text x="760" y="228" font-size="11" fill="#444" text-anchor="middle">검정/흰색 구동 마스크 · 바뀐 줄만</text>
-<text x="760" y="245" font-size="11" fill="#444" text-anchor="middle">장면 전환·정리: F7 전체 갱신</text>
-<line x1="690" y1="120" x2="720" y2="150" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/>
-<text x="722" y="140" font-size="11" fill="#555" text-anchor="start">핸드셰이크</text>
-
-<!-- EPD -->
-<rect x="640" y="305" width="240" height="60" rx="8" fill="#e8e8e8" stroke="#555" stroke-width="1.5"/>
-<text x="760" y="331" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">SSD1683 4.2" EPAPER</text>
-<text x="760" y="349" font-size="11" fill="#444" text-anchor="middle">커스텀 LUT 마스크 구동 · 320×288 (2×2)</text>
-<line x1="760" y1="270" x2="760" y2="305" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/>
-<text x="768" y="292" font-size="11" fill="#555" text-anchor="start">SPI 4KB×4</text>
-
-<!-- audio -->
-<rect x="330" y="390" width="270" height="60" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/>
-<text x="465" y="416" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">minigb_apu 22.05kHz</text>
-<text x="465" y="434" font-size="11" fill="#444" text-anchor="middle">→ i2sWrite → 믹서 → I2S 스피커</text>
-<line x1="450" y1="285" x2="460" y2="390" stroke="#333" stroke-width="1.6" marker-end="url(#a)"/>
-
-<!-- cart ram -->
-<rect x="20" y="300" width="190" height="60" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/>
-<text x="115" y="326" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">Cart RAM (≤32KB)</text>
-<text x="115" y="344" font-size="11" fill="#444" text-anchor="middle">배터리 세이브</text>
-<line x1="210" y1="320" x2="310" y2="285" stroke="#333" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
-<line x1="115" y1="360" x2="115" y2="390" stroke="#333" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
-<rect x="20" y="390" width="190" height="60" rx="8" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5"/>
-<text x="115" y="416" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">SD /saves/&lt;rom&gt;.sav</text>
-<text x="115" y="434" font-size="11" fill="#444" text-anchor="middle">시작 시 읽기 · SAVE &amp; QUIT 저장</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="520" viewBox="0 0 980 520" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="520" fill="#ffffff"/>
+<text x="490.0" y="32" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">에뮬레이터 데이터 흐름</text>
+<rect x="20" y="60" width="200" height="60" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<text x="120.0" y="86.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">SD /roms/*.gb</text>
+<text x="120.0" y="105.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">런처에서 선택 · FatFs</text>
+<rect x="280" y="60" width="260" height="60" rx="10" fill="#fff4dc" stroke="#c98a00" stroke-width="1.5" filter="url(#sh)"/>
+<text x="410.0" y="86.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">rom_storage Flash</text>
+<text x="410.0" y="105.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">512KB · 같은 ROM 이면 건너뜀</text>
+<line x1="220" y1="90" x2="280" y2="90" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="232" y="68" width="36" height="17" rx="8.5" fill="#f2f4f7" stroke="#d5dae1"/>
+<text x="250.0" y="81" font-size="10.5" font-weight="normal" fill="#3d4a5c" text-anchor="middle">복사</text>
+<rect x="280" y="170" width="260" height="150" rx="10" fill="#fff8e6" stroke="#c98a00" stroke-width="1.5" filter="url(#sh)"/>
+<text x="410.0" y="207.5" font-size="15" font-weight="bold" fill="#111" text-anchor="middle">Walnut-CGB (DMG 전용)</text>
+<text x="410.0" y="226.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">스레드 gb_emu · 우선순위 7 · 59.73Hz</text>
+<text x="410.0" y="242.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">ROM 포인터 직접 읽기</text>
+<text x="410.0" y="258.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">레지스터 지역 변수 · 타이밍 일괄 처리</text>
+<text x="410.0" y="274.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">대기 루프 건너뛰기</text>
+<text x="410.0" y="290.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">화면이 기다릴 때만 줄 렌더링</text>
+<line x1="410" y1="120" x2="410" y2="170" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="414" y="138" width="33" height="17" rx="8.5" fill="#f2f4f7" stroke="#d5dae1"/>
+<text x="420" y="151" font-size="10.5" font-weight="normal" fill="#3d4a5c" text-anchor="start">XIP</text>
+<rect x="20" y="170" width="200" height="62" rx="10" fill="#eefbef" stroke="#3a9a4a" stroke-width="1.5" filter="url(#sh)"/>
+<text x="120.0" y="197.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">입력</text>
+<text x="120.0" y="216.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">Xbox BLE 패드 · 보드 버튼 4개</text>
+<line x1="220" y1="201" x2="280" y2="201" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="224" y="179" width="52" height="17" rx="8.5" fill="#f2f4f7" stroke="#d5dae1"/>
+<text x="250.0" y="192" font-size="10.5" font-weight="normal" fill="#3d4a5c" text-anchor="middle">joypad</text>
+<rect x="20" y="258" width="200" height="62" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<text x="120.0" y="285.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">Cart RAM (≤32KB)</text>
+<text x="120.0" y="304.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">배터리 세이브</text>
+<line x1="220" y1="289" x2="280" y2="289" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-start="url(#ah)" marker-end="url(#ah)"/>
+<rect x="20" y="370" width="200" height="62" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<text x="120.0" y="397.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">SD /saves/&lt;rom&gt;.sav</text>
+<text x="120.0" y="416.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">시작 시 읽기 · SAVE &amp; QUIT 저장</text>
+<line x1="120" y1="320" x2="120" y2="370" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-start="url(#ah)" marker-end="url(#ah)"/>
+<rect x="280" y="370" width="260" height="62" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<text x="410.0" y="397.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">minigb_apu 22.05kHz</text>
+<text x="410.0" y="416.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">i2sWrite → 믹서 → I2S 스피커</text>
+<line x1="410" y1="320" x2="410" y2="370" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="414" y="337" width="36" height="17" rx="8.5" fill="#f2f4f7" stroke="#d5dae1"/>
+<text x="420" y="350" font-size="10.5" font-weight="normal" fill="#3d4a5c" text-anchor="start">샘플</text>
+<rect x="600" y="170" width="180" height="62" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<text x="690.0" y="197.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">lcd_buf</text>
+<text x="690.0" y="216.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">160×144 · 2bpp</text>
+<line x1="540" y1="201" x2="600" y2="201" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="543" y="179" width="53" height="17" rx="8.5" fill="#f2f4f7" stroke="#d5dae1"/>
+<text x="570.0" y="192" font-size="10.5" font-weight="normal" fill="#3d4a5c" text-anchor="middle">줄 콜백</text>
+<rect x="600" y="272" width="360" height="120" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<text x="780.0" y="303.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">스레드 gb_disp (우선순위 4)</text>
+<text x="780.0" y="322.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">회색 모드: 픽셀별 이력 모델 → 펄스 계획</text>
+<text x="780.0" y="338.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">(머문 시간·되돌림·테두리·wbias 보정)</text>
+<text x="780.0" y="354.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">검정/흰색 구동 마스크 · 바뀐 줄만</text>
+<text x="780.0" y="370.0" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">장면 전환·정리: F7 전체 갱신</text>
+<line x1="690" y1="232" x2="690" y2="272" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="694" y="244" width="69" height="17" rx="8.5" fill="#f2f4f7" stroke="#d5dae1"/>
+<text x="700" y="257" font-size="10.5" font-weight="normal" fill="#3d4a5c" text-anchor="start">핸드셰이크</text>
+<rect x="600" y="432" width="360" height="62" rx="10" fill="#f0f0f0" stroke="#666" stroke-width="1.5" filter="url(#sh)"/>
+<text x="780.0" y="459.5" font-size="14" font-weight="bold" fill="#111" text-anchor="middle">SSD1683 4.2" EPAPER</text>
+<text x="780.0" y="478.5" font-size="11" font-weight="normal" fill="#444" text-anchor="middle">커스텀 LUT 마스크 구동 · 320×288 (GB 2×2)</text>
+<line x1="780" y1="392" x2="780" y2="432" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="784" y="404" width="97" height="17" rx="8.5" fill="#f2f4f7" stroke="#d5dae1"/>
+<text x="790" y="417" font-size="10.5" font-weight="normal" fill="#3d4a5c" text-anchor="start">SPIM2 · 4KB×4</text>
 </svg>

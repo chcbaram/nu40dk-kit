@@ -87,6 +87,8 @@
 
 ## ROM 로딩
 
+자세한 순서와 그림은 [03 메모리 문서의 "게임팩 ROM" 절](03_memory.md#게임팩-rom-sd--내장-flash-복사-gbgb_romc)에 있다.
+
 1. 런처에서 SD 카드 `/roms/*.gb`를 고른다.
 2. 헤더 CRC를 비교해 `rom_storage` Flash 파티션에 이미 같은 ROM이 있으면 건너뛴다.
 3. 다르면 Flash를 지우고 복사한다(진행률 표시).
