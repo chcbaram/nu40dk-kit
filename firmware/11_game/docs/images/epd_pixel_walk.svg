@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="530" viewBox="0 0 980 530" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="530" fill="#ffffff"/>
+<text x="490.0" y="32" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">예시: 흰 배경 픽셀 하나가 진회색이 되기까지</text>
+<text x="490.0" y="54" font-size="11.5" font-weight="normal" fill="#555" text-anchor="middle">(마리오가 지나가며 GB 픽셀 하나가 흰색 W → 진회색 D 로 바뀐 경우, 실제 측정 밝기)</text>
+<rect x="170" y="72" width="160" height="30" fill="#e8ecf2" stroke="#c4ccd8"/>
+<text x="250.0" y="92" font-size="12" font-weight="bold" fill="#222" text-anchor="middle">새 GB 프레임</text>
+<rect x="330" y="72" width="160" height="30" fill="#e8ecf2" stroke="#c4ccd8"/>
+<text x="410.0" y="92" font-size="12" font-weight="bold" fill="#222" text-anchor="middle">스캔 1 (0~32ms)</text>
+<rect x="490" y="72" width="160" height="30" fill="#e8ecf2" stroke="#c4ccd8"/>
+<text x="570.0" y="92" font-size="12" font-weight="bold" fill="#222" text-anchor="middle">스캔 2 (32~64ms)</text>
+<rect x="650" y="72" width="160" height="30" fill="#e8ecf2" stroke="#c4ccd8"/>
+<text x="730.0" y="92" font-size="12" font-weight="bold" fill="#222" text-anchor="middle">스캔 3 (64~96ms)</text>
+<rect x="810" y="72" width="160" height="30" fill="#e8ecf2" stroke="#c4ccd8"/>
+<text x="890.0" y="92" font-size="12" font-weight="bold" fill="#222" text-anchor="middle">스캔 4 이후</text>
+<rect x="20" y="102" width="150" height="58" fill="#f4f6fa" stroke="#c4ccd8"/>
+<text x="32" y="135.0" font-size="12" font-weight="bold" fill="#3d4a5c" text-anchor="start">lcd_buf 값</text>
+<rect x="170" y="102" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<text x="250.0" y="135.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">W(0) → D(2)</text>
+<rect x="330" y="102" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="490" y="102" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="650" y="102" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="810" y="102" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="20" y="160" width="150" height="58" fill="#f4f6fa" stroke="#c4ccd8"/>
+<text x="32" y="193.0" font-size="12" font-weight="bold" fill="#3d4a5c" text-anchor="start">펄스 계획</text>
+<rect x="170" y="160" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<text x="250.0" y="193.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">W→D = 3펄스, 검정 방향</text>
+<rect x="330" y="160" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="490" y="160" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="650" y="160" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="810" y="160" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="20" y="218" width="150" height="58" fill="#f4f6fa" stroke="#c4ccd8"/>
+<text x="32" y="251.0" font-size="12" font-weight="bold" fill="#3d4a5c" text-anchor="start">카운터 (ink_cnt)</text>
+<rect x="170" y="218" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<text x="250.0" y="251.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">3</text>
+<rect x="330" y="218" width="160" height="58" fill="#fff8e6" stroke="#c4ccd8"/>
+<text x="410.0" y="251.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">3 → 2</text>
+<rect x="490" y="218" width="160" height="58" fill="#fff8e6" stroke="#c4ccd8"/>
+<text x="570.0" y="251.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">2 → 1</text>
+<rect x="650" y="218" width="160" height="58" fill="#fff8e6" stroke="#c4ccd8"/>
+<text x="730.0" y="251.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">1 → 0</text>
+<rect x="810" y="218" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<text x="890.0" y="251.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">0</text>
+<rect x="20" y="276" width="150" height="58" fill="#f4f6fa" stroke="#c4ccd8"/>
+<text x="32" y="309.0" font-size="12" font-weight="bold" fill="#3d4a5c" text-anchor="start">마스크 RED / BW</text>
+<rect x="170" y="276" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="330" y="276" width="160" height="58" fill="#fdecea" stroke="#c4ccd8"/>
+<text x="410.0" y="309.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">1 / 0</text>
+<rect x="490" y="276" width="160" height="58" fill="#fdecea" stroke="#c4ccd8"/>
+<text x="570.0" y="309.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">1 / 0</text>
+<rect x="650" y="276" width="160" height="58" fill="#fdecea" stroke="#c4ccd8"/>
+<text x="730.0" y="309.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">1 / 0</text>
+<rect x="810" y="276" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<text x="890.0" y="309.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">0 / 0</text>
+<rect x="20" y="334" width="150" height="58" fill="#f4f6fa" stroke="#c4ccd8"/>
+<text x="32" y="367.0" font-size="12" font-weight="bold" fill="#3d4a5c" text-anchor="start">패널 전압</text>
+<rect x="170" y="334" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="330" y="334" width="160" height="58" fill="#fdecea" stroke="#c4ccd8"/>
+<text x="410.0" y="367.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">+15V 32ms</text>
+<rect x="490" y="334" width="160" height="58" fill="#fdecea" stroke="#c4ccd8"/>
+<text x="570.0" y="367.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">+15V 32ms</text>
+<rect x="650" y="334" width="160" height="58" fill="#fdecea" stroke="#c4ccd8"/>
+<text x="730.0" y="367.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">+15V 32ms</text>
+<rect x="810" y="334" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<text x="890.0" y="367.0" font-size="12" font-weight="normal" fill="#222" text-anchor="middle">0V</text>
+<rect x="20" y="392" width="150" height="58" fill="#f4f6fa" stroke="#c4ccd8"/>
+<text x="32" y="425.0" font-size="12" font-weight="bold" fill="#3d4a5c" text-anchor="start">보이는 밝기</text>
+<rect x="170" y="392" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="210" y="400" width="42" height="42" fill="#f5f5f5" stroke="#888"/>
+<text x="278" y="426" font-size="12" font-weight="bold" fill="#222" text-anchor="middle">1.00</text>
+<rect x="330" y="392" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="370" y="400" width="42" height="42" fill="#c6c6c6" stroke="#888"/>
+<text x="438" y="426" font-size="12" font-weight="bold" fill="#222" text-anchor="middle">0.80</text>
+<rect x="490" y="392" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="530" y="400" width="42" height="42" fill="#959595" stroke="#888"/>
+<text x="598" y="426" font-size="12" font-weight="bold" fill="#222" text-anchor="middle">0.59</text>
+<rect x="650" y="392" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="690" y="400" width="42" height="42" fill="#6f6f6f" stroke="#888"/>
+<text x="758" y="426" font-size="12" font-weight="bold" fill="#222" text-anchor="middle">0.43</text>
+<rect x="810" y="392" width="160" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<rect x="850" y="400" width="42" height="42" fill="#6f6f6f" stroke="#888"/>
+<text x="918" y="426" font-size="12" font-weight="bold" fill="#222" text-anchor="middle">0.43</text>
+<rect x="330" y="160" width="640" height="58" fill="#ffffff" stroke="#c4ccd8"/>
+<text x="650" y="193.0" font-size="11" font-weight="normal" fill="#777" text-anchor="middle">(다음 GB 프레임이 와도 이 픽셀 목표가 그대로면 계획도 그대로)</text>
+<text x="890.0" y="267.0" font-size="10" font-weight="normal" fill="#444" text-anchor="middle"></text>
+<rect x="20" y="462" width="940" height="52" rx="10" fill="#f7f9fc" stroke="#d5dae1"/>
+<text x="36" y="484" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">· 스캔 한 번(32ms)마다 카운터가 남은 픽셀만 한 펄스 구동하고 1 줄인다. 0 이 되면 마스크가 0 / 0 이라 전압 0 → 진회색에서 멈추고 전력 없이 유지된다.</text>
+<text x="36" y="504" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">· 화면의 모든 픽셀이 같은 스캔 안에서 동시에 구동된다. 바뀐 픽셀이 많아도 걸리는 시간은 같다 (펄스 수가 가장 많은 픽셀이 끝날 때까지).</text>
+</svg>

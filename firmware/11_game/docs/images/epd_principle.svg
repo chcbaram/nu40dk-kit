@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="430" viewBox="0 0 980 430" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="430" fill="#ffffff"/>
+<text x="490.0" y="32" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">EPAPER 픽셀 하나의 구조와 동작</text>
+<text x="20" y="78" font-size="11" font-weight="bold" fill="#666" text-anchor="start">보는 쪽 ▼</text>
+<text x="20" y="96" font-size="10" font-weight="normal" fill="#3b6fb6" text-anchor="start">공통 전극</text>
+<text x="20" y="109" font-size="10" font-weight="normal" fill="#3b6fb6" text-anchor="start">(투명, VCOM)</text>
+<text x="20" y="270" font-size="10" font-weight="normal" fill="#555" text-anchor="start">픽셀 전극</text>
+<text x="20" y="283" font-size="10" font-weight="normal" fill="#555" text-anchor="start">(TFT)</text>
+<rect x="130" y="90" width="140" height="8" fill="#cfe3f5" stroke="#7aa5cf"/>
+<rect x="140" y="106" width="120" height="150" rx="55" fill="#f4f7fb" stroke="#8aa0b8" stroke-width="1.5"/>
+<rect x="130" y="264" width="140" height="8" fill="#9aa6b8" stroke="#6b7890"/>
+<circle cx="170" cy="130" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="200" cy="130" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="230" cy="130" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="170" cy="151" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="200" cy="151" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="230" cy="151" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="170" cy="172" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="200" cy="172" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="230" cy="172" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="170" cy="193" r="9" fill="#222"/>
+<circle cx="200" cy="193" r="9" fill="#222"/>
+<circle cx="230" cy="193" r="9" fill="#222"/>
+<circle cx="170" cy="214" r="9" fill="#222"/>
+<circle cx="200" cy="214" r="9" fill="#222"/>
+<circle cx="230" cy="214" r="9" fill="#222"/>
+<circle cx="170" cy="235" r="9" fill="#222"/>
+<circle cx="200" cy="235" r="9" fill="#222"/>
+<circle cx="230" cy="235" r="9" fill="#222"/>
+<text x="200" y="292" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">흰색</text>
+<text x="200" y="310" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">흰 입자가 앞쪽</text>
+<rect x="350" y="90" width="140" height="8" fill="#cfe3f5" stroke="#7aa5cf"/>
+<rect x="360" y="106" width="120" height="150" rx="55" fill="#f4f7fb" stroke="#8aa0b8" stroke-width="1.5"/>
+<rect x="350" y="264" width="140" height="8" fill="#9aa6b8" stroke="#6b7890"/>
+<circle cx="390" cy="130" r="9" fill="#222"/>
+<circle cx="420" cy="130" r="9" fill="#222"/>
+<circle cx="450" cy="130" r="9" fill="#222"/>
+<circle cx="390" cy="151" r="9" fill="#222"/>
+<circle cx="420" cy="151" r="9" fill="#222"/>
+<circle cx="450" cy="151" r="9" fill="#222"/>
+<circle cx="390" cy="172" r="9" fill="#222"/>
+<circle cx="420" cy="172" r="9" fill="#222"/>
+<circle cx="450" cy="172" r="9" fill="#222"/>
+<circle cx="390" cy="193" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="420" cy="193" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="450" cy="193" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="390" cy="214" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="420" cy="214" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="450" cy="214" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="390" cy="235" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="420" cy="235" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="450" cy="235" r="9" fill="#ffffff" stroke="#777"/>
+<text x="420" y="292" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">검정</text>
+<text x="420" y="310" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">검은 입자가 앞쪽</text>
+<text x="420" y="330" font-size="11" font-weight="bold" fill="#c0392b" text-anchor="middle">검정 방향 전압 (긴 펄스)</text>
+<rect x="570" y="90" width="140" height="8" fill="#cfe3f5" stroke="#7aa5cf"/>
+<rect x="580" y="106" width="120" height="150" rx="55" fill="#f4f7fb" stroke="#8aa0b8" stroke-width="1.5"/>
+<rect x="570" y="264" width="140" height="8" fill="#9aa6b8" stroke="#6b7890"/>
+<circle cx="610" cy="130" r="9" fill="#222"/>
+<circle cx="640" cy="130" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="670" cy="130" r="9" fill="#222"/>
+<circle cx="610" cy="151" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="640" cy="151" r="9" fill="#222"/>
+<circle cx="670" cy="151" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="610" cy="172" r="9" fill="#222"/>
+<circle cx="640" cy="172" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="670" cy="172" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="610" cy="193" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="640" cy="193" r="9" fill="#222"/>
+<circle cx="670" cy="193" r="9" fill="#222"/>
+<circle cx="610" cy="214" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="640" cy="214" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="670" cy="214" r="9" fill="#222"/>
+<circle cx="610" cy="235" r="9" fill="#222"/>
+<circle cx="640" cy="235" r="9" fill="#222"/>
+<circle cx="670" cy="235" r="9" fill="#ffffff" stroke="#777"/>
+<text x="640" y="292" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">회색 (중간에 멈춤)</text>
+<text x="640" y="310" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">앞쪽에 흰·검 입자가 섞임</text>
+<text x="640" y="330" font-size="11" font-weight="bold" fill="#c0392b" text-anchor="middle">검정 방향 짧은 펄스 3번</text>
+<rect x="790" y="90" width="140" height="8" fill="#cfe3f5" stroke="#7aa5cf"/>
+<rect x="800" y="106" width="120" height="150" rx="55" fill="#f4f7fb" stroke="#8aa0b8" stroke-width="1.5"/>
+<rect x="790" y="264" width="140" height="8" fill="#9aa6b8" stroke="#6b7890"/>
+<circle cx="830" cy="130" r="9" fill="#222"/>
+<circle cx="860" cy="130" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="890" cy="130" r="9" fill="#222"/>
+<circle cx="830" cy="151" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="860" cy="151" r="9" fill="#222"/>
+<circle cx="890" cy="151" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="830" cy="172" r="9" fill="#222"/>
+<circle cx="860" cy="172" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="890" cy="172" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="830" cy="193" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="860" cy="193" r="9" fill="#222"/>
+<circle cx="890" cy="193" r="9" fill="#222"/>
+<circle cx="830" cy="214" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="860" cy="214" r="9" fill="#ffffff" stroke="#777"/>
+<circle cx="890" cy="214" r="9" fill="#222"/>
+<circle cx="830" cy="235" r="9" fill="#222"/>
+<circle cx="860" cy="235" r="9" fill="#222"/>
+<circle cx="890" cy="235" r="9" fill="#ffffff" stroke="#777"/>
+<text x="860" y="292" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">전압을 끊으면</text>
+<text x="860" y="310" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">그 상태 그대로 유지 (쌍안정)</text>
+<text x="860" y="330" font-size="11" font-weight="bold" fill="#3a9a4a" text-anchor="middle">0V</text>
+<rect x="40" y="350" width="900" height="66" rx="10" fill="#f7f9fc" stroke="#d5dae1"/>
+<text x="60" y="374" font-size="12" font-weight="normal" fill="#333" text-anchor="start">· 흰 입자와 검은 입자는 서로 반대 전하를 띤다. 픽셀 전극에 + / − 전압을 걸면 한쪽 입자가 앞쪽(보는 쪽)으로 끌려온다.</text>
+<text x="60" y="396" font-size="12" font-weight="normal" fill="#333" text-anchor="start">· 입자가 실제로 액체 속을 움직이므로 수십~수백 ms 가 걸린다 → LCD 보다 느림.  전압을 끊어도 입자는 그 자리에 머문다 → 정지 화면은 전력 0.</text>
+</svg>

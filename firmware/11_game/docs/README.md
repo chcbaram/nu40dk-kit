@@ -11,7 +11,7 @@ NU40DK-KIT(nRF52840)에 WeAct 4.2" 흑백 EPAPER(SSD1683, 400×300)를 연결해
 | [01_dev_env.md](01_dev_env.md) | 개발환경, 툴 버전, 빌드·플래시 방법 |
 | [02_hardware.md](02_hardware.md) | MCU, 핀맵, EPAPER 연결, 주변장치 할당 |
 | [03_memory.md](03_memory.md) | RAM/Flash 최종 사용량, 파티션, 게임팩 ROM 의 SD → Flash 복사(그림) |
-| [04_epaper.md](04_epaper.md) | SSD1683 드라이버, 최종 갱신 모드(게임 마스크 구동·런처·RPG), 디더링/회색 표현 |
+| [04_epaper.md](04_epaper.md) | EPAPER 동작 원리(그림), 갱신 파이프라인 단계별 설명, SSD1683 드라이버, 최종 갱신 모드(게임 마스크 구동·런처·RPG), 디더링/회색 표현 |
 | [05_emulator.md](05_emulator.md) | 에뮬레이터 최종 구성(Walnut-CGB), ROM 로딩, 실행 구조 |
 | [06_input_ble.md](06_input_ble.md) | Xbox BLE 패드, 보드 버튼, 키 매핑 |
 | [07_audio.md](07_audio.md) | 사운드 출력 경로 |

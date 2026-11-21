@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="600" viewBox="0 0 980 600" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="600" fill="#ffffff"/>
+<text x="490.0" y="32" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">SSD1683 컨트롤러가 화면을 바꾸는 방법</text>
+<text x="20" y="72" font-size="13" font-weight="bold" fill="#3b6fb6" text-anchor="start">① 컨트롤러 안의 RAM 두 면</text>
+<rect x="38" y="87" width="170" height="100" rx="6" fill="#fdecea" stroke="#c0392b" stroke-width="1.2"/>
+<rect x="34" y="91" width="170" height="100" rx="6" fill="#fdecea" stroke="#c0392b" stroke-width="1.2"/>
+<rect x="30" y="95" width="170" height="100" rx="6" fill="#fdecea" stroke="#c0392b" stroke-width="1.2"/>
+<text x="115" y="135" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">RED RAM (0x26)</text>
+<text x="115" y="153" font-size="10.5" font-weight="normal" fill="#555" text-anchor="middle">보통: 이전 그림</text>
+<text x="115" y="169" font-size="10" font-weight="normal" fill="#777" text-anchor="middle">400×300 · 1bit/픽셀</text>
+<rect x="38" y="217" width="170" height="100" rx="6" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.2"/>
+<rect x="34" y="221" width="170" height="100" rx="6" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.2"/>
+<rect x="30" y="225" width="170" height="100" rx="6" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.2"/>
+<text x="115" y="265" font-size="13" font-weight="bold" fill="#111" text-anchor="middle">BW RAM (0x24)</text>
+<text x="115" y="283" font-size="10.5" font-weight="normal" fill="#555" text-anchor="middle">보통: 새 그림</text>
+<text x="115" y="299" font-size="10" font-weight="normal" fill="#777" text-anchor="middle">400×300 · 1bit/픽셀</text>
+<rect x="180" y="172" width="10" height="10" fill="#c0392b"/>
+<rect x="180" y="302" width="10" height="10" fill="#3b6fb6"/>
+<path d="M190,177 L250,177 L250,200 L268,200" fill="none" stroke="#5b6b7f" stroke-width="2" stroke-linejoin="round"/>
+<path d="M190,307 L250,307 L250,214 L268,214" fill="none" stroke="#5b6b7f" stroke-width="2" stroke-linejoin="round" marker-end="url(#ah)"/>
+<rect x="226" y="235" width="48" height="17" rx="8.5" fill="#f2f4f7" stroke="#d5dae1"/>
+<text x="250" y="247" font-size="10" font-weight="normal" fill="#3d4a5c" text-anchor="middle">같은 픽셀</text>
+<text x="280" y="72" font-size="13" font-weight="bold" fill="#3b6fb6" text-anchor="start">② 픽셀마다 비트 2개로 파형 선택</text>
+<rect x="280" y="95" width="40" height="34" fill="#e8ecf2" stroke="#b8c2d0"/>
+<text x="300.0" y="117" font-size="11.5" font-weight="bold" fill="#222" text-anchor="middle">R</text>
+<rect x="320" y="95" width="40" height="34" fill="#e8ecf2" stroke="#b8c2d0"/>
+<text x="340.0" y="117" font-size="11.5" font-weight="bold" fill="#222" text-anchor="middle">BW</text>
+<rect x="360" y="95" width="80" height="34" fill="#e8ecf2" stroke="#b8c2d0"/>
+<text x="400.0" y="117" font-size="11.5" font-weight="bold" fill="#222" text-anchor="middle">파형</text>
+<rect x="440" y="95" width="140" height="34" fill="#e8ecf2" stroke="#b8c2d0"/>
+<text x="510.0" y="117" font-size="11.5" font-weight="bold" fill="#222" text-anchor="middle">이 프로젝트 설정</text>
+<rect x="280" y="129" width="40" height="34" fill="#fff" stroke="#b8c2d0"/>
+<text x="300.0" y="151" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">1</text>
+<rect x="320" y="129" width="40" height="34" fill="#fff" stroke="#b8c2d0"/>
+<text x="340.0" y="151" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">1</text>
+<rect x="360" y="129" width="80" height="34" fill="#fff" stroke="#b8c2d0"/>
+<text x="400.0" y="151" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">LUTWW</text>
+<rect x="440" y="129" width="140" height="34" fill="#fff" stroke="#b8c2d0"/>
+<text x="510.0" y="151" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">전압 0 (그대로)</text>
+<rect x="280" y="163" width="40" height="34" fill="#fff" stroke="#b8c2d0"/>
+<text x="300.0" y="185" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">0</text>
+<rect x="320" y="163" width="40" height="34" fill="#fff" stroke="#b8c2d0"/>
+<text x="340.0" y="185" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">0</text>
+<rect x="360" y="163" width="80" height="34" fill="#fff" stroke="#b8c2d0"/>
+<text x="400.0" y="185" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">LUTBB</text>
+<rect x="440" y="163" width="140" height="34" fill="#fff" stroke="#b8c2d0"/>
+<text x="510.0" y="185" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">전압 0 (그대로)</text>
+<rect x="280" y="197" width="40" height="34" fill="#fdecea" stroke="#b8c2d0"/>
+<text x="300.0" y="219" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">1</text>
+<rect x="320" y="197" width="40" height="34" fill="#fdecea" stroke="#b8c2d0"/>
+<text x="340.0" y="219" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">0</text>
+<rect x="360" y="197" width="80" height="34" fill="#fdecea" stroke="#b8c2d0"/>
+<text x="400.0" y="219" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">LUTBW</text>
+<rect x="440" y="197" width="140" height="34" fill="#fdecea" stroke="#b8c2d0"/>
+<text x="510.0" y="219" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">검정 방향 펄스</text>
+<rect x="280" y="231" width="40" height="34" fill="#eef3fb" stroke="#b8c2d0"/>
+<text x="300.0" y="253" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">0</text>
+<rect x="320" y="231" width="40" height="34" fill="#eef3fb" stroke="#b8c2d0"/>
+<text x="340.0" y="253" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">1</text>
+<rect x="360" y="231" width="80" height="34" fill="#eef3fb" stroke="#b8c2d0"/>
+<text x="400.0" y="253" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">LUTWB</text>
+<rect x="440" y="231" width="140" height="34" fill="#eef3fb" stroke="#b8c2d0"/>
+<text x="510.0" y="253" font-size="11.5" font-weight="normal" fill="#222" text-anchor="middle">흰색 방향 펄스</text>
+<text x="380" y="288" font-size="10.5" font-weight="normal" fill="#555" text-anchor="middle">4가지 조합마다 따로 정한 "전압 시간표"(LUT)를 따른다</text>
+<line x1="580" y1="213" x2="630" y2="213" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<text x="640" y="72" font-size="13" font-weight="bold" fill="#3b6fb6" text-anchor="start">③ LUT = 프레임 단위 전압 시간표 (0x32)</text>
+<line x1="650" y1="135" x2="950" y2="135" stroke="#ccc"/>
+<polyline points="650,135 670,135 670,109 790,109 790,135 950,135" fill="none" stroke="#c0392b" stroke-width="2.4"/>
+<text x="800" y="100" font-size="10.5" font-weight="bold" fill="#c0392b" text-anchor="start">LUTBW: +15V (VSH1)</text>
+<line x1="650" y1="195" x2="950" y2="195" stroke="#ccc"/>
+<polyline points="650,195 670,195 670,221 790,221 790,195 950,195" fill="none" stroke="#3b6fb6" stroke-width="2.4"/>
+<text x="650" y="232" font-size="10.5" font-weight="bold" fill="#3b6fb6" text-anchor="start">LUTWB: −15V (VSL)</text>
+<line x1="650" y1="260" x2="950" y2="260" stroke="#ccc"/>
+<polyline points="650,260 950,260" fill="none" stroke="#888" stroke-width="2.4"/>
+<text x="650" y="250" font-size="10.5" font-weight="bold" fill="#777" text-anchor="start">LUTWW / LUTBB: 0V</text>
+<line x1="670" y1="275" x2="670" y2="281" stroke="#999"/>
+<line x1="700" y1="275" x2="700" y2="281" stroke="#999"/>
+<line x1="730" y1="275" x2="730" y2="281" stroke="#999"/>
+<line x1="760" y1="275" x2="760" y2="281" stroke="#999"/>
+<line x1="790" y1="275" x2="790" y2="281" stroke="#999"/>
+<text x="730" y="296" font-size="10.5" font-weight="normal" fill="#555" text-anchor="middle">4 프레임 × 8ms = 32ms 펄스</text>
+<text x="20" y="345" font-size="13" font-weight="bold" fill="#3b6fb6" text-anchor="start">④ 실행하면 프레임마다 300줄을 훑으며 전압을 건다</text>
+<rect x="30" y="360" width="200" height="150" fill="#fafafa" stroke="#888"/>
+<rect x="36" y="366" width="188" height="10" fill="#eee"/>
+<rect x="36" y="380" width="188" height="10" fill="#eee"/>
+<rect x="36" y="394" width="188" height="10" fill="#eee"/>
+<rect x="36" y="408" width="188" height="10" fill="#eee"/>
+<rect x="36" y="422" width="188" height="10" fill="#f5c6c0"/>
+<rect x="36" y="436" width="188" height="10" fill="#eee"/>
+<rect x="36" y="450" width="188" height="10" fill="#eee"/>
+<rect x="36" y="464" width="188" height="10" fill="#eee"/>
+<rect x="36" y="478" width="188" height="10" fill="#eee"/>
+<rect x="36" y="492" width="188" height="10" fill="#eee"/>
+<text x="260" y="437" font-size="11" font-weight="normal" fill="#555" text-anchor="start">← 1프레임(8ms) = 300줄을 위에서 아래로 한 번 훑음</text>
+<text x="260" y="455" font-size="11" font-weight="normal" fill="#555" text-anchor="start">LUT 의 프레임 수만큼 반복 = 펄스 길이</text>
+<text x="260" y="473" font-size="11" font-weight="normal" fill="#555" text-anchor="start">그동안 BUSY 핀 High → 끝나면 Low</text>
+<text x="560" y="345" font-size="13" font-weight="bold" fill="#3b6fb6" text-anchor="start">⑤ MCU 가 보내는 명령 순서</text>
+<rect x="570" y="360" width="380" height="30" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<text x="760.0" y="380.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle"></text>
+<text x="590" y="380" font-size="12" font-weight="bold" fill="#111" text-anchor="start">0x24 / 0x26</text>
+<text x="720" y="380" font-size="11" font-weight="normal" fill="#444" text-anchor="start">RAM 두 면 쓰기 (SPI)</text>
+<rect x="570" y="398" width="380" height="30" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<text x="760.0" y="418.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle"></text>
+<text x="590" y="418" font-size="12" font-weight="bold" fill="#111" text-anchor="start">0x32</text>
+<text x="720" y="418" font-size="11" font-weight="normal" fill="#444" text-anchor="start">LUT 쓰기 (227바이트)</text>
+<line x1="760" y1="390" x2="760" y2="398" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="570" y="436" width="380" height="30" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<text x="760.0" y="456.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle"></text>
+<text x="590" y="456" font-size="12" font-weight="bold" fill="#111" text-anchor="start">0x22 → 0x20</text>
+<text x="720" y="456" font-size="11" font-weight="normal" fill="#444" text-anchor="start">순서 선택 → 실행</text>
+<line x1="760" y1="428" x2="760" y2="436" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<rect x="570" y="474" width="380" height="30" rx="10" fill="#eef3fb" stroke="#3b6fb6" stroke-width="1.5" filter="url(#sh)"/>
+<text x="760.0" y="494.0" font-size="14" font-weight="bold" fill="#111" text-anchor="middle"></text>
+<text x="590" y="494" font-size="12" font-weight="bold" fill="#111" text-anchor="start">BUSY 대기</text>
+<text x="720" y="494" font-size="11" font-weight="normal" fill="#444" text-anchor="start">구동 끝</text>
+<line x1="760" y1="466" x2="760" y2="474" stroke="#5b6b7f" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/>
+<text x="490.0" y="580" font-size="11.5" font-weight="bold" fill="#333" text-anchor="middle">RAM 두 면의 비트 조합이 "이 픽셀을 어느 방향으로 구동할지"를 정하고, LUT 가 "얼마나 오래·어떤 전압으로"를 정한다</text>
+</svg>
