@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "game/app_api.h"
 #include "rpg.h"
 #include "rpg_assets.h"
@@ -1076,6 +1077,99 @@ static void interact(void)
 }
 
 /*---------------------------------------------------------------------------
+ * 시험용 CLI (ui rpg ...): 지도 화면에서 키를 기다리는 동안만 실행
+ *-------------------------------------------------------------------------*/
+// k 장을 깬 상태로 만든다 (깃발, 기술, 장비, 아이템)
+static void completeChapter(int k)
+{
+  switch (k)
+  {
+    case 1: flagSet(RPG_F_SENIOR); flagSet(RPG_F_GATE1); g.items[0] += 2; break;
+    case 2: flagSet(RPG_F_LEARN1); flagSet(RPG_F_GATE2); flagSet(RPG_F_CHEST2);
+            g.skills |= 1 << 1; g.equips |= 1 << 0; g.items[0] += 1; g.items[2] += 1; break;
+    case 3: flagSet(RPG_F_LEARN2); flagSet(RPG_F_GATE3); flagSet(RPG_F_CHEST1);
+            g.skills |= 1 << 2; g.equips |= 1 << 1; g.items[0] += 1; break;
+    case 4: flagSet(RPG_F_LEARN3); flagSet(RPG_F_GATE4); g.skills |= 1 << 3; g.items[0] += 1; break;
+    case 5: flagSet(RPG_F_LEARN4); flagSet(RPG_F_GATE5); flagSet(RPG_F_CHEST3);
+            g.skills |= 1 << 4; g.equips |= 1 << 2; g.items[0] += 1; g.items[2] += 1; break;
+    case 6: flagSet(RPG_F_LEARN5); flagSet(RPG_F_GATE6); g.skills |= 1 << 5; g.items[1] += 1; break;
+  }
+}
+
+// 반환: true = 화면을 다시 그려야 함
+static bool runDebugCmd(const char *cmd)
+{
+  char op[12] = {0};
+  int  a = -1, b = -1, c = -1;
+
+  sscanf(cmd, "%11s %d %d %d", op, &a, &b, &c);
+  if (strcmp(op, "ch") == 0 && a >= 1 && a <= 7)
+  {
+    // a 장 시작: 앞 장들을 깬 상태로 a 장 첫 방(2*(a-1))의 서쪽 입구에
+    int keep_used = g.used;
+    memset(&g, 0, sizeof(g));
+    g.used   = keep_used;
+    g.skills = 1;
+    for (int k = 1; k < a; k++) completeChapter(k);
+    g.lv     = (uint8_t)(1 + (a - 1) * 2);
+    g.hp_max = (int16_t)(20 + (g.lv - 1) * 3);
+    g.hp     = g.hp_max;
+    g.room   = (uint8_t)(2 * (a - 1));
+    for (int i = 0; i < RPG_ENT_CNT; i++)     // 앞 장의 버그는 쓰러뜨린 것으로
+      if (rpg_ent[i].kind == RPG_ENT_BUG && rpg_ent[i].room < g.room) g.dead |= (1u << i);
+    if (a == 1) { g.x = RPG_START_X; g.y = RPG_START_Y; }
+    else        { g.x = 1; g.y = 4; }
+    g.dir  = DIR_RIGHT;
+    g.ckpt = g.room;
+    api->log("[RPG] ch %d: room %d, Lv%d, flags 0x%08X, skills 0x%02X\n", a, g.room, g.lv, (unsigned)g.flags, g.skills);
+    return true;
+  }
+  if (strcmp(op, "room") == 0 && a >= 0 && a < RPG_ROOM_CNT)
+  {
+    g.room = (uint8_t)a;
+    g.x    = (uint8_t)(b >= 0 && b < RPG_MAP_W ? b : 1);
+    g.y    = (uint8_t)(c >= 0 && c < RPG_MAP_H ? c : 4);
+    api->log("[RPG] room %d (%d,%d)\n", g.room, g.x, g.y);
+    return true;
+  }
+  if (strcmp(op, "heal") == 0)
+  {
+    g.hp = g.hp_max;
+    return true;
+  }
+  if (strcmp(op, "state") == 0)
+  {
+    api->log("[RPG] room %d (%d,%d) Lv%d HP %d/%d flags 0x%08X skills 0x%02X equips 0x%02X items %d/%d/%d dead 0x%08X\n",
+             g.room, g.x, g.y, g.lv, g.hp, g.hp_max, (unsigned)g.flags, g.skills, g.equips,
+             g.items[0], g.items[1], g.items[2], (unsigned)g.dead);
+    return false;
+  }
+  api->log("[RPG] ? %s (ch N | room R [x y] | heal | state)\n", cmd);
+  return false;
+}
+
+// 지도 화면에서 키 기다리기 (시험 명령도 여기서 처리)
+static app_key_t waitKeyMap(void)
+{
+  app_key_t key;
+
+  while ((key = api->readKey()) == APP_KEY_NONE)
+  {
+    const char *cmd = api->debugCmd ? api->debugCmd() : NULL;
+    if (cmd != NULL && runDebugCmd(cmd))
+    {
+      convClose();
+      dirtyClear();
+      drawMap();
+      show(APP_REFRESH_FLASH);
+    }
+    idleWork();
+    api->delay(20);
+  }
+  return key;
+}
+
+/*---------------------------------------------------------------------------
  * 타이틀 / 메뉴
  *-------------------------------------------------------------------------*/
 static void newGame(void)
@@ -1174,7 +1268,7 @@ static void rpgMain(const app_api_t *p_api)
 
     while (1)
     {
-      app_key_t key = waitKey();
+      app_key_t key = waitKeyMap();
       if (key >= APP_KEY_UP && key <= APP_KEY_RIGHT)
       {
         static const uint8_t key_dir[5] = { 0, DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT };

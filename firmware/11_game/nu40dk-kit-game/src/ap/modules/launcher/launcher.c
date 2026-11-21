@@ -898,6 +898,18 @@ static void      apiRefreshFrom(const uint8_t *p_old, int16_t y, int16_t h)
   epdUpdateWindow(EPD_MODE_FAST, 0, y, CANVAS_WIDTH, h);
 }
 
+static char        app_dbg_buf[48];
+static volatile bool app_dbg_ready = false;
+
+static const char *apiDebugCmd(void)
+{
+  static char cmd[48];
+  if (!app_dbg_ready) return NULL;
+  memcpy(cmd, app_dbg_buf, sizeof(cmd));
+  app_dbg_ready = false;
+  return cmd;
+}
+
 static void runApp(const app_def_t *app)
 {
   static const app_api_t api =
@@ -926,6 +938,7 @@ static void runApp(const app_def_t *app)
     .millis         = apiMillis,
     .delay          = apiDelay,
     .log            = apiLog,
+    .debugCmd       = apiDebugCmd,
   };
   app_api_t run_api = api;
 
@@ -1069,6 +1082,17 @@ static void cliUi(cli_args_t *args)
     cliPrintf("ui mode %s\n", move_mode == 0 ? "fast" : "part");
     ret = true;
   }
+  if (args->argc >= 2 && (args->isStr(0, "app") || args->isStr(0, "rpg")))
+  {
+    // ui rpg <명령...> : 실행 중인 앱에 시험 명령 전달 (RPG: ch N, room R [x y], heal, state)
+    int n = 0;
+    app_dbg_buf[0] = 0;
+    for (int i = 1; i < args->argc && n < (int)sizeof(app_dbg_buf) - 1; i++)
+      n += snprintf(&app_dbg_buf[n], sizeof(app_dbg_buf) - n, "%s%s", i > 1 ? " " : "", args->getStr(i));
+    app_dbg_ready = true;
+    cliPrintf("app cmd: %s (지도 화면에서 실행)\n", app_dbg_buf);
+    ret = true;
+  }
   if (args->argc == 2 && args->isStr(0, "voice"))
   {
     // ui voice <파일 또는 8자리 번호> : SD 음성 재생 시험 (번호면 /rpg/v/<번호>.WAV)
@@ -1123,6 +1147,7 @@ static void cliUi(cli_args_t *args)
   {
     cliPrintf("ui key up|down|left|right|ok|back\n");
     cliPrintf("ui shot\n");
+    cliPrintf("ui rpg ch N | room R [x y] | heal | state\n");
     cliPrintf("ui mode fast|part\n");
   }
 }

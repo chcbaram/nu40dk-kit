@@ -71,6 +71,7 @@ typedef struct
   uint32_t (*millis)(void);
   void     (*delay)(uint32_t ms);
   void     (*log)(const char *fmt, ...);
+  const char *(*debugCmd)(void);      // CLI 'ui app <명령>' 으로 맡겨 둔 시험 명령 (꺼내면 지워짐, 없으면 NULL)
 } app_api_t;
 
 typedef struct
