@@ -1515,9 +1515,15 @@ def main():
     qnames = list(S.QUIZZES.keys())
     qidx = {n: i for i, n in enumerate(qnames)}
     qrows = []
-    for n in qnames:
+    # 정답 위치를 문제마다 1·2·3 번에 고르게 (story.py 에서는 정답을 아무 데나 적어도 된다)
+    ans_pos = [1, 2, 0, 2, 1, 0, 2, 1, 0]
+    for qi, n in enumerate(qnames):
         qq, opts, ans, right, wrong = S.QUIZZES[n]
-        qrows.append((lines_arr(qq), opts, ans, lines_arr(right), lines_arr(wrong)))
+        correct = opts[ans]
+        others = [o for k, o in enumerate(opts) if k != ans]
+        pos = ans_pos[qi % len(ans_pos)]
+        opts = others[:pos] + [correct] + others[pos:]
+        qrows.append((lines_arr(qq), opts, pos, lines_arr(right), lines_arr(wrong)))
     A('typedef struct { const char *const *q; const char *opt[3]; uint8_t ans; const char *const *right; const char *const *wrong; } rpg_quiz_t;')
     A('#define RPG_QUIZ_CNT %d' % len(qrows))
     A('static const rpg_quiz_t rpg_quiz[RPG_QUIZ_CNT] = {')

@@ -460,14 +460,14 @@ static const char *const rpg_t23[] = { "그러다 다시 만난다.", NULL };
 typedef struct { const char *const *q; const char *opt[3]; uint8_t ans; const char *const *right; const char *const *wrong; } rpg_quiz_t;
 #define RPG_QUIZ_CNT 8
 static const rpg_quiz_t rpg_quiz[RPG_QUIZ_CNT] = {
-  { rpg_t0, { "보레이트", "컴파일러 버전", "기도하기" }, 0, rpg_t1, rpg_t2 },
-  { rpg_t3, { "그래도 된다", "짧게 끝낸다", "상관없다" }, 1, rpg_t4, rpg_t5 },
+  { rpg_t0, { "컴파일러 버전", "보레이트", "기도하기" }, 1, rpg_t1, rpg_t2 },
+  { rpg_t3, { "그래도 된다", "상관없다", "짧게 끝낸다" }, 2, rpg_t4, rpg_t5 },
   { rpg_t6, { "핀 클럭이 켜졌나", "화면 밝기", "배터리 색깔" }, 0, rpg_t7, rpg_t8 },
-  { rpg_t9, { "캐시", "키보드", "날씨" }, 0, rpg_t10, rpg_t11 },
-  { rpg_t12, { "데드락", "오버클럭", "점심시간" }, 0, rpg_t13, rpg_t14 },
+  { rpg_t9, { "키보드", "날씨", "캐시" }, 2, rpg_t10, rpg_t11 },
+  { rpg_t12, { "오버클럭", "데드락", "점심시간" }, 1, rpg_t13, rpg_t14 },
   { rpg_t15, { "대기 전류", "화면 크기", "코드 줄 수" }, 0, rpg_t16, rpg_t17 },
-  { rpg_t18, { "재현하기", "코드 다 지우기", "퇴근하기" }, 0, rpg_t19, rpg_t20 },
-  { rpg_t21, { "원인을 찾아야 안다", "잡았다", "모른 척한다" }, 0, rpg_t22, rpg_t23 },
+  { rpg_t18, { "코드 다 지우기", "퇴근하기", "재현하기" }, 2, rpg_t19, rpg_t20 },
+  { rpg_t21, { "잡았다", "원인을 찾아야 안다", "모른 척한다" }, 1, rpg_t22, rpg_t23 },
 };
 static const char *const rpg_t24[] = { "바람, 고수가 되고 싶다고?", "그럼 수련을 떠나야지.", "", "가는 길마다 버그가 길을 막아.", "지역마다 스승을 찾아가", "기술을 배우도록 해.", "", "그 전에 하나만 물어보자.", NULL };
 static const rpg_block_t rpg_bk25[] = { { "선배 개발자", rpg_t24 } };
