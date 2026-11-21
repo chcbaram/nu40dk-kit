@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="470" viewBox="0 0 980 470" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="470" fill="#ffffff"/>
+<text x="490.0" y="30" font-size="16" font-weight="bold" fill="#111" text-anchor="middle">스레드 타임라인: 무엇이 동시에 도나 (1-1 걷기, 약 200ms 구간, 측정 평균 기반 모식도)</text>
+<rect x="20" y="58" width="940" height="46" rx="6" fill="#f7f9fc" stroke="#e3e7ee"/>
+<text x="30" y="78" font-size="12.5" font-weight="bold" fill="#222" text-anchor="start">I2S</text>
+<text x="30" y="95" font-size="10" font-weight="normal" fill="#777" text-anchor="start">우선순위 3 · CPU</text>
+<rect x="20" y="110" width="940" height="46" rx="6" fill="#ffffff" stroke="#e3e7ee"/>
+<text x="30" y="130" font-size="12.5" font-weight="bold" fill="#222" text-anchor="start">gb_disp</text>
+<text x="30" y="147" font-size="10" font-weight="normal" fill="#777" text-anchor="start">우선순위 4 · CPU</text>
+<rect x="20" y="162" width="940" height="46" rx="6" fill="#f7f9fc" stroke="#e3e7ee"/>
+<text x="30" y="182" font-size="12.5" font-weight="bold" fill="#222" text-anchor="start">SPI DMA</text>
+<text x="30" y="199" font-size="10" font-weight="normal" fill="#777" text-anchor="start">하드웨어</text>
+<rect x="20" y="214" width="940" height="46" rx="6" fill="#ffffff" stroke="#e3e7ee"/>
+<text x="30" y="234" font-size="12.5" font-weight="bold" fill="#222" text-anchor="start">EPD 패널 구동</text>
+<text x="30" y="251" font-size="10" font-weight="normal" fill="#777" text-anchor="start">하드웨어 (BUSY)</text>
+<rect x="20" y="266" width="940" height="46" rx="6" fill="#f7f9fc" stroke="#e3e7ee"/>
+<text x="30" y="286" font-size="12.5" font-weight="bold" fill="#222" text-anchor="start">gb_emu</text>
+<text x="30" y="303" font-size="10" font-weight="normal" fill="#777" text-anchor="start">우선순위 7 · CPU</text>
+<rect x="20" y="318" width="940" height="46" rx="6" fill="#ffffff" stroke="#e3e7ee"/>
+<text x="30" y="338" font-size="12.5" font-weight="bold" fill="#222" text-anchor="start">CPU 유휴</text>
+<text x="30" y="355" font-size="10" font-weight="normal" fill="#777" text-anchor="start"></text>
+<rect x="175.0" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="190.6" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="206.2" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="221.8" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="237.4" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="253.0" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="268.6" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="284.2" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="299.8" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="315.4" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="331.0" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="346.6" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="362.2" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="377.8" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="393.4" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="409.0" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="424.6" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="440.2" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="455.8" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="471.4" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="487.0" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="502.6" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="518.2" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="533.8" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="549.4" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="565.0" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="580.6" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="596.2" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="611.8" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="627.4" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="643.0" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="658.6" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="674.2" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="689.8" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="705.4" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="721.0" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="736.6" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="752.2" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="767.8" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="783.4" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="799.0" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="814.6" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="830.2" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="845.8" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="861.4" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="877.0" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="892.6" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="908.2" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="923.8" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="939.4" y="67" width="1.5" height="28" rx="3" fill="#8e44ad"/>
+<rect x="175.0" y="119" width="4.7" height="28" rx="3" fill="#3b6fb6"/>
+<rect x="179.7" y="171" width="112.3" height="28" rx="3" fill="#7fb3d5"/>
+<text x="235.84" y="189" font-size="10.5" font-weight="bold" fill="#fff" text-anchor="middle">두 면 전송 29ms</text>
+<rect x="292.0" y="223" width="140.4" height="28" rx="3" fill="#95a5a6"/>
+<text x="362.2" y="241" font-size="10.5" font-weight="bold" fill="#fff" text-anchor="middle">펄스 32ms + 방전</text>
+<rect x="448.0" y="119" width="4.7" height="28" rx="3" fill="#3b6fb6"/>
+<rect x="452.7" y="171" width="112.3" height="28" rx="3" fill="#7fb3d5"/>
+<text x="508.84000000000003" y="189" font-size="10.5" font-weight="bold" fill="#fff" text-anchor="middle">두 면 전송 29ms</text>
+<rect x="565.0" y="223" width="140.4" height="28" rx="3" fill="#95a5a6"/>
+<text x="635.2" y="241" font-size="10.5" font-weight="bold" fill="#fff" text-anchor="middle">펄스 32ms + 방전</text>
+<rect x="721.0" y="119" width="4.7" height="28" rx="3" fill="#3b6fb6"/>
+<rect x="725.7" y="171" width="112.3" height="28" rx="3" fill="#7fb3d5"/>
+<text x="781.8399999999999" y="189" font-size="10.5" font-weight="bold" fill="#fff" text-anchor="middle">두 면 전송 29ms</text>
+<rect x="838.0" y="223" width="117.0" height="28" rx="3" fill="#95a5a6"/>
+<text x="896.5" y="241" font-size="10.5" font-weight="bold" fill="#fff" text-anchor="middle">펄스 32ms + 방전</text>
+<rect x="214.0" y="119" width="9.8" height="28" rx="3" fill="#1f4e8c"/>
+<rect x="537.7" y="119" width="9.8" height="28" rx="3" fill="#1f4e8c"/>
+<rect x="861.4" y="119" width="9.8" height="28" rx="3" fill="#1f4e8c"/>
+<rect x="175.0" y="275" width="53.2" height="28" rx="3" fill="#c98a00"/>
+<rect x="228.2" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="234.1" y="327" width="6.0" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="240.1" y="275" width="48.2" height="28" rx="3" fill="#e0a526"/>
+<rect x="288.3" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="294.1" y="327" width="11.1" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="305.3" y="275" width="48.2" height="28" rx="3" fill="#e0a526"/>
+<rect x="353.4" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="359.3" y="327" width="11.1" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="370.4" y="275" width="48.2" height="28" rx="3" fill="#e0a526"/>
+<rect x="418.6" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="424.4" y="327" width="11.1" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="435.5" y="275" width="48.2" height="28" rx="3" fill="#e0a526"/>
+<rect x="483.7" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="489.5" y="327" width="11.1" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="500.6" y="275" width="53.2" height="28" rx="3" fill="#c98a00"/>
+<rect x="553.9" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="559.7" y="327" width="6.0" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="565.8" y="275" width="48.2" height="28" rx="3" fill="#e0a526"/>
+<rect x="613.9" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="619.8" y="327" width="11.1" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="630.9" y="275" width="48.2" height="28" rx="3" fill="#e0a526"/>
+<rect x="679.1" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="684.9" y="327" width="11.1" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="696.0" y="275" width="48.2" height="28" rx="3" fill="#e0a526"/>
+<rect x="744.2" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="750.1" y="327" width="11.1" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="761.2" y="275" width="48.2" height="28" rx="3" fill="#e0a526"/>
+<rect x="809.3" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="815.2" y="327" width="11.1" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="826.3" y="275" width="53.2" height="28" rx="3" fill="#c98a00"/>
+<rect x="879.5" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="885.4" y="327" width="6.0" height="28" rx="3" fill="#d5dbe3"/>
+<rect x="891.4" y="275" width="48.2" height="28" rx="3" fill="#e0a526"/>
+<rect x="939.6" y="275" width="5.8" height="28" rx="3" fill="#2e7d32"/>
+<rect x="945.4" y="327" width="9.6" height="28" rx="3" fill="#d5dbe3"/>
+<line x1="175" y1="58" x2="175" y2="374" stroke="#eef0f3"/>
+<text x="175.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">0</text>
+<line x1="253" y1="58" x2="253" y2="374" stroke="#eef0f3"/>
+<text x="253.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">20</text>
+<line x1="331" y1="58" x2="331" y2="374" stroke="#eef0f3"/>
+<text x="331.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">40</text>
+<line x1="409" y1="58" x2="409" y2="374" stroke="#eef0f3"/>
+<text x="409.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">60</text>
+<line x1="487" y1="58" x2="487" y2="374" stroke="#eef0f3"/>
+<text x="487.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">80</text>
+<line x1="565" y1="58" x2="565" y2="374" stroke="#eef0f3"/>
+<text x="565.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">100</text>
+<line x1="643" y1="58" x2="643" y2="374" stroke="#eef0f3"/>
+<text x="643.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">120</text>
+<line x1="721" y1="58" x2="721" y2="374" stroke="#eef0f3"/>
+<text x="721.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">140</text>
+<line x1="799" y1="58" x2="799" y2="374" stroke="#eef0f3"/>
+<text x="799.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">160</text>
+<line x1="877" y1="58" x2="877" y2="374" stroke="#eef0f3"/>
+<text x="877.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">180</text>
+<line x1="955" y1="58" x2="955" y2="374" stroke="#eef0f3"/>
+<text x="955.0" y="388" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">200</text>
+<text x="565.0" y="404" font-size="10.5" font-weight="normal" fill="#777" text-anchor="middle">ms</text>
+<rect x="40" y="412" width="12" height="12" rx="2" fill="#e0a526"/>
+<text x="56" y="422" font-size="10.5" font-weight="normal" fill="#333" text-anchor="start">에뮬 1프레임 (12.4ms)</text>
+<rect x="192.5" y="412" width="12" height="12" rx="2" fill="#c98a00"/>
+<text x="208.5" y="422" font-size="10.5" font-weight="normal" fill="#333" text-anchor="start">그리는 프레임 (+1.3ms)</text>
+<rect x="349.5" y="412" width="12" height="12" rx="2" fill="#2e7d32"/>
+<text x="365.5" y="422" font-size="10.5" font-weight="normal" fill="#333" text-anchor="start">사운드 합성 1.5ms</text>
+<rect x="478.0" y="412" width="12" height="12" rx="2" fill="#1f4e8c"/>
+<text x="494.0" y="422" font-size="10.5" font-weight="normal" fill="#333" text-anchor="start">새 프레임 받기·펄스 계획</text>
+<rect x="641.0" y="412" width="12" height="12" rx="2" fill="#3b6fb6"/>
+<text x="657.0" y="422" font-size="10.5" font-weight="normal" fill="#333" text-anchor="start">마스크 만들기</text>
+<rect x="744.0" y="412" width="12" height="12" rx="2" fill="#7fb3d5"/>
+<text x="760.0" y="422" font-size="10.5" font-weight="normal" fill="#333" text-anchor="start">SPI DMA</text>
+<rect x="820.0" y="412" width="12" height="12" rx="2" fill="#95a5a6"/>
+<text x="836.0" y="422" font-size="10.5" font-weight="normal" fill="#333" text-anchor="start">패널 구동</text>
+<rect x="902.0" y="412" width="12" height="12" rx="2" fill="#8e44ad"/>
+<text x="918.0" y="422" font-size="10.5" font-weight="normal" fill="#333" text-anchor="start">I2S 4ms 마다</text>
+<text x="490.0" y="448" font-size="11" font-weight="bold" fill="#2e7d32" text-anchor="middle">핵심: SPI 전송·패널 구동은 하드웨어가 하고 그동안 CPU 는 에뮬레이터를 돌린다. 에뮬 1프레임이 16.7ms 안에 끝나 유휴가 남는다</text>
+</svg>

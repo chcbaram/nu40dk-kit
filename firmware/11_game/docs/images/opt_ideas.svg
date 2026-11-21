@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="700" viewBox="0 0 980 700" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="700" fill="#ffffff"/>
+<text x="490.0" y="32" font-size="18" font-weight="bold" fill="#111" text-anchor="middle">핵심 최적화 4가지: 무엇을 안 하게 만들었나</text>
+<rect x="20" y="55" width="460" height="300" rx="12" fill="#fafbfd" stroke="#cfd5de"/>
+<circle cx="44" cy="81" r="13" fill="#3b6fb6"/>
+<text x="44" y="86" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">1</text>
+<text x="66" y="86" font-size="14" font-weight="bold" fill="#111" text-anchor="start">타이밍 일괄 처리</text>
+<rect x="290" y="68" width="176" height="24" rx="12" fill="#eaf5ec" stroke="#9fd0a9"/>
+<text x="378" y="85" font-size="11.5" font-weight="bold" fill="#2e7d32" text-anchor="middle">실제 플레이 76 → 98%</text>
+<text x="40" y="121" font-size="11.5" font-weight="bold" fill="#c0392b" text-anchor="start">전: GB 명령 하나마다 타이머·LCD·시리얼·RTC 를 모두 확인</text>
+<rect x="40" y="133" width="14" height="24" fill="#3b6fb6"/>
+<rect x="55" y="133" width="28" height="24" fill="#f5c6c0"/>
+<rect x="87" y="133" width="14" height="24" fill="#3b6fb6"/>
+<rect x="102" y="133" width="28" height="24" fill="#f5c6c0"/>
+<rect x="134" y="133" width="14" height="24" fill="#3b6fb6"/>
+<rect x="149" y="133" width="28" height="24" fill="#f5c6c0"/>
+<rect x="181" y="133" width="14" height="24" fill="#3b6fb6"/>
+<rect x="196" y="133" width="28" height="24" fill="#f5c6c0"/>
+<rect x="228" y="133" width="14" height="24" fill="#3b6fb6"/>
+<rect x="243" y="133" width="28" height="24" fill="#f5c6c0"/>
+<rect x="275" y="133" width="14" height="24" fill="#3b6fb6"/>
+<rect x="290" y="133" width="28" height="24" fill="#f5c6c0"/>
+<rect x="322" y="133" width="14" height="24" fill="#3b6fb6"/>
+<rect x="337" y="133" width="28" height="24" fill="#f5c6c0"/>
+<rect x="369" y="133" width="14" height="24" fill="#3b6fb6"/>
+<rect x="384" y="133" width="28" height="24" fill="#f5c6c0"/>
+<rect x="416" y="133" width="14" height="24" fill="#3b6fb6"/>
+<rect x="431" y="133" width="28" height="24" fill="#f5c6c0"/>
+<rect x="40" y="165" width="12" height="12" fill="#3b6fb6"/>
+<text x="58" y="175" font-size="10.5" font-weight="normal" fill="#555" text-anchor="start">명령 실행</text>
+<rect x="120" y="165" width="12" height="12" fill="#f5c6c0"/>
+<text x="138" y="175" font-size="10.5" font-weight="normal" fill="#555" text-anchor="start">확인 (명령보다 3.5배 무거웠다)</text>
+<text x="40" y="205" font-size="11.5" font-weight="bold" fill="#3b6fb6" text-anchor="start">후: 다음 이벤트까지 사이클만 더해 두고, 그때 한 번 처리</text>
+<rect x="40" y="217" width="14" height="24" fill="#3b6fb6"/>
+<rect x="58" y="217" width="14" height="24" fill="#3b6fb6"/>
+<rect x="76" y="217" width="14" height="24" fill="#3b6fb6"/>
+<rect x="94" y="217" width="14" height="24" fill="#3b6fb6"/>
+<rect x="112" y="217" width="14" height="24" fill="#3b6fb6"/>
+<rect x="130" y="217" width="14" height="24" fill="#3b6fb6"/>
+<rect x="148" y="217" width="14" height="24" fill="#3b6fb6"/>
+<rect x="166" y="217" width="14" height="24" fill="#3b6fb6"/>
+<rect x="184" y="217" width="14" height="24" fill="#3b6fb6"/>
+<rect x="202" y="217" width="28" height="24" fill="#f5c6c0"/>
+<text x="238" y="235" font-size="10.5" font-weight="normal" fill="#555" text-anchor="start">← 이벤트(줄 끝 등)에서만</text>
+<text x="40" y="275" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">왜 빨라졌나: 확인은 대부분 "아직 아님"으로 끝난다.</text>
+<text x="40" y="295" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">언제 일이 생기는지 미리 계산해 그때만 본다.</text>
+<text x="40" y="317" font-size="11" font-weight="normal" fill="#777" text-anchor="start">타이머 값을 읽거나 IO 를 쓸 때는 먼저 맞춰 둬서 결과는 같다.</text>
+<rect x="500" y="55" width="460" height="300" rx="12" fill="#fafbfd" stroke="#cfd5de"/>
+<circle cx="524" cy="81" r="13" fill="#3b6fb6"/>
+<text x="524" y="86" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">2</text>
+<text x="546" y="86" font-size="14" font-weight="bold" fill="#111" text-anchor="start">필요한 프레임만 그리기</text>
+<rect x="770" y="68" width="176" height="24" rx="12" fill="#eaf5ec" stroke="#9fd0a9"/>
+<text x="858" y="85" font-size="11.5" font-weight="bold" fill="#2e7d32" text-anchor="middle">프레임당 15 → 7ms</text>
+<text x="520" y="121" font-size="11.5" font-weight="bold" fill="#333" text-anchor="start">에뮬레이터는 60fps, EPAPER 는 초당 약 10장만 받는다</text>
+<rect x="520" y="137" width="11" height="34" fill="#3b6fb6" stroke="#3b6fb6"/>
+<rect x="534" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="548" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="562" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="576" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="590" y="137" width="11" height="34" fill="#3b6fb6" stroke="#3b6fb6"/>
+<rect x="604" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="618" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="632" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="646" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="660" y="137" width="11" height="34" fill="#3b6fb6" stroke="#3b6fb6"/>
+<rect x="674" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="688" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="702" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="716" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="730" y="137" width="11" height="34" fill="#3b6fb6" stroke="#3b6fb6"/>
+<rect x="744" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="758" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="772" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="786" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="800" y="137" width="11" height="34" fill="#3b6fb6" stroke="#3b6fb6"/>
+<rect x="814" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="828" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="842" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="856" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="870" y="137" width="11" height="34" fill="#3b6fb6" stroke="#3b6fb6"/>
+<rect x="884" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="898" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="912" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="926" y="137" width="11" height="34" fill="#ffffff" stroke="#3b6fb6"/>
+<rect x="520" y="181" width="12" height="12" fill="#3b6fb6"/>
+<text x="538" y="191" font-size="10.5" font-weight="normal" fill="#555" text-anchor="start">계산 + 그림 (화면이 가져갈 프레임)</text>
+<rect x="750" y="181" width="12" height="12" fill="#fff" stroke="#3b6fb6"/>
+<text x="768" y="191" font-size="10.5" font-weight="normal" fill="#555" text-anchor="start">계산만 (게임 진행)</text>
+<text x="520" y="231" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">왜 빨라졌나: 줄 그리기가 프레임 시간의 약 1/3 이었다.</text>
+<text x="520" y="251" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">아무도 안 볼 프레임은 게임 상태만 진행하고 그리지 않는다.</text>
+<text x="520" y="281" font-size="11" font-weight="normal" fill="#777" text-anchor="start">덤: 그리지 않는 줄에서도 160바이트를 지우던 memset 을</text>
+<text x="520" y="299" font-size="11" font-weight="normal" fill="#777" text-anchor="start">"그릴지" 판단 뒤로 옮겨 13~17% 를 더 줄였다.</text>
+<rect x="20" y="375" width="460" height="300" rx="12" fill="#fafbfd" stroke="#cfd5de"/>
+<circle cx="44" cy="401" r="13" fill="#3b6fb6"/>
+<text x="44" y="406" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">3</text>
+<text x="66" y="406" font-size="14" font-weight="bold" fill="#111" text-anchor="start">배경을 타일 단위로 그리기</text>
+<rect x="290" y="388" width="176" height="24" rx="12" fill="#eaf5ec" stroke="#9fd0a9"/>
+<text x="378" y="405" font-size="11.5" font-weight="bold" fill="#2e7d32" text-anchor="middle">bench 16.6 → 9.9ms</text>
+<text x="40" y="441" font-size="11.5" font-weight="bold" fill="#c0392b" text-anchor="start">전: 픽셀마다 타일 경계 확인 → 두 비트 합치기 → 팔레트 조회</text>
+<rect x="40" y="455" width="44" height="22" fill="#f5c6c0"/>
+<text x="62" y="470" font-size="9.5" font-weight="normal" fill="#7a2a20" text-anchor="middle">3단계</text>
+<rect x="90" y="455" width="44" height="22" fill="#f5c6c0"/>
+<text x="112" y="470" font-size="9.5" font-weight="normal" fill="#7a2a20" text-anchor="middle">3단계</text>
+<rect x="140" y="455" width="44" height="22" fill="#f5c6c0"/>
+<text x="162" y="470" font-size="9.5" font-weight="normal" fill="#7a2a20" text-anchor="middle">3단계</text>
+<rect x="190" y="455" width="44" height="22" fill="#f5c6c0"/>
+<text x="212" y="470" font-size="9.5" font-weight="normal" fill="#7a2a20" text-anchor="middle">3단계</text>
+<rect x="240" y="455" width="44" height="22" fill="#f5c6c0"/>
+<text x="262" y="470" font-size="9.5" font-weight="normal" fill="#7a2a20" text-anchor="middle">3단계</text>
+<rect x="290" y="455" width="44" height="22" fill="#f5c6c0"/>
+<text x="312" y="470" font-size="9.5" font-weight="normal" fill="#7a2a20" text-anchor="middle">3단계</text>
+<rect x="340" y="455" width="44" height="22" fill="#f5c6c0"/>
+<text x="362" y="470" font-size="9.5" font-weight="normal" fill="#7a2a20" text-anchor="middle">3단계</text>
+<rect x="390" y="455" width="44" height="22" fill="#f5c6c0"/>
+<text x="412" y="470" font-size="9.5" font-weight="normal" fill="#7a2a20" text-anchor="middle">3단계</text>
+<text x="40" y="495" font-size="10.5" font-weight="normal" fill="#555" text-anchor="start">↑ 한 타일 8픽셀 = 24번 작업</text>
+<text x="40" y="523" font-size="11.5" font-weight="bold" fill="#3b6fb6" text-anchor="start">후: 팔레트를 미리 적용한 "4픽셀 표"를 두 번 조회</text>
+<rect x="40" y="535" width="196" height="22" fill="#3b6fb6"/>
+<text x="138" y="550" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">표 조회 1번 = 4픽셀</text>
+<rect x="244" y="535" width="196" height="22" fill="#3b6fb6"/>
+<text x="342" y="550" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">표 조회 1번 = 4픽셀</text>
+<text x="40" y="579" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">왜 빨라졌나: 배경은 8픽셀 타일로 되어 있다. 같은 계산을</text>
+<text x="40" y="599" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">픽셀마다 반복하지 않고 표(1KB)로 한 번에 꺼낸다.</text>
+<text x="40" y="621" font-size="11" font-weight="normal" fill="#777" text-anchor="start">표는 팔레트가 바뀔 때만 다시 만든다. 결과 화면은 같다 (확인).</text>
+<rect x="500" y="375" width="460" height="300" rx="12" fill="#fafbfd" stroke="#cfd5de"/>
+<circle cx="524" cy="401" r="13" fill="#3b6fb6"/>
+<text x="524" y="406" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">4</text>
+<text x="546" y="406" font-size="14" font-weight="bold" fill="#111" text-anchor="start">대기 루프 건너뛰기</text>
+<rect x="770" y="388" width="176" height="24" rx="12" fill="#eaf5ec" stroke="#9fd0a9"/>
+<text x="858" y="405" font-size="11.5" font-weight="bold" fill="#2e7d32" text-anchor="middle">Donkey Kong 58 → 75%</text>
+<text x="520" y="441" font-size="11.5" font-weight="bold" fill="#333" text-anchor="start">게임이 "플래그가 바뀔 때까지" 같은 몇 줄을 수만 번 돈다</text>
+<text x="530" y="471" font-size="12" font-family="Menlo, monospace" fill="#222">loop:  BIT 0,(C0A0)</text>
+<text x="530" y="489" font-size="12" font-family="Menlo, monospace" fill="#222">       JR Z, loop</text>
+<rect x="710" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="726" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="742" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="758" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="774" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="790" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="806" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="822" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="838" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="854" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="870" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="886" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="902" y="457" width="12" height="30" fill="#f5c6c0"/>
+<rect x="918" y="457" width="12" height="30" fill="#f5c6c0"/>
+<text x="710" y="503" font-size="10.5" font-weight="bold" fill="#c0392b" text-anchor="start">전: 한 바퀴씩 전부 해석</text>
+<rect x="710" y="517" width="12" height="30" fill="#f5c6c0"/>
+<line x1="728" y1="532" x2="920" y2="532" stroke="#3b6fb6" stroke-width="2.4" marker-end="url(#ah)"/>
+<text x="800" y="525" font-size="10.5" font-weight="bold" fill="#3b6fb6" text-anchor="middle">다음 이벤트까지 점프</text>
+<text x="710" y="563" font-size="10.5" font-weight="bold" fill="#3b6fb6" text-anchor="start">후: 한 바퀴 확인 뒤 나머지 시간을 한 번에</text>
+<text x="520" y="593" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">왜 빨라졌나: 읽기·비교만 하는 루프는 타이머·인터럽트가</text>
+<text x="520" y="613" font-size="11.5" font-weight="normal" fill="#333" text-anchor="start">오기 전까지 결과가 같다. 그 시간만큼 사이클을 바로 더한다.</text>
+<text x="520" y="635" font-size="11" font-weight="normal" fill="#777" text-anchor="start">소리 데이터 체크섬이 켜고 끌 때 같아 결과가 같음을 확인.</text>
+</svg>

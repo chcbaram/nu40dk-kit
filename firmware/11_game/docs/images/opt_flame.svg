@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="330" viewBox="0 0 980 330" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="330" fill="#ffffff"/>
+<text x="490.0" y="30" font-size="16" font-weight="bold" fill="#111" text-anchor="middle">CPU 시간은 어디에 쓰이나: 플레임 그래프 (gb prof, 1-1 걷기 + 22kHz 사운드, 최적화 후)</text>
+<rect x="30.0" y="60" width="918.0" height="40" rx="3" fill="#d9dee6" stroke="#ffffff"/>
+<text x="490.0" y="85" font-size="11.5" font-weight="bold" fill="#222" text-anchor="middle">전체 CPU 시간 100%</text>
+<rect x="30.0" y="104" width="494.8" height="40" rx="3" fill="#e0a526" stroke="#ffffff"/>
+<text x="278.4" y="129" font-size="11.5" font-weight="bold" fill="#222" text-anchor="middle">gb_emu 에뮬레이터 약 54%</text>
+<rect x="526.8" y="104" width="71.6" height="40" rx="3" fill="#5aa06a" stroke="#ffffff"/>
+<text x="563.5999999999999" y="129" font-size="11.5" font-weight="bold" fill="#fff" text-anchor="middle">사운드 8%</text>
+<rect x="600.4" y="104" width="44.0" height="40" rx="3" fill="#a3acb9" stroke="#ffffff"/>
+<text x="623.4" y="158" font-size="10" font-weight="bold" fill="#8a6d1f" text-anchor="middle">커널 5%</text>
+<rect x="646.4" y="104" width="145.2" height="40" rx="3" fill="#c3cad5" stroke="#ffffff"/>
+<text x="720.0" y="129" font-size="11.5" font-weight="bold" fill="#222" text-anchor="middle">기타 16% (BT·화면·I2S)</text>
+<rect x="793.6" y="104" width="154.4" height="40" rx="3" fill="#eef1f5" stroke="#ffffff"/>
+<text x="871.8" y="129" font-size="11.5" font-weight="bold" fill="#2e7d32" text-anchor="middle">유휴 17%</text>
+<rect x="30.0" y="148" width="228.0" height="40" rx="3" fill="#f0b94c" stroke="#ffffff"/>
+<text x="145.0" y="173" font-size="11.5" font-weight="bold" fill="#222" text-anchor="middle">CPU 명령 해석 25%</text>
+<rect x="260.0" y="148" width="154.4" height="40" rx="3" fill="#f3c86b" stroke="#ffffff"/>
+<text x="338.2" y="173" font-size="11.5" font-weight="bold" fill="#222" text-anchor="middle">메모리 읽기·쓰기 17%</text>
+<rect x="416.4" y="148" width="71.6" height="40" rx="3" fill="#f6d68e" stroke="#ffffff"/>
+<text x="453.2" y="173" font-size="11.5" font-weight="bold" fill="#222" text-anchor="middle">타이밍 8%</text>
+<rect x="490.0" y="148" width="34.8" height="40" rx="3" fill="#f9e3b1" stroke="#ffffff"/>
+<text x="508.4" y="202" font-size="10" font-weight="bold" fill="#8a6d1f" text-anchor="middle">그리기 4%</text>
+<text x="30" y="210" font-size="11" font-weight="normal" fill="#555" text-anchor="start">폭 = 시간 비율. 아래 줄은 위 칸을 나눈 것 (호출 관계). 넓은 칸이 다음 최적화 대상이다.</text>
+<rect x="20" y="232" width="940" height="86" rx="10" fill="#f7f9fc" stroke="#d5dae1"/>
+<text x="36" y="256" font-size="11.2" font-weight="normal" fill="#333" text-anchor="start">· 최적화 전에는 "타이밍 확인"이 명령 해석보다 3.5배 무거웠고, 그리지 않는 줄의 memset 이 13~17% 를 먹었다 → 2번 최적화와 1번의 덤.</text>
+<text x="36" y="276" font-size="11.2" font-weight="normal" fill="#333" text-anchor="start">· 지금 가장 넓은 칸은 명령 해석(25%)과 메모리 접근(17%) = GB CPU 자체. 다음 후보는 레지스터 개별 변수화, 플래그 늦게 계산 (8절).</text>
+<text x="36" y="296" font-size="11.2" font-weight="normal" fill="#333" text-anchor="start">· 유휴 17% 가 남아 사운드 22kHz 와 화면 처리를 같이 돌려도 60fps 를 지킨다.</text>
+</svg>

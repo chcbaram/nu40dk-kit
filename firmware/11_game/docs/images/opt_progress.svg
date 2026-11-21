@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="420" viewBox="0 0 980 420" font-family="Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR, sans-serif">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1.5 L11,6 L1,10.5 L3.5,6 z" fill="#5b6b7f"/></marker><filter id="sh" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.12"/></filter></defs>
+<rect width="980" height="420" fill="#ffffff"/>
+<text x="490.0" y="32" font-size="17" font-weight="bold" fill="#111" text-anchor="middle">에뮬레이터 프레임 시간 (Super Mario Land 1-1 걷기, nRF52840 64MHz)</text>
+<text x="318" y="94" font-size="12" font-weight="normal" fill="#222" text-anchor="end">시작</text>
+<rect x="330" y="78" width="431" height="26" rx="4" fill="#c9d3e0"/>
+<rect x="761" y="78" width="108" height="26" rx="4" fill="#dfe5ee" stroke="#c9d3e0" stroke-dasharray="3,2"/>
+<text x="860.4615384615385" y="96" font-size="12" font-weight="bold" fill="#3d4a5c" text-anchor="end">20~25ms · 61~71%</text>
+<text x="318" y="146" font-size="12" font-weight="normal" fill="#222" text-anchor="end">① 안 그리는 줄 memset 제거 등</text>
+<rect x="330" y="130" width="416" height="26" rx="4" fill="#7f9bc4"/>
+<text x="737.6923076923076" y="148" font-size="12" font-weight="bold" fill="#fff" text-anchor="end">≈19.3ms · 85~88%</text>
+<text x="318" y="198" font-size="12" font-weight="bold" fill="#222" text-anchor="end">② 타이밍 일괄 처리</text>
+<rect x="330" y="182" width="334" height="26" rx="4" fill="#3b6fb6"/>
+<text x="655.8461538461538" y="200" font-size="12" font-weight="bold" fill="#fff" text-anchor="end">15.5ms · 98%</text>
+<text x="318" y="250" font-size="12" font-weight="bold" fill="#222" text-anchor="end">③ 배경 타일 단위 그리기</text>
+<rect x="330" y="234" width="291" height="26" rx="4" fill="#3b6fb6"/>
+<text x="612.7692307692307" y="252" font-size="12" font-weight="bold" fill="#fff" text-anchor="end">13.5ms · 100%</text>
+<text x="318" y="302" font-size="12" font-weight="normal" fill="#222" text-anchor="end">④ 기타 (명령 가져오기 등)</text>
+<rect x="330" y="286" width="266" height="26" rx="4" fill="#3b6fb6"/>
+<text x="588.0" y="304" font-size="12" font-weight="bold" fill="#fff" text-anchor="end">12.35ms · 100% + 여유</text>
+<line x1="690" y1="64" x2="690" y2="334" stroke="#c0392b" stroke-width="2" stroke-dasharray="6,4"/>
+<text x="689.6923076923076" y="58" font-size="11.5" font-weight="bold" fill="#c0392b" text-anchor="middle">한 프레임 예산 16.7ms (60fps)</text>
+<text x="330.0" y="350" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">0</text>
+<text x="437.6923076923077" y="350" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">5</text>
+<text x="545.3846153846154" y="350" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">10</text>
+<text x="653.0769230769231" y="350" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">15</text>
+<text x="760.7692307692307" y="350" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">20</text>
+<text x="868.4615384615385" y="350" font-size="10" font-weight="normal" fill="#888" text-anchor="middle">25</text>
+<text x="610.0" y="368" font-size="11" font-weight="normal" fill="#777" text-anchor="middle">ms / GB 프레임</text>
+<text x="490.0" y="402" font-size="11" font-weight="normal" fill="#555" text-anchor="middle">① 은 속도(%)에서 환산한 값. 사운드 합성도 프레임당 2.6 → 1.5ms 로 줄여 예산 안에서 22kHz 사운드까지 같이 돈다</text>
+</svg>
