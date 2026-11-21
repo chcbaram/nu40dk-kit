@@ -411,74 +411,101 @@ static void drawPortrait(int16_t px, int16_t py, int p)
   }
 }
 
-// 대화 상자 (지도 아래쪽). lines 는 NULL 로 끝나고, "" 는 쪽 넘김.
-// portrait >= 0 이면 왼쪽에 초상화
+// 대화창 (대화 한 번 = 창 한 번)
+//   NPC 와 이야기하는 동안 같은 크기의 창을 한 번만 열고, 쪽 넘김·화자 바뀜·문답·대답은 모두
+//   같은 창 안에서 "비우기 → 그리기" 로 바꾼다. 대화가 끝나면 짧은 깜빡임 갱신으로 지도로 돌아간다.
+//   (예전에는 덩어리마다 창을 닫고 크기가 다른 창을 다시 열어, 지울 때 남은 흔적이 쌓여 겹쳐 보였다)
+#define BOX_X   8
+#define BOX_Y   132
+#define BOX_W   384
+#define BOX_H   120
+
+static bool conv_open = false;
+
+// 지도 + 빈 창 (화자·글자 없음)
+static void drawConvFrame(void)
+{
+  drawMap();
+  api->fillRect(BOX_X, BOX_Y, BOX_W, BOX_H, APP_WHITE);
+  api->drawRect(BOX_X, BOX_Y, BOX_W, BOX_H, APP_BLACK);
+  api->drawRect(BOX_X + 2, BOX_Y + 2, BOX_W - 4, BOX_H - 4, APP_BLACK);
+}
+
+// 초상화 (창 왼쪽 위에 걸침) 와 이름표 (창 위 테두리 탭)
+static void drawSpeaker(const char *who, int portrait)
+{
+  int16_t nx = BOX_X;
+
+  if (portrait >= 0)
+  {
+    const int16_t px = BOX_X + 4, py = BOX_Y - 64 - 2;
+    api->fillRect(px - 4, py - 4, 72, 72, APP_WHITE);
+    api->drawRect(px - 4, py - 4, 72, 72, APP_BLACK);
+    api->drawRect(px - 2, py - 2, 68, 68, APP_BLACK);
+    drawPortrait(px, py, portrait);
+    nx = px - 4 + 72 - 2;
+  }
+  if (who != NULL)
+  {
+    int16_t w = api->strWidth(who) + 16;
+    api->fillRect(nx, BOX_Y - 20, w, 22, APP_BLACK);
+    api->print(nx + 8, BOX_Y - 18, APP_WHITE, "%s", who);
+  }
+}
+
+// 창 열기: 지도 → 빈 창을 두 번 구동. 이미 열려 있으면 빈 창으로 비우기만 (이전 글자·화자 지우기)
+static void convClear(void)
+{
+  if (!conv_open)
+  {
+    finishDirty();              // 걸은 자리부터 마무리
+    drawMap();
+    sceneSnap();
+    drawConvFrame();
+    transition();
+    conv_open = true;
+    return;
+  }
+  drawConvFrame();
+  show(APP_REFRESH_FAST);
+}
+
+// 창 닫기: 짧은 깜빡임 갱신으로 지도
+static void convClose(void)
+{
+  if (!conv_open) return;
+  api->voiceStop();
+  dirtyClear();
+  drawMap();
+  show(APP_REFRESH_FLASH);
+  conv_open = false;
+}
+
+// 대화 한 덩어리. lines 는 NULL 로 끝나고, "" 는 쪽 넘김 (한 쪽 최대 3 줄). portrait >= 0 이면 초상화
 static void dialogP(const char *who, int portrait, const char *const *lines)
 {
-  finishDirty();              // 대화창을 그리기 전에 걸은 자리부터 마무리
-  drawMap();
-  sceneSnap();                // 첫 쪽은 지도 → 대화창을 두 번 구동 (한 번이면 상자 안에 지도가 비쳤다)
-  // 대화창: 아래쪽 3 줄. 초상화는 창 왼쪽 위에 걸쳐 올리고, 이름표는 그 옆 창 테두리에 붙인다.
-  const int16_t bx = 8, by = 172, bw = 384, bh = 80;
   int i = 0;
 
   while (lines[i] != NULL)
   {
-    drawMap();
-    api->fillRect(bx, by, bw, bh, APP_WHITE);
-    api->drawRect(bx, by, bw, bh, APP_BLACK);
-    api->drawRect(bx + 2, by + 2, bw - 4, bh - 4, APP_BLACK);
+    convClear();
+    drawConvFrame();
+    drawSpeaker(who, portrait);
 
-    int16_t nx = bx;                         // 이름표 x (얼굴이 있으면 얼굴 박스 오른쪽에 붙임)
-    if (portrait >= 0)
-    {
-      // 64x64 초상화 + 흰 여백 + 두 줄 테두리, 아래 가장자리가 창 테두리와 겹친다
-      const int16_t px = bx + 4, py = by - 64 - 2;     // 바깥 테두리를 창 왼쪽에 맞춤
-      api->fillRect(px - 4, py - 4, 72, 72, APP_WHITE);
-      api->drawRect(px - 4, py - 4, 72, 72, APP_BLACK);
-      api->drawRect(px - 2, py - 2, 68, 68, APP_BLACK);
-      drawPortrait(px, py, portrait);
-      nx = px - 4 + 72 - 2;                  // 얼굴 박스 오른쪽 테두리와 겹치게
-    }
-    if (who != NULL)
-    {
-      // 탭 모양: 아래 끝이 창 위 테두리에 붙는다
-      int16_t w = api->strWidth(who) + 16;
-      api->fillRect(nx, by - 20, w, 22, APP_BLACK);
-      api->print(nx + 8, by - 18, APP_WHITE, "%s", who);
-    }
-
-    // 두 번째 쪽부터: 글자를 비운 대화창을 먼저 보인다 (같은 자리 글자가 겹쳐 보이지 않게)
-    if (i > 0) show(APP_REFRESH_FAST);
-
-    int16_t y = by + 12;
+    int16_t y = BOX_Y + 14;
     int     page = i;
     for (int n = 0; lines[i] != NULL && lines[i][0] != 0 && n < 3; n++, i++)
     {
-      api->print(bx + 14, y, APP_BLACK, "%s", lines[i]);
-      y += 20;
+      api->print(BOX_X + 14, y, APP_BLACK, "%s", lines[i]);
+      y += 22;
     }
     if (lines[i] != NULL && lines[i][0] == 0) i++;
-    api->print(bx + bw - 20, by + bh - 22, APP_BLACK, ">");
+    api->print(BOX_X + BOX_W - 20, BOX_Y + BOX_H - 22, APP_BLACK, ">");
     voicePage(&lines[page], i - page);
-    if (page == 0) transition();
-    else           show(APP_REFRESH_FAST);
+    show(APP_REFRESH_FAST);
     waitOk();
     api->voiceStop();
   }
-  sceneSnap();                // 대화창 → 지도를 두 번 구동
-  drawMap();
-  transition();
-}
-
-static void dialog(const char *who, const char *const *lines)
-{
-  dialogP(who, -1, lines);
-}
-
-static void say(const char *const *lines)
-{
-  dialogP("바람", RPG_P_BARAM, lines);
 }
 
 /*---------------------------------------------------------------------------
@@ -640,6 +667,8 @@ static bool battle(int enemy, bool *p_run)
   char               m1[64], m2[64];
 
   *p_run = false;
+  api->voiceStop();
+  conv_open = false;          // 대화창이 열려 있어도 전투 화면 깜빡임이 지운다
   finishDirty();
   dirtyClear();
   snprintf(m1, sizeof(m1), "%s 이(가) 나타났다!", en->name);
@@ -790,34 +819,24 @@ static void showBlocks(const rpg_block_t *b, int n)
   }
 }
 
-// 문답 상자: 질문 2 줄 + 보기 3 개
+// 문답: 같은 대화창 안에 질문 2 줄 + 보기 3 개
 static void drawQuiz(const rpg_quiz_t *q, const char *who, int cur)
 {
-  const int16_t bx = 8, by = 132, bw = 384, bh = 120;
-
-  drawMap();
-  api->fillRect(bx, by, bw, bh, APP_WHITE);
-  api->drawRect(bx, by, bw, bh, APP_BLACK);
-  api->drawRect(bx + 2, by + 2, bw - 4, bh - 4, APP_BLACK);
-  if (who != NULL)
-  {
-    int16_t w = api->strWidth(who) + 16;
-    api->fillRect(bx, by - 20, w, 22, APP_BLACK);
-    api->print(bx + 8, by - 18, APP_WHITE, "%s", who);
-  }
-  int16_t y = by + 10;
-  for (int i = 0; q->q[i] != NULL; i++, y += 20) api->print(bx + 14, y, APP_BLACK, "%s", q->q[i]);
-  y = by + 56;
+  drawConvFrame();
+  drawSpeaker(who, -1);
+  int16_t y = BOX_Y + 10;
+  for (int i = 0; q->q[i] != NULL; i++, y += 20) api->print(BOX_X + 14, y, APP_BLACK, "%s", q->q[i]);
+  y = BOX_Y + 56;
   for (int i = 0; i < 3; i++, y += 20)
   {
     if (i == cur)
     {
-      api->fillRect(bx + 20, y - 1, 220, 19, APP_BLACK);
-      api->print(bx + 26, y, APP_WHITE, "%d. %s", i + 1, q->opt[i]);
+      api->fillRect(BOX_X + 20, y - 1, 220, 19, APP_BLACK);
+      api->print(BOX_X + 26, y, APP_WHITE, "%d. %s", i + 1, q->opt[i]);
     }
     else
     {
-      api->print(bx + 26, y, APP_BLACK, "%d. %s", i + 1, q->opt[i]);
+      api->print(BOX_X + 26, y, APP_BLACK, "%d. %s", i + 1, q->opt[i]);
     }
   }
 }
@@ -825,17 +844,11 @@ static void drawQuiz(const rpg_quiz_t *q, const char *who, int cur)
 static void runQuiz(const rpg_quiz_t *q, const char *who)
 {
   int  cur = 0;
-  bool ask = true;            // 질문 음성은 처음 물을 때와 틀린 뒤 다시 물을 때
+  bool ask = true;            // 처음 물을 때와 틀린 뒤 다시 물을 때: 창을 비우고 질문 음성
 
-  finishDirty();
   while (1)
   {
-    bool open = ask;          // 처음 열 때: 지도 → 문답 상자를 두 번 구동
-    if (open)
-    {
-      drawMap();
-      sceneSnap();
-    }
+    if (ask) convClear();
     drawQuiz(q, who, cur);
     if (ask)
     {
@@ -844,22 +857,17 @@ static void runQuiz(const rpg_quiz_t *q, const char *who)
       voicePage(q->q, n);
       ask = false;
     }
-    if (open) transition();
-    else      show(APP_REFRESH_FAST);
+    show(APP_REFRESH_FAST);
     app_key_t key = waitKey();
     if (key == APP_KEY_UP)   cur = (cur + 2) % 3;
     if (key == APP_KEY_DOWN) cur = (cur + 1) % 3;
     if (key == APP_KEY_OK)
     {
-      // 문답 상자(검은 선택 막대 포함)를 지도로 두 번 구동해 지운 뒤 대답 (바로 바꾸면 상자가 겹쳐 남았다)
       api->voiceStop();
-      sceneSnap();
-      drawMap();
-      transition();
       if (cur == q->ans)
       {
         api->beep(1047, 80);
-        dialogP(who, -1, q->right);
+        dialogP(who, -1, q->right);     // 같은 창에서 비우고 대답
         return;
       }
       api->beep(220, 80);
@@ -887,7 +895,7 @@ static void respawn(void)
   g.hp  = g.hp_max;
 }
 
-static void runScripts(uint8_t owner)
+static void runScriptsInner(uint8_t owner)
 {
   while (1)
   {
@@ -929,6 +937,13 @@ static void runScripts(uint8_t owner)
     if (s->end) { g.ended = true; return; }
     if (!s->chain) return;
   }
+}
+
+// 스크립트 실행이 끝나면 (어느 길로 끝나든) 대화창을 닫는다
+static void runScripts(uint8_t owner)
+{
+  runScriptsInner(owner);
+  convClose();
 }
 
 /*---------------------------------------------------------------------------
@@ -996,7 +1011,11 @@ static bool move(int dir)
       flagSet(f);
       restoreMap();
       // 장 보스: 철문이 열린다
-      if (f >= 0 && rpg_room_gate[g.room] == f) showBlocks(rpg_gate_open, RPG_GATE_OPEN_CNT);
+      if (f >= 0 && rpg_room_gate[g.room] == f)
+      {
+        showBlocks(rpg_gate_open, RPG_GATE_OPEN_CNT);
+        convClose();
+      }
     }
     else
     {
@@ -1150,6 +1169,7 @@ static void rpgMain(const app_api_t *p_api)
     if (sel == 0)
     {
       showBlocks(rpg_intro, RPG_INTRO_CNT);
+      convClose();
     }
 
     while (1)
